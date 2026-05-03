@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "out/main",
+    "baseUrl": ".",
+    "paths": {
+      "@main/*": ["electron/*"]
+    },
+    "types": ["node"]
+  },
+  "include": ["electron.vite.config.*", "electron/**/*"]
+}

@@ -1,0 +1,98 @@
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useContextMenuStore } from '@/store/contextMenu'
+
+export default function ContextMenu() {
+  const { open, x, y, items, closeMenu } = useContextMenuStore()
+  const ref = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: 0, top: 0, maxHeight: 0 })
+
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) closeMenu()
+    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') closeMenu() }
+    function onScroll() { closeMenu() }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('scroll', onScroll, true)
+    }
+  }, [open, closeMenu])
+
+  const menuW = 200
+  const viewportPad = 6
+
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const maxHeight = Math.max(80, window.innerHeight - viewportPad * 2)
+    const renderedHeight = Math.min(rect.height, maxHeight)
+    const left = Math.max(
+      viewportPad,
+      Math.min(x, window.innerWidth - menuW - viewportPad)
+    )
+    const top = Math.max(
+      viewportPad,
+      Math.min(y, window.innerHeight - renderedHeight - viewportPad)
+    )
+    setPosition({ left, top, maxHeight })
+  }, [open, x, y, items])
+
+  if (!open) return null
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-[100] rounded-xl border border-white/[0.08] shadow-2xl py-1 overflow-y-auto"
+      style={{
+        left: position.left,
+        top: position.top,
+        width: menuW,
+        maxHeight: position.maxHeight || window.innerHeight - viewportPad * 2,
+        background: 'rgba(10,20,40,0.97)',
+        backdropFilter: 'blur(16px)',
+        visibility: position.maxHeight ? 'visible' : 'hidden',
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+    >
+      {items.map((item, i) => {
+        if (item.separator) {
+          return <div key={i} className="my-1 h-px bg-white/[0.07] mx-2" />
+        }
+        return (
+          <button
+            key={i}
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) {
+                item.onClick?.()
+                closeMenu()
+              }
+            }}
+            className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[12px] text-left transition-colors ${
+              item.disabled
+                ? 'text-muted/25 cursor-default'
+                : item.danger
+                ? 'text-red-400/80 hover:text-red-300 hover:bg-red-500/10'
+                : 'text-ink-100/70 hover:text-white hover:bg-white/[0.07]'
+            }`}
+          >
+            {item.icon && (
+              <span className={`flex-shrink-0 ${item.disabled ? 'opacity-30' : 'opacity-50'}`}>
+                {item.icon}
+              </span>
+            )}
+            {item.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
