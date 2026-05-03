@@ -347,20 +347,33 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
           barPeakRef.current[i] = Math.max(maxBin / 255, barPeakRef.current[i] * 0.86)
         }
 
-        // Pass 2: sort bars by peak descending, assign screen positions center-out
-        // so dead/empty bars (lowest peak) always land at the outer edges
-        const sortedBars = Array.from({ length: BAR_COUNT }, (_, i) => i)
-          .sort((a, b) => barPeakRef.current[b] - barPeakRef.current[a])
-        const screenPos = new Uint8Array(BAR_COUNT)
-        let L = SOURCE_BARS - 1, R = SOURCE_BARS
-        for (let rank = 0; rank < BAR_COUNT; rank++) {
-          if (rank % 2 === 0) { screenPos[sortedBars[rank]] = L; L-- }
-          else                { screenPos[sortedBars[rank]] = R; R++ }
+        // Pass 2: relocate only the 3-4 quietest dead bars to the outermost edges.
+        // All other bars stay in their block-shuffled positions so the layout stays
+        // non-mirrored and Randomize has visible effect.
+        const DEAD_THRESHOLD = 0.015
+        const MAX_RELOCATE = 4
+        const renderAt = Array.from({ length: BAR_COUNT }, (_, i) => i)
+        const barAtPos = Array.from({ length: BAR_COUNT }, (_, i) => i)
+        const deadBars = Array.from({ length: BAR_COUNT }, (_, i) => i)
+          .filter(i => barPeakRef.current[i] < DEAD_THRESHOLD)
+          .sort((a, b) => barPeakRef.current[a] - barPeakRef.current[b])
+          .slice(0, MAX_RELOCATE)
+        let outerL = 0, outerR = BAR_COUNT - 1
+        for (let d = 0; d < deadBars.length; d++) {
+          const deadBar = deadBars[d]
+          const targetPos = d % 2 === 0 ? outerL++ : outerR--
+          const currentPos = renderAt[deadBar]
+          if (currentPos === targetPos) continue
+          const displaced = barAtPos[targetPos]
+          renderAt[deadBar] = targetPos
+          renderAt[displaced] = currentPos
+          barAtPos[currentPos] = displaced
+          barAtPos[targetPos] = deadBar
         }
 
         // Pass 3: draw at computed positions
         for (let i = 0; i < BAR_COUNT; i++) {
-          const x = screenPos[i] * (barW + barGapPx)
+          const x = renderAt[i] * (barW + barGapPx)
           const segCount = Math.floor(barPeakRef.current[i] * totalSegs)
 
           for (let s = 0; s < segCount; s++) {
