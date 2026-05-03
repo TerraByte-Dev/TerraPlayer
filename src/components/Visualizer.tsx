@@ -2,8 +2,19 @@ import React, { useEffect, useRef } from 'react'
 import { getAnalyser } from '@/lib/audio'
 import { usePlayerStore } from '@/store/player'
 
-const BAR_COUNT = 32
+const BAR_COUNT = 28
 const SOURCE_BARS = BAR_COUNT / 2
+const GAP = 2
+const SEG_H = 3
+const SEG_GAP = 1
+
+// Palette hex → RGB for canvas
+const COLOR = {
+  lo:   '#00FF88',
+  mid:  '#FFB000',
+  hi:   '#FF3030',
+  peak: '#00E5FF',
+}
 
 function logBinRange(barIdx: number, barCount: number, binCount: number): [number, number] {
   const logMax = Math.log2(binCount)
@@ -21,8 +32,15 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const W_CSS = canvas.clientWidth || 240
+    const H_CSS = height
+    canvas.width = W_CSS * dpr
+    canvas.height = H_CSS * dpr
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    ctx.scale(dpr, dpr)
+
     const analyser = getAnalyser()
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
     const binCount = analyser.frequencyBinCount
@@ -31,48 +49,48 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
       rafRef.current = requestAnimationFrame(draw)
       analyser.getByteFrequencyData(dataArray)
 
-      const W = canvas!.width
-      const H = canvas!.height
-      ctx!.clearRect(0, 0, W, H)
+      ctx!.clearRect(0, 0, W_CSS, H_CSS)
 
-      const totalGap = (BAR_COUNT - 1) * 1
-      const barW = (W - totalGap) / BAR_COUNT
-
-      const grad = ctx!.createLinearGradient(0, H, 0, 0)
-      grad.addColorStop(0, 'rgba(127,233,208,0.9)')
-      grad.addColorStop(1, 'rgba(108,197,255,0.6)')
+      const totalGap = (BAR_COUNT - 1) * GAP
+      const barW = (W_CSS - totalGap) / BAR_COUNT
 
       for (let i = 0; i < BAR_COUNT; i++) {
         const sourceIdx = i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS
         const [lo, hi] = logBinRange(sourceIdx, SOURCE_BARS, binCount)
-        let max = 0
-        for (let b = lo; b < hi; b++) max = Math.max(max, dataArray[b])
-        const val = max / 255
+        let maxBin = 0
+        for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, dataArray[b])
+        const val = maxBin / 255
 
-        // Peak fall-off
-        const prev = peakRef.current[i]
-        peakRef.current[i] = Math.max(val, prev * 0.84)
-        const barH = Math.max(1, peakRef.current[i] * H * 0.92)
+        peakRef.current[i] = Math.max(val, peakRef.current[i] * 0.94)
+        const barH = Math.max(2, peakRef.current[i] * H_CSS)
+        const x = i * (barW + GAP)
 
-        const x = i * (barW + 1)
-        const y = H - barH
-        ctx!.fillStyle = grad
-        ctx!.beginPath()
-        ctx!.roundRect(x, y, barW, barH, 1)
-        ctx!.fill()
+        const totalSegs = Math.floor(H_CSS / (SEG_H + SEG_GAP))
+        const segCount = Math.floor(barH / (SEG_H + SEG_GAP))
+
+        for (let s = 0; s < segCount; s++) {
+          const sy = H_CSS - (s + 1) * (SEG_H + SEG_GAP)
+          const ratio = (s + 1) / totalSegs
+          ctx!.fillStyle = ratio < 0.55 ? COLOR.lo : ratio < 0.8 ? COLOR.mid : COLOR.hi
+          ctx!.fillRect(x, sy, barW, SEG_H)
+        }
+
+        // Peak indicator (1px line 2px above bar top)
+        const py = H_CSS - peakRef.current[i] * H_CSS - 2
+        ctx!.fillStyle = COLOR.peak
+        ctx!.fillRect(x, py, barW, 1)
       }
     }
 
     draw()
     return () => cancelAnimationFrame(rafRef.current)
-  }, [])
+  }, [height])
 
   return (
     <canvas
       ref={canvasRef}
-      width={120}
-      height={height}
-      className={`rounded transition-opacity duration-700 ${isPlaying ? 'opacity-90' : 'opacity-15'}`}
+      style={{ width: '100%', height, display: 'block' }}
+      className={`transition-opacity duration-700 ${isPlaying ? 'opacity-90' : 'opacity-15'}`}
     />
   )
 }

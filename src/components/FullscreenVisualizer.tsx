@@ -1,17 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, ListMusic, Music, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
 import { getAnalyser } from '@/lib/audio'
 import { usePlayerStore } from '@/store/player'
 import { fmtDuration } from '@/lib/ipc'
 import type { PlaybackSnapshot, QueueSnapshotTrack, VisualizerCommand } from '@/lib/ipc'
-import placeholderCover from '@/assets/y2k-note-placeholder.png'
+import VectorGridCover from './VectorGridCover'
 
-interface Bubble {
-  x: number; y: number; r: number
-  vy: number; vx: number
-  hue: number; alpha: number
-  isLime: boolean
-}
+interface Bubble { x: number; y: number; r: number; vy: number; vx: number; alpha: number }
 
 interface Props {
   source?: 'analyser' | 'ipc'
@@ -21,8 +16,29 @@ interface Props {
 const BAR_COUNT = 64
 const SOURCE_BARS = BAR_COUNT / 2
 const RING_TICKS = 96
+const SEG_H = 4
+const SEG_GAP = 1
+const BAR_GAP = 2
 
-type ColorPreset = 'aqua' | 'violet' | 'lime'
+const SEG_COLORS = { peak: '#00E5FF' }
+
+function segColor(ratio: number): string {
+  if (ratio < 0.20) return '#004D29'
+  if (ratio < 0.38) return '#00AA55'
+  if (ratio < 0.55) return '#00FF88'
+  if (ratio < 0.65) return '#88FF44'
+  if (ratio < 0.75) return '#FFB000'
+  if (ratio < 0.85) return '#FF7700'
+  return '#FF3030'
+}
+
+function ringTickColor(val: number, alpha: number): string {
+  if (val < 0.45) return `rgba(0,255,136,${alpha})`
+  if (val < 0.70) return `rgba(255,176,0,${alpha})`
+  return `rgba(255,48,48,${alpha})`
+}
+
+type ColorPreset = 'phosphor' | 'cyan' | 'amber'
 
 interface VizSettings {
   bars: boolean
@@ -33,10 +49,10 @@ interface VizSettings {
   intensity: number
 }
 
-const COLOR_PRESETS: Record<ColorPreset, { base: number; accent: number; name: string }> = {
-  aqua: { base: 185, accent: 205, name: 'Aqua' },
-  violet: { base: 265, accent: 315, name: 'Violet' },
-  lime: { base: 115, accent: 185, name: 'Lime' },
+const COLOR_PRESETS: Record<ColorPreset, { glowRgb: string; ringHue: number; name: string }> = {
+  phosphor: { glowRgb: '0,255,136',   ringHue: 150, name: 'Phosphor' },
+  cyan:     { glowRgb: '0,229,255',   ringHue: 185, name: 'Cyan' },
+  amber:    { glowRgb: '255,176,0',   ringHue: 42,  name: 'Amber' },
 }
 
 const EMPTY_QUEUE = { nowPlaying: null, upNext: [], comingUp: [] }
@@ -59,22 +75,12 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
   const ringRadiusRef = useRef<number>(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<VizSettings>({
-    bars: true,
-    ring: true,
-    bubbles: true,
-    atmosphere: true,
-    colors: 'aqua',
-    intensity: 1,
+    bars: true, ring: true, bubbles: true, atmosphere: true,
+    colors: 'phosphor', intensity: 1,
   })
   const [ipcPlayback, setIpcPlayback] = useState<PlaybackSnapshot>({
-    isPlaying: false,
-    title: '',
-    artist: '',
-    coverDataUrl: null,
-    currentTime: 0,
-    duration: 0,
-    volume: 0.8,
-    queue: EMPTY_QUEUE,
+    isPlaying: false, title: '', artist: '', coverDataUrl: null,
+    currentTime: 0, duration: 0, volume: 0.8, queue: EMPTY_QUEUE,
   })
   const currentTrack = usePlayerStore((s) => s.currentTrack())
   const localPlaying = usePlayerStore((s) => s.isPlaying)
@@ -85,11 +91,8 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
   const localQueueIndex = usePlayerStore((s) => s.queueIndex)
   const localActiveQueue = usePlayerStore((s) => s.activeQueue())
   const toQueueTrack = (item: typeof localActiveQueue[number]): QueueSnapshotTrack => ({
-    id: item.id,
-    title: item.title,
-    artist: item.artist,
-    duration: item.duration,
-    coverDataUrl: item.coverDataUrl,
+    id: item.id, title: item.title, artist: item.artist,
+    duration: item.duration, coverDataUrl: item.coverDataUrl,
   })
 
   const playback: PlaybackSnapshot = source === 'ipc'
@@ -139,10 +142,11 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const dpr = window.devicePixelRatio || 1
 
     function resize() {
-      canvas!.width = window.innerWidth * devicePixelRatio
-      canvas!.height = window.innerHeight * devicePixelRatio
+      canvas!.width = window.innerWidth * dpr
+      canvas!.height = window.innerHeight * dpr
       canvas!.style.width = window.innerWidth + 'px'
       canvas!.style.height = window.innerHeight + 'px'
     }
@@ -150,7 +154,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     window.addEventListener('resize', resize)
 
     let bgFrame = 0
-    let bgOffset = 0
+
     function getData(): Uint8Array {
       if (source === 'ipc') return ipcFrameRef.current
       const a = getAnalyser()
@@ -159,16 +163,14 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       return buf
     }
 
-    function spawnBubble(W: number, H: number, bass: number, isLime: boolean) {
+    function spawnBubble(W: number, H: number, bass: number) {
       bubblesRef.current.push({
         x: Math.random() * W,
-        y: H + 20,
-        r: isLime ? 3 + Math.random() * 4 : 4 + Math.random() * 16,
-        vy: -(0.3 + Math.random() * 0.6 + bass * 1.8),
-        vx: (Math.random() - 0.5) * 0.3,
-        hue: isLime ? 115 + Math.random() * 45 : 185 + Math.random() * 30,
-        alpha: 0.18 + Math.random() * 0.28,
-        isLime,
+        y: H + 10 * dpr,
+        r: (2 + Math.random() * 3) * dpr,
+        vy: -(0.3 + Math.random() * 0.6 + bass * 1.8) * dpr,
+        vx: (Math.random() - 0.5) * 0.3 * dpr,
+        alpha: 0.5 + Math.random() * 0.4,
       })
     }
 
@@ -178,6 +180,8 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       const H = canvas!.height
       const data = getData()
       const binCount = data.length
+      const preset = COLOR_PRESETS[settings.colors]
+      const visualPower = 0.08 + settings.intensity * 1.02
 
       const avg = data.reduce((a, b) => a + b, 0) / data.length / 255
       const bass = Array.from(data.slice(0, 8)).reduce((a, b) => a + b, 0) / (8 * 255)
@@ -188,205 +192,157 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       rollingPeakRef.current.shift()
       const rollingAvg = rollingPeakRef.current.reduce((a, b) => a + b, 0) / rollingPeakRef.current.length
       const isTransient = peak > rollingAvg * 1.3 && peak > 0.4
-      const visualPower = 0.08 + settings.intensity * 1.02
-
-      // === LAYER 1: Background ===
-      ctx!.fillStyle = '#061224'
-      ctx!.fillRect(0, 0, W, H)
 
       bgFrame++
-      if (bgFrame % 3 === 0) bgOffset += 0.0006
+
+      // === LAYER 1: Background + vector grid ===
+      ctx!.fillStyle = '#000000'
+      ctx!.fillRect(0, 0, W, H)
+      const gridSize = 32 * dpr
+      ctx!.strokeStyle = 'rgba(0,255,136,0.04)'
+      ctx!.lineWidth = 0.5
+      for (let x = 0; x <= W; x += gridSize) {
+        ctx!.beginPath(); ctx!.moveTo(x, 0); ctx!.lineTo(x, H); ctx!.stroke()
+      }
+      for (let y = 0; y <= H; y += gridSize) {
+        ctx!.beginPath(); ctx!.moveTo(0, y); ctx!.lineTo(W, y); ctx!.stroke()
+      }
+
+      const horizonY = H * 0.72
+
+      // === LAYER 2: Atmosphere ===
       if (settings.atmosphere) {
-        const glowX = W * (0.5 + Math.sin(bgOffset) * 0.12)
-        const skyGrad = ctx!.createRadialGradient(glowX, 0, 0, W / 2, H * 0.1, H * 0.75)
-        skyGrad.addColorStop(0, `rgba(108,197,255,${(0.02 + avg * 0.08) * visualPower})`)
-        skyGrad.addColorStop(0.6, `rgba(127,233,208,${(0.01 + avg * 0.035) * visualPower})`)
-        skyGrad.addColorStop(1, 'rgba(6,18,36,0)')
-        ctx!.fillStyle = skyGrad
+        const glowGrad = ctx!.createRadialGradient(W * 0.5, H * 0.35, 0, W * 0.5, H * 0.35, Math.min(W, H) * 0.52)
+        glowGrad.addColorStop(0, `rgba(${preset.glowRgb},${(0.025 + avg * 0.07) * visualPower})`)
+        glowGrad.addColorStop(0.5, `rgba(0,229,255,${(0.01 + avg * 0.025) * visualPower})`)
+        glowGrad.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx!.fillStyle = glowGrad
         ctx!.fillRect(0, 0, W, H)
 
-        ctx!.strokeStyle = `rgba(127,233,208,${(0.01 + avg * 0.04) * visualPower})`
-        ctx!.lineWidth = 1
-        for (let x = 0; x < W; x += W / 18) {
-          ctx!.beginPath()
-          ctx!.moveTo(x, H * 0.55)
-          ctx!.lineTo(W * 0.5 + (x - W * 0.5) * 1.7, H)
-          ctx!.stroke()
+        if (bass > 0.08) {
+          const bAlpha = (bass - 0.08) * 0.55 * visualPower
+          const horizGrad = ctx!.createLinearGradient(0, horizonY, W, horizonY)
+          horizGrad.addColorStop(0, `rgba(${preset.glowRgb},0)`)
+          horizGrad.addColorStop(0.5, `rgba(${preset.glowRgb},${bAlpha})`)
+          horizGrad.addColorStop(1, `rgba(${preset.glowRgb},0)`)
+          ctx!.strokeStyle = horizGrad
+          ctx!.lineWidth = 1
+          ctx!.beginPath(); ctx!.moveTo(0, horizonY); ctx!.lineTo(W, horizonY); ctx!.stroke()
+        }
+
+        if (isTransient) {
+          const scanY = H * (0.1 + Math.random() * 0.8)
+          ctx!.strokeStyle = `rgba(${preset.glowRgb},${0.06 * peak})`
+          ctx!.lineWidth = dpr
+          ctx!.beginPath(); ctx!.moveTo(0, scanY); ctx!.lineTo(W, scanY); ctx!.stroke()
         }
       }
 
-      // === LAYER 2: Bubbles (reactive, ambient density) ===
-      const spawnChance = (0.004 + avg * 0.045 + bass * 0.07 + (isTransient ? peak * 0.06 : 0)) * visualPower
-      if (settings.bubbles && Math.random() < spawnChance) spawnBubble(W, H, bass, false)
-      if (settings.bubbles && Math.random() < treble * 0.08 * visualPower) spawnBubble(W, H, bass, true)
+      // === LAYER 3: Bubbles (phosphor particles) ===
+      const spawnChance = (0.003 + avg * 0.04 + bass * 0.06 + (isTransient ? peak * 0.05 : 0)) * visualPower
+      if (settings.bubbles && Math.random() < spawnChance) spawnBubble(W, H, bass)
 
       bubblesRef.current = bubblesRef.current.filter((b) => {
         b.y += b.vy * (1 + bass * 0.5)
         b.x += b.vx
-        b.alpha -= 0.0012
-        return b.y > -b.r * 3 && b.alpha > 0.005
+        b.alpha -= 0.007
+        return b.y > -b.r * 3 && b.alpha > 0.01
       })
 
       if (settings.bubbles) for (const b of bubblesRef.current) {
-        const s = b.isLime ? 82 : 68
-        const l = b.isLime ? 66 : 78
-        const pulseR = b.r * (1 + (isTransient ? peak * 0.15 : 0))
-
-        const glowGrad = ctx!.createRadialGradient(b.x, b.y, 0, b.x, b.y, pulseR * 2.8)
-        glowGrad.addColorStop(0, `hsla(${b.hue},${s}%,${l}%,${b.alpha * 0.22})`)
-        glowGrad.addColorStop(1, `hsla(${b.hue},${s}%,${l}%,0)`)
-        ctx!.beginPath()
-        ctx!.arc(b.x, b.y, pulseR * 2.8, 0, Math.PI * 2)
-        ctx!.fillStyle = glowGrad
-        ctx!.fill()
-
-        const rx = b.x - pulseR * 0.28
-        const ry = b.y - pulseR * 0.28
-        const bodyGrad = ctx!.createRadialGradient(rx, ry, pulseR * 0.08, b.x, b.y, pulseR)
-        bodyGrad.addColorStop(0, `hsla(${b.hue + 65},95%,96%,${b.alpha * 0.9})`)
-        bodyGrad.addColorStop(0.28, `hsla(${b.hue + 145},92%,76%,${b.alpha * 0.45})`)
-        bodyGrad.addColorStop(0.55, `hsla(${b.hue},${s}%,${l}%,${b.alpha * 0.34})`)
-        bodyGrad.addColorStop(0.78, `hsla(${b.hue + 250},90%,78%,${b.alpha * 0.28})`)
-        bodyGrad.addColorStop(1, `hsla(${b.hue + 20},${s - 10}%,${l - 12}%,${b.alpha * 0.16})`)
-        ctx!.beginPath()
-        ctx!.arc(b.x, b.y, pulseR, 0, Math.PI * 2)
-        ctx!.fillStyle = bodyGrad
-        ctx!.fill()
-
-        ctx!.beginPath()
-        ctx!.arc(b.x, b.y, pulseR * 0.86, 0, Math.PI * 2)
-        ctx!.strokeStyle = `hsla(${(b.hue + bgFrame * 0.8) % 360},95%,82%,${b.alpha * 0.46})`
-        ctx!.lineWidth = Math.max(0.7, pulseR * 0.08)
-        ctx!.stroke()
-
-        ctx!.beginPath()
-        ctx!.arc(b.x - pulseR * 0.22, b.y - pulseR * 0.22, pulseR * 0.52, 0.75, 2.2)
-        ctx!.strokeStyle = `rgba(255,255,255,${b.alpha * 0.55})`
-        ctx!.lineWidth = Math.max(0.5, pulseR * 0.11)
-        ctx!.stroke()
+        const glow = ctx!.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 4)
+        glow.addColorStop(0, `rgba(${preset.glowRgb},${b.alpha * 0.5})`)
+        glow.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx!.fillStyle = glow
+        ctx!.beginPath(); ctx!.arc(b.x, b.y, b.r * 4, 0, Math.PI * 2); ctx!.fill()
+        ctx!.fillStyle = `rgba(${preset.glowRgb},${b.alpha})`
+        ctx!.fillRect(b.x - b.r * 0.5, b.y - b.r * 0.5, b.r, b.r)
       }
 
-      // Lens flare on transients
-      if (settings.atmosphere && isTransient) {
-        const fx = W * (0.25 + Math.random() * 0.5)
-        const fy = H * (0.15 + Math.random() * 0.35)
-        const flare = ctx!.createRadialGradient(fx, fy, 0, fx, fy, W * 0.18)
-        flare.addColorStop(0, 'rgba(255,255,255,0.12)')
-        flare.addColorStop(0.35, 'rgba(108,197,255,0.06)')
-        flare.addColorStop(1, 'rgba(6,18,36,0)')
-        ctx!.fillStyle = flare
-        ctx!.fillRect(0, 0, W, H)
+      // === LAYER 4: Spectrum bars (segmented LED) ===
+      if (settings.bars) {
+        const segH = SEG_H * dpr
+        const segGap = SEG_GAP * dpr
+        const barGapPx = BAR_GAP * dpr
+        const totalGap = (BAR_COUNT - 1) * barGapPx
+        const barW = (W - totalGap) / BAR_COUNT
+        const maxH = horizonY * 0.88 * visualPower
+        const totalSegs = Math.floor(maxH / (segH + segGap))
+
+        for (let i = 0; i < BAR_COUNT; i++) {
+          const sourceIdx = i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS
+          const [lo, hi] = logBinRange(sourceIdx, SOURCE_BARS, binCount)
+          let maxBin = 0
+          for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
+          const val = maxBin / 255
+
+          barPeakRef.current[i] = Math.max(val, barPeakRef.current[i] * 0.86)
+          const x = i * (barW + barGapPx)
+          const segCount = Math.floor(barPeakRef.current[i] * totalSegs)
+
+          for (let s = 0; s < segCount; s++) {
+            const sy = horizonY - (s + 1) * (segH + segGap)
+            if (sy < 0) break
+            const ratio = (s + 1) / totalSegs
+            ctx!.fillStyle = segColor(ratio)
+            ctx!.fillRect(x, sy, barW, segH)
+          }
+
+          if (segCount > 0) {
+            const py = horizonY - segCount * (segH + segGap) - segGap
+            if (py >= 0) {
+              ctx!.fillStyle = SEG_COLORS.peak
+              ctx!.fillRect(x, py, barW, Math.max(1, dpr))
+            }
+          }
+        }
       }
 
-      const horizonY = H * 0.74
-
-      // Bass-reactive horizon line
-      if (settings.atmosphere && settings.bars && bass > 0.10) {
-        const alpha = (bass - 0.10) * 0.6
-        const lineGrad = ctx!.createLinearGradient(0, horizonY, W, horizonY)
-        lineGrad.addColorStop(0, 'rgba(127,233,208,0)')
-        lineGrad.addColorStop(0.5, `rgba(127,233,208,${alpha})`)
-        lineGrad.addColorStop(1, 'rgba(127,233,208,0)')
-        ctx!.strokeStyle = lineGrad
-        ctx!.lineWidth = 1
-        ctx!.beginPath()
-        ctx!.moveTo(0, horizonY)
-        ctx!.lineTo(W, horizonY)
-        ctx!.stroke()
-      }
-
-      // === LAYER 3: Spectrum bars ===
-      ctx!.save()
-      ctx!.globalCompositeOperation = 'lighter'
-
-      const preset = COLOR_PRESETS[settings.colors]
-      const hueShift = preset.base + treble * 35
-      const saturation = 65 + bass * 25
-      const barW = W / BAR_COUNT
-      const maxBarH = horizonY * 0.58 * visualPower
-
-      if (settings.bars) for (let i = 0; i < BAR_COUNT; i++) {
-        const sourceIdx = i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS
-        const [lo, hi] = logBinRange(sourceIdx, SOURCE_BARS, binCount)
-        let maxBin = 0
-        for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
-        const val = maxBin / 255
-
-        barPeakRef.current[i] = Math.max(val, barPeakRef.current[i] * 0.86)
-        const barH = barPeakRef.current[i] * maxBarH
-
-        if (barH < 1) continue
-
-        const x = i * barW
-        const brightness = 55 + barPeakRef.current[i] * 30
-        const alpha = 0.35 + barPeakRef.current[i] * 0.45
-
-        // Upward bar
-        const barGrad = ctx!.createLinearGradient(0, horizonY, 0, horizonY - barH)
-        barGrad.addColorStop(0, `hsla(${hueShift},${saturation}%,${brightness}%,${alpha * 0.6})`)
-        barGrad.addColorStop(1, `hsla(${hueShift + 15},${saturation + 10}%,${brightness + 15}%,${alpha})`)
-        ctx!.fillStyle = barGrad
-        ctx!.fillRect(x + 0.5, horizonY - barH, barW - 1, barH)
-
-        // Reflection below horizon
-        const reflGrad = ctx!.createLinearGradient(0, horizonY, 0, horizonY + barH * 0.4)
-        reflGrad.addColorStop(0, `hsla(${hueShift},${saturation}%,${brightness}%,${alpha * 0.25})`)
-        reflGrad.addColorStop(1, `hsla(${hueShift},${saturation}%,${brightness}%,0)`)
-        ctx!.fillStyle = reflGrad
-        ctx!.fillRect(x + 0.5, horizonY, barW - 1, barH * 0.4)
-      }
-
-      // === LAYER 4: Radial ring ===
+      // === LAYER 5: Radial ring ===
       const cx = W * 0.5
       const cy = horizonY * 0.52
       const baseRadius = Math.min(W, H) * 0.11
-
-      // Smoothly animate ring expansion on transients
       const targetR = isTransient ? baseRadius * (1 + peak * 0.25) : baseRadius
       ringRadiusRef.current += (targetR - ringRadiusRef.current) * 0.18
       const ringR = ringRadiusRef.current
 
-      if (settings.ring) for (let i = 0; i < RING_TICKS; i++) {
-        const sourceIdx = Math.min(i, RING_TICKS - i, RING_TICKS / 2 - 1)
-        const [lo, hi] = logBinRange(sourceIdx, RING_TICKS / 2, binCount)
-        let maxBin = 0
-        for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
-        const val = maxBin / 255
-
-        ringPeakRef.current[i] = Math.max(val, ringPeakRef.current[i] * 0.82)
-        const maxTickLen = Math.min(W, H) * 0.07 * visualPower
-        const tickLen = Math.min(ringPeakRef.current[i] * maxTickLen, Math.min(W, H) * 0.12)
-
-        if (tickLen < 0.5) continue
-
-        const angle = (i / RING_TICKS) * Math.PI * 2 - Math.PI / 2
-        const cos = Math.cos(angle)
-        const sin = Math.sin(angle)
-
-        const x1 = cx + cos * ringR
-        const y1 = cy + sin * ringR
-        const x2 = cx + cos * (ringR + tickLen)
-        const y2 = cy + sin * (ringR + tickLen)
-
-        const tickAlpha = 0.3 + ringPeakRef.current[i] * 0.55
-        ctx!.strokeStyle = `hsla(${hueShift},${saturation + 15}%,80%,${tickAlpha})`
-        ctx!.lineWidth = Math.max(1, barW * 0.6)
-        ctx!.beginPath()
-        ctx!.moveTo(x1, y1)
-        ctx!.lineTo(x2, y2)
-        ctx!.stroke()
-      }
-
-      // Subtle ring base circle
       if (settings.ring) {
-        ctx!.strokeStyle = `hsla(${hueShift},${saturation}%,70%,${0.04 + avg * 0.08})`
+        for (let i = 0; i < RING_TICKS; i++) {
+          const sourceIdx = Math.min(i, RING_TICKS - i, RING_TICKS / 2 - 1)
+          const [lo, hi] = logBinRange(sourceIdx, RING_TICKS / 2, binCount)
+          let maxBin = 0
+          for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
+          const val = maxBin / 255
+
+          ringPeakRef.current[i] = Math.max(val, ringPeakRef.current[i] * 0.82)
+          const maxTickLen = Math.min(W, H) * 0.07 * visualPower
+          const tickLen = Math.min(ringPeakRef.current[i] * maxTickLen, Math.min(W, H) * 0.12)
+          if (tickLen < 0.5) continue
+
+          const angle = (i / RING_TICKS) * Math.PI * 2 - Math.PI / 2
+          const cos = Math.cos(angle)
+          const sin = Math.sin(angle)
+          const tickAlpha = 0.3 + ringPeakRef.current[i] * 0.55
+          ctx!.strokeStyle = ringTickColor(ringPeakRef.current[i], tickAlpha)
+          ctx!.lineWidth = Math.max(1, (W / BAR_COUNT) * 0.5)
+          ctx!.beginPath()
+          ctx!.moveTo(cx + cos * ringR, cy + sin * ringR)
+          ctx!.lineTo(cx + cos * (ringR + tickLen), cy + sin * (ringR + tickLen))
+          ctx!.stroke()
+        }
+        ctx!.strokeStyle = `rgba(${preset.glowRgb},${0.04 + avg * 0.08})`
         ctx!.lineWidth = 1
-        ctx!.beginPath()
-        ctx!.arc(cx, cy, ringR, 0, Math.PI * 2)
-        ctx!.stroke()
+        ctx!.beginPath(); ctx!.arc(cx, cy, ringR, 0, Math.PI * 2); ctx!.stroke()
       }
 
-      ctx!.restore()
+      // === LAYER 6: Crosshair HUD ===
+      const hudAlpha = 0.10 + avg * 0.06
+      ctx!.strokeStyle = `rgba(255,176,0,${hudAlpha})`
+      ctx!.lineWidth = dpr * 0.5
+      ctx!.setLineDash([4 * dpr, 6 * dpr])
+      ctx!.beginPath(); ctx!.moveTo(0, cy); ctx!.lineTo(W, cy); ctx!.stroke()
+      ctx!.beginPath(); ctx!.moveTo(cx, 0); ctx!.lineTo(cx, horizonY); ctx!.stroke()
+      ctx!.setLineDash([])
     }
 
     draw()
@@ -419,212 +375,280 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     runCommand({ type: 'volume', volume: Number(e.target.value) })
   }
 
+  const TICK_COUNT = 21
+  const progressRatio = playback.duration > 0 ? playback.currentTime / playback.duration : 0
+
   return (
     <div
       className="fixed inset-0 z-50 no-drag"
-      style={{ background: '#061224' }}
+      style={{ background: '#000' }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <canvas ref={canvasRef} className="absolute inset-0" />
+
+      {/* Corner HUD readouts */}
+      <div className="absolute top-3 left-3 z-10 pointer-events-none font-term text-[12px]" style={{ color: 'rgba(0,229,255,0.35)' }}>
+        BPM <span style={{ color: 'rgba(0,255,136,0.50)' }}>120</span>
+      </div>
+      <div className="absolute top-3 right-16 z-10 pointer-events-none font-term text-[12px] tabular-nums text-right" style={{ color: 'rgba(0,229,255,0.35)' }}>
+        {fmtDuration(playback.currentTime)}
+      </div>
+      <div className="absolute bottom-36 left-3 z-10 pointer-events-none font-term text-[11px]" style={{ color: 'rgba(0,229,255,0.25)' }}>
+        SUB · MID
+      </div>
+      <div className="absolute bottom-36 right-3 z-10 pointer-events-none font-term text-[11px] text-right" style={{ color: 'rgba(0,229,255,0.25)' }}>
+        HI · TREBLE
+      </div>
+
+      {/* ESC button */}
       {onClose && (
         <button
           onClick={onClose}
-          className="absolute top-5 right-6 text-white/20 hover:text-aero-aqua/70 transition-colors z-10 text-[10px] font-mono tracking-[0.15em] uppercase no-drag"
+          className="absolute top-3 right-3 z-20 font-term text-[12px] tracking-[2px] opacity-25 hover:opacity-70 transition-opacity no-drag"
+          style={{ color: '#9bf5b8' }}
         >
-          esc / close
+          [ESC]
         </button>
       )}
-      <div className="absolute inset-x-0 bottom-0 z-20 px-5 pb-5 pt-16 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 bg-gradient-to-t from-[#061224]/85 to-transparent">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-lg border border-aero-aqua/20 bg-[#08172d]/80 px-4 py-3 shadow-[0_0_30px_rgba(127,233,208,0.10)] backdrop-blur-xl">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="h-10 w-10 overflow-hidden rounded-md border border-white/10 bg-white/[0.04]">
-              <img src={playback.coverDataUrl ?? placeholderCover} alt="" className="h-full w-full object-cover" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-medium text-white/85">{playback.title || 'Nothing playing'}</p>
-              <p className="truncate text-[11px] text-muted/70">{playback.artist}</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => runCommand({ type: 'prev' })} className="viz-control-button" title="Previous">
-              <SkipBack size={16} />
-            </button>
-            <button onClick={() => runCommand({ type: 'toggle' })} className="viz-control-button h-10 w-10 text-aero-aqua" title="Play / pause">
-              {playback.isPlaying ? <Pause size={18} className="fill-aero-aqua" /> : <Play size={18} className="fill-aero-aqua ml-0.5" />}
-            </button>
-            <button onClick={() => runCommand({ type: 'next' })} className="viz-control-button" title="Next">
-              <SkipForward size={16} />
-            </button>
-            <label className="ml-1 flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-white/55">
-              {playback.volume <= 0 ? <VolumeX size={15} /> : <Volume2 size={15} />}
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
-                value={playback.volume}
-                onChange={handleVolume}
-                className="w-24"
-                title="Volume"
-              />
-            </label>
-            {onClose && (
-              <button onClick={onClose} className="viz-control-button" title="Close fullscreen">
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-        <div
-          className="mx-auto mt-3 max-w-3xl rounded-lg border border-white/10 bg-[#08172d]/70 px-3 py-2 backdrop-blur-xl cursor-pointer"
-          onPointerDown={handleSeekPointer}
-          onPointerMove={(e) => {
-            if (e.buttons === 1) handleSeekPointer(e)
-          }}
-        >
-          <div className="relative h-3">
-            <div className="absolute left-0 right-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-white/10" />
-            <div
-              className="absolute left-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-gradient-to-r from-fuchsia-400 via-aero-aqua to-aero-lime shadow-[0_0_10px_rgba(127,233,208,0.45)]"
-              style={{
-                width: `${playback.duration > 0 ? Math.min(100, Math.max(0, (playback.currentTime / playback.duration) * 100)) : 0}%`,
-              }}
-            />
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={playback.duration || 0}
-            step={0.1}
-            value={Math.min(playback.currentTime, playback.duration || playback.currentTime)}
-            onChange={handleSeek}
-            className="sr-only"
-            tabIndex={-1}
-          />
-        </div>
-      </div>
-
-      <div className="absolute left-5 top-5 z-20 w-48 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300">
+      {/* Settings panel (top-left hover) */}
+      <div className="absolute left-3 top-8 z-20 w-44 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 no-drag">
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          className="w-full flex items-center justify-between rounded-lg border border-aero-aqua/20 bg-[#08172d]/80 px-3 py-2 text-[10px] font-mono uppercase tracking-[0.16em] text-aero-aqua/80 backdrop-blur-xl"
+          className="w-full flex items-center justify-between px-3 py-1.5 font-term text-[12px] transition-colors"
+          style={{ background: '#000', border: '1px solid rgba(0,255,136,0.35)', color: '#9bf5b8' }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.70)')}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.35)')}
         >
-          Visuals
-          {settingsOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          VISUALS
+          {settingsOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </button>
         {settingsOpen && (
-          <div className="mt-2 rounded-lg border border-white/10 bg-[#08172d]/90 p-2 backdrop-blur-xl">
+          <div className="mt-0.5 p-1.5" style={{ background: '#000', border: '1px solid rgba(0,255,136,0.25)', boxShadow: '0 0 16px rgba(0,255,136,0.12)' }}>
             {(['bars', 'ring', 'bubbles', 'atmosphere'] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => toggleSetting(key)}
-                className="flex w-full items-center justify-between rounded px-2 py-1.5 text-[11px] capitalize text-white/70 hover:bg-white/[0.06]"
+                className="flex w-full items-center justify-between px-2 py-1.5 font-term text-[12px] transition-colors"
+                style={{ color: '#9bf5b8' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,255,136,0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '')}
               >
-                {key}
-                <span className={settings[key] ? 'text-aero-aqua' : 'text-muted/35'}>
-                  {settings[key] ? 'on' : 'off'}
+                <span className="capitalize">{key}</span>
+                <span style={{ color: settings[key] ? '#00FF88' : 'rgba(155,245,184,0.28)' }}>
+                  {settings[key] ? 'ON' : 'OFF'}
                 </span>
               </button>
             ))}
-            <div className="mt-2 grid grid-cols-3 gap-1 border-t border-white/10 pt-2">
+            <div className="grid grid-cols-3 gap-1 mt-1.5 pt-1.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.12)' }}>
               {(Object.keys(COLOR_PRESETS) as ColorPreset[]).map((preset) => (
                 <button
                   key={preset}
                   onClick={() => setSettings((s) => ({ ...s, colors: preset }))}
-                  className={`rounded px-1.5 py-1 text-[10px] ${
-                    settings.colors === preset
-                      ? 'bg-aero-aqua/15 text-aero-aqua'
-                      : 'text-muted/60 hover:bg-white/[0.06]'
-                  }`}
+                  className="px-1 py-1 font-term text-[11px] transition-colors"
+                  style={{
+                    background: settings.colors === preset ? 'rgba(0,255,136,0.15)' : 'transparent',
+                    border: settings.colors === preset ? '1px solid rgba(0,255,136,0.55)' : '1px solid rgba(0,255,136,0.15)',
+                    color: settings.colors === preset ? '#00FF88' : 'rgba(155,245,184,0.45)',
+                    borderRadius: 0,
+                  }}
                 >
                   {COLOR_PRESETS[preset].name}
                 </button>
               ))}
             </div>
-            <label className="mt-3 grid grid-cols-[54px_1fr_28px] items-center gap-2 border-t border-white/10 pt-2 text-[10px] uppercase tracking-[0.08em] text-muted/55">
-              <span>Power</span>
+            <label className="flex items-center gap-1.5 mt-1.5 pt-1.5 font-term text-[11px]" style={{ borderTop: '1px dashed rgba(0,255,136,0.12)', color: 'rgba(155,245,184,0.40)' }}>
+              <span>PWR</span>
               <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
+                type="range" min={0} max={1} step={0.05}
                 value={settings.intensity}
                 onChange={(e) => setSettings((s) => ({ ...s, intensity: Number(e.target.value) }))}
-                className="w-full"
+                className="flex-1"
               />
-              <span className="text-right font-mono">{settings.intensity.toFixed(1)}</span>
+              <span className="font-term text-[11px] w-6 text-right" style={{ color: 'rgba(155,245,184,0.55)' }}>
+                {settings.intensity.toFixed(1)}
+              </span>
             </label>
           </div>
         )}
       </div>
 
+      {/* Bottom controls (hover-reveal) */}
+      <div
+        className="absolute inset-x-0 bottom-0 z-20 px-4 pb-4 pt-20 opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 no-drag"
+        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, transparent 100%)' }}
+      >
+        {/* Seek bar */}
+        <div
+          className="mx-auto max-w-2xl mb-3 cursor-pointer"
+          onPointerDown={handleSeekPointer}
+          onPointerMove={(e) => { if (e.buttons === 1) handleSeekPointer(e) }}
+        >
+          <div className="flex items-end gap-px h-5">
+            {Array.from({ length: TICK_COUNT }, (_, i) => {
+              const tickRatio = i / (TICK_COUNT - 1)
+              const isFifth = i % 5 === 0
+              const isCurrent = Math.abs(tickRatio - progressRatio) < 1 / (TICK_COUNT - 1) * 0.6
+              const isPast = tickRatio <= progressRatio
+              return (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: isFifth ? 8 : 5,
+                    background: isCurrent ? '#00E5FF' : isPast ? '#00FF88' : 'rgba(0,255,136,0.18)',
+                    boxShadow: isCurrent ? '0 0 8px #00E5FF' : isPast ? '0 0 3px rgba(0,255,136,0.35)' : 'none',
+                    borderRadius: 0,
+                  }}
+                />
+              )
+            })}
+          </div>
+          <div className="flex justify-between font-term text-[11px] mt-1" style={{ color: 'rgba(155,245,184,0.30)' }}>
+            <span>{fmtDuration(playback.currentTime)}</span>
+            <span>{fmtDuration(playback.duration)}</span>
+          </div>
+          <input
+            type="range" min={0} max={playback.duration || 0} step={0.1}
+            value={Math.min(playback.currentTime, playback.duration || playback.currentTime)}
+            onChange={handleSeek} className="sr-only" tabIndex={-1}
+          />
+        </div>
+
+        {/* Control bar */}
+        <div
+          className="mx-auto max-w-2xl flex items-center gap-4 px-4 py-3"
+          style={{ background: '#000', border: '1px solid rgba(0,255,136,0.40)', boxShadow: '0 0 20px rgba(0,255,136,0.12)' }}
+        >
+          {/* Cover + metadata */}
+          <div className="flex items-center gap-3 min-w-0 flex-shrink-0" style={{ width: 180 }}>
+            <VectorGridCover src={playback.coverDataUrl} size={40} label="A:VIZ" />
+            <div className="min-w-0">
+              <p className="font-lcd text-[13px] truncate phosphor-glow" style={{ color: '#00FF88' }}>
+                {playback.title || '—'}
+              </p>
+              <p className="font-term text-[12px] truncate" style={{ color: 'rgba(155,245,184,0.55)' }}>
+                {playback.artist || '—'}
+              </p>
+            </div>
+          </div>
+
+          {/* Transport */}
+          <div className="flex items-center gap-2 flex-1 justify-center">
+            <button
+              onClick={() => runCommand({ type: 'prev' })}
+              className="metal-key w-8 h-8 justify-center"
+            >
+              <SkipBack size={14} />
+            </button>
+            <button
+              onClick={() => runCommand({ type: 'toggle' })}
+              className="metal-key is-primary w-10 h-10 justify-center"
+            >
+              {playback.isPlaying ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+            </button>
+            <button
+              onClick={() => runCommand({ type: 'next' })}
+              className="metal-key w-8 h-8 justify-center"
+            >
+              <SkipForward size={14} />
+            </button>
+          </div>
+
+          {/* Volume + close */}
+          <div className="flex items-center gap-2 flex-shrink-0 min-w-0" style={{ width: 180 }}>
+            <span style={{ color: playback.volume <= 0 ? 'rgba(155,245,184,0.30)' : 'rgba(155,245,184,0.50)', flexShrink: 0 }}>
+              {playback.volume <= 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </span>
+            <input
+              type="range" min={0} max={1} step={0.01}
+              value={playback.volume}
+              onChange={handleVolume}
+              className="flex-1"
+              title="Volume"
+            />
+            {onClose && (
+              <button onClick={onClose} className="metal-key w-7 h-7 justify-center ml-1 flex-shrink-0">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <FullscreenQueueDrawer queue={playback.queue ?? EMPTY_QUEUE} />
 
       {!playback.isPlaying && (
-        <div className="absolute inset-0 flex items-end justify-center pb-16 pointer-events-none">
-          <p className="text-white/10 text-[11px] font-mono tracking-[0.2em] uppercase">paused</p>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingBottom: '12%' }}>
+          <p className="font-term text-[12px] tracking-[6px]" style={{ color: 'rgba(0,255,136,0.10)' }}>
+            PAUSED
+          </p>
         </div>
       )}
     </div>
   )
 }
 
-function FullscreenQueueDrawer({
-  queue,
-}: {
-  queue: PlaybackSnapshot['queue']
-}) {
+function FullscreenQueueDrawer({ queue }: { queue: PlaybackSnapshot['queue'] }) {
   const hasItems = queue.nowPlaying || queue.upNext.length > 0 || queue.comingUp.length > 0
 
   return (
-    <aside className="group absolute right-0 top-0 z-30 flex h-full translate-x-[calc(100%-18px)] items-stretch transition-transform duration-300 hover:translate-x-0 focus-within:translate-x-0">
-      <div className="flex w-[18px] items-center justify-center border-l border-aero-aqua/15 bg-[#08172d]/55 backdrop-blur-xl">
-        <div className="flex h-28 w-full flex-col items-center justify-center gap-2 text-aero-aqua/55">
-          <ListMusic size={13} />
-          <span className="writing-vertical text-[9px] font-mono uppercase tracking-[0.18em]">Queue</span>
+    <aside className="group absolute right-0 top-0 z-30 flex h-full translate-x-[calc(100%-20px)] items-stretch transition-transform duration-300 hover:translate-x-0 focus-within:translate-x-0">
+      <div
+        className="flex w-5 items-center justify-center"
+        style={{ background: 'rgba(2,5,3,0.85)', borderLeft: '1px solid rgba(0,255,136,0.15)' }}
+      >
+        <div className="flex h-28 w-full flex-col items-center justify-center gap-2">
+          <ListMusic size={12} style={{ color: 'rgba(0,255,136,0.55)' }} />
+          <span
+            className="writing-vertical font-mono text-[9px] uppercase tracking-[0.18em]"
+            style={{ color: '#00E5FF' }}
+          >
+            Queue
+          </span>
         </div>
       </div>
-      <div className="h-full w-72 border-l border-aero-aqua/20 bg-[#07162b]/86 shadow-[0_0_32px_rgba(127,233,208,0.10)] backdrop-blur-xl">
-        <div className="flex h-full flex-col">
-          <div className="flex h-12 flex-shrink-0 items-center justify-between border-b border-white/10 px-4">
-            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-aero-aqua/70">Queue</p>
-            <p className="text-[10px] font-mono text-white/25">
-              {queue.upNext.length + queue.comingUp.length}
-            </p>
-          </div>
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            {queue.nowPlaying && (
-              <section className="mb-4">
-                <p className="mb-2 px-1 text-[9px] font-mono uppercase tracking-[0.12em] text-white/25">Now playing</p>
-                <FullscreenQueueRow track={queue.nowPlaying} current />
-              </section>
-            )}
-
-            {queue.upNext.length > 0 && (
-              <section className="mb-4">
-                <p className="mb-2 px-1 text-[9px] font-mono uppercase tracking-[0.12em] text-white/25">Up next</p>
-                {queue.upNext.map((track, i) => (
-                  <FullscreenQueueRow key={`up-${track.id ?? track.title}-${i}`} track={track} />
-                ))}
-              </section>
-            )}
-
-            {queue.comingUp.length > 0 && (
-              <section>
-                <p className="mb-2 px-1 text-[9px] font-mono uppercase tracking-[0.12em] text-white/25">Coming up</p>
-                {queue.comingUp.map((track, i) => (
-                  <FullscreenQueueRow key={`coming-${track.id ?? track.title}-${i}`} track={track} dim />
-                ))}
-              </section>
-            )}
-
-            {!hasItems && (
-              <div className="flex h-40 items-center justify-center text-[11px] text-white/25">
-                Queue is empty
-              </div>
-            )}
-          </div>
+      <div
+        className="h-full w-72 flex flex-col"
+        style={{ background: '#020503', borderLeft: '1px solid rgba(0,255,136,0.20)', boxShadow: '-8px 0 24px rgba(0,255,136,0.06)' }}
+      >
+        <div
+          className="flex h-10 flex-shrink-0 items-center justify-between px-4"
+          style={{ borderBottom: '1px solid rgba(0,255,136,0.10)' }}
+        >
+          <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>QUEUE</p>
+          <p className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.25)' }}>
+            {queue.upNext.length + queue.comingUp.length}
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {queue.nowPlaying && (
+            <section className="mb-3">
+              <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>NOW PLAYING</p>
+              <FullscreenQueueRow track={queue.nowPlaying} current />
+            </section>
+          )}
+          {queue.upNext.length > 0 && (
+            <section className="mb-3">
+              <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>UP NEXT</p>
+              {queue.upNext.map((track, i) => (
+                <FullscreenQueueRow key={`up-${track.id ?? track.title}-${i}`} track={track} />
+              ))}
+            </section>
+          )}
+          {queue.comingUp.length > 0 && (
+            <section>
+              <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>COMING UP</p>
+              {queue.comingUp.map((track, i) => (
+                <FullscreenQueueRow key={`coming-${track.id ?? track.title}-${i}`} track={track} dim />
+              ))}
+            </section>
+          )}
+          {!hasItems && (
+            <div className="flex h-40 items-center justify-center font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.25)' }}>
+              queue is empty
+            </div>
+          )}
         </div>
       </div>
     </aside>
@@ -640,24 +664,30 @@ function FullscreenQueueRow({
   current?: boolean
   dim?: boolean
 }) {
+  const label = track.id ? `A:${String(track.id).padStart(3, '0')}` : 'A:000'
   return (
-    <div className={`mb-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 ${current ? 'bg-aero-aqua/10' : 'bg-white/[0.03]'} ${dim ? 'opacity-45' : ''}`}>
-      <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded border border-white/10 bg-white/[0.04]">
-        {track.coverDataUrl ? (
-          <img src={track.coverDataUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Music size={11} className="text-white/25" />
-          </div>
-        )}
+    <div
+      className={`mb-1.5 flex min-w-0 items-center gap-2 px-1.5 py-1.5 ${dim ? 'opacity-40' : ''}`}
+      style={{
+        background: current ? 'rgba(0,255,136,0.08)' : 'transparent',
+        borderLeft: current ? '2px solid #00FF88' : '2px solid transparent',
+      }}
+    >
+      <div className="flex-shrink-0">
+        <VectorGridCover src={track.coverDataUrl} size={28} label={label} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={`truncate text-[11px] font-medium leading-tight ${current ? 'text-aero-aqua/90' : 'text-white/75'}`}>
-          {track.title || 'Untitled'}
+        <p
+          className={`font-term text-[12px] truncate leading-tight ${current ? 'phosphor-glow' : ''}`}
+          style={{ color: current ? '#00FF88' : 'rgba(155,245,184,0.75)' }}
+        >
+          {current ? '▶ ' : ''}{track.title || '—'}
         </p>
-        <p className="truncate text-[10px] text-white/35">{track.artist || 'Unknown artist'}</p>
+        <p className="font-term text-[11px] truncate" style={{ color: 'rgba(155,245,184,0.40)' }}>
+          {track.artist || '—'}
+        </p>
       </div>
-      <span className="flex-shrink-0 font-mono text-[10px] tabular-nums text-white/25">
+      <span className="font-term text-[11px] flex-shrink-0 tabular-nums" style={{ color: 'rgba(155,245,184,0.25)' }}>
         {fmtDuration(track.duration)}
       </span>
     </div>

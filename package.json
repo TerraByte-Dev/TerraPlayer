@@ -1,6 +1,6 @@
 {
   "name": "tb-media-player",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "Offline music player",
   "main": "./out/main/main.js",
   "scripts": {
@@ -43,7 +43,8 @@
       "!out/**/*.map"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": true,

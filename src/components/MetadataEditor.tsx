@@ -3,6 +3,7 @@ import { Check, Loader2 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { hub } from '@/lib/ipc'
 import type { StandardTags } from '@/lib/ipc'
+import VectorGridCover from './VectorGridCover'
 
 export default function MetadataEditor() {
   const { selectedTrack, refreshTrack } = useLibraryStore()
@@ -20,8 +21,8 @@ export default function MetadataEditor() {
 
   if (!track) {
     return (
-      <div className="p-5 text-muted/40 text-[12px]">
-        Select a track to edit metadata
+      <div className="p-5 font-term text-[13px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+        select a track to edit metadata
       </div>
     )
   }
@@ -42,33 +43,47 @@ export default function MetadataEditor() {
 
   return (
     <div className="p-4 space-y-4">
-      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted/40">Metadata</p>
+      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>METADATA</p>
 
-      {track.coverDataUrl && (
-        <img
+      <div className="w-full aspect-square overflow-hidden">
+        <VectorGridCover
           src={track.coverDataUrl}
-          alt="cover"
-          className="w-full aspect-square object-cover rounded-lg"
+          label={`A:${String(track.id).padStart(3, '0')}`}
+          size={undefined as unknown as number}
         />
-      )}
+      </div>
 
       <div className="space-y-3">
         {(['title', 'artist', 'album'] as const).map((field) => (
           <div key={field}>
-            <label className="block text-[10px] font-medium uppercase tracking-[0.08em] text-muted/40 mb-1">
+            <label
+              className="block font-mono text-[9px] uppercase tracking-[1.5px] mb-1"
+              style={{ color: 'rgba(155,245,184,0.40)' }}
+            >
               {field}
             </label>
             <input
               value={form[field] ?? ''}
               onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-              className="w-full bg-white/[0.05] text-white/80 text-[12px] rounded-md px-3 py-1.5 outline-none border border-white/[0.07] focus:border-accent/40 transition-colors"
+              className="w-full font-term text-[13px] px-3 py-1.5 outline-none transition-colors"
+              style={{
+                background: '#000',
+                border: '1px solid rgba(0,255,136,0.25)',
+                color: '#9bf5b8',
+                borderRadius: 0,
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
             />
           </div>
         ))}
 
         <div>
-          <label className="block text-[10px] font-medium uppercase tracking-[0.08em] text-muted/40 mb-1">
-            Year
+          <label
+            className="block font-mono text-[9px] uppercase tracking-[1.5px] mb-1"
+            style={{ color: 'rgba(155,245,184,0.40)' }}
+          >
+            YEAR
           </label>
           <input
             type="number"
@@ -76,7 +91,15 @@ export default function MetadataEditor() {
             onChange={(e) =>
               setForm((f) => ({ ...f, year: e.target.value ? Number(e.target.value) : undefined }))
             }
-            className="w-full bg-white/[0.05] text-white/80 text-[12px] rounded-md px-3 py-1.5 outline-none border border-white/[0.07] focus:border-accent/40 transition-colors"
+            className="w-full font-term text-[13px] px-3 py-1.5 outline-none transition-colors"
+            style={{
+              background: '#000',
+              border: '1px solid rgba(0,255,136,0.25)',
+              color: '#9bf5b8',
+              borderRadius: 0,
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
           />
         </div>
       </div>
@@ -84,15 +107,14 @@ export default function MetadataEditor() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-medium transition-colors ${
-          saved
-            ? 'bg-emerald-500/20 text-emerald-400'
-            : 'bg-accent/15 hover:bg-accent/25 text-accent disabled:opacity-40'
+        className={`metal-key w-full py-2 font-term text-[13px] tracking-[1px] justify-center transition-colors disabled:opacity-40 ${
+          saved ? '' : 'is-primary'
         }`}
+        style={saved ? { color: '#00E5FF', borderColor: 'rgba(0,229,255,0.55)', background: 'rgba(0,229,255,0.10)' } : undefined}
       >
-        {saving && <Loader2 size={12} className="animate-spin" />}
-        {saved && <Check size={12} />}
-        {saving ? 'Saving…' : saved ? 'Saved' : 'Save Tags'}
+        {saving && <Loader2 size={12} className="animate-spin mr-1" />}
+        {saved && <Check size={12} className="mr-1" />}
+        {saving ? 'saving...' : saved ? 'saved' : '> save tags'}
       </button>
     </div>
   )

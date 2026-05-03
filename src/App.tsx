@@ -95,7 +95,8 @@ export default function App() {
 
   return (
     <div
-      className="y2k-shell flex flex-col h-screen bg-surface-400 text-white overflow-hidden relative"
+      className="term-shell crt-scanlines crt-vignette flex flex-col h-screen overflow-hidden relative"
+      style={{ background: '#000' }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -104,33 +105,36 @@ export default function App() {
 
       {/* Drag overlay */}
       {dragActive && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed border-aero-aqua/40 pointer-events-none">
-          <div className="text-center">
-            <p className="text-ink-100/80 text-sm font-medium">Drop folder to add to library</p>
-          </div>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed pointer-events-none"
+          style={{ borderColor: 'rgba(0,255,136,0.40)' }}>
+          <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: '#00FF88' }}>
+            [ DROP FOLDER TO INDEX ]
+          </p>
         </div>
       )}
 
       <div className="relative z-[1] flex flex-1 overflow-hidden">
         <Sidebar onOpenUtility={handleOpenUtility} />
 
-        <main className="flex-1 flex flex-col overflow-hidden bg-surface-200">
+        <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#000' }}>
           <TrackList />
         </main>
 
         {showMetadataPanel && (
-          <aside className="w-60 flex-shrink-0 bg-surface-300 border-l border-white/[0.05] overflow-y-auto">
-            <div className="sticky top-0 z-10 h-9 flex items-center justify-end px-3 bg-surface-300/95 backdrop-blur border-b border-white/[0.05]">
+          <aside className="w-60 flex-shrink-0 flex flex-col overflow-y-auto border-l"
+            style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.18)' }}>
+            <div className="sticky top-0 z-10 h-9 flex items-center justify-end px-3 border-b"
+              style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.10)' }}>
               <button
                 onClick={toggleRightPanel}
                 title="Close panel"
-                className="w-7 h-7 rounded-md flex items-center justify-center text-muted/50 hover:text-aero-aqua hover:bg-white/[0.06] transition-colors"
+                className="metal-key w-7 h-7"
               >
-                <X size={14} />
+                <X size={12} />
               </button>
             </div>
             <MetadataEditor />
-            <div className="border-t border-white/[0.05] mx-4" />
+            <div className="mx-4" style={{ borderTop: '1px solid rgba(0,255,136,0.08)' }} />
             <TagPanel />
           </aside>
         )}
@@ -146,13 +150,13 @@ export default function App() {
         <button
           onClick={toggleRightPanel}
           title="Edit metadata & tags"
-          className="fixed bottom-[70px] right-4 w-8 h-8 rounded-full flex items-center justify-center shadow-lg transition-colors z-10 bg-white/[0.06] text-muted/50 hover:text-ink-100/70 hover:bg-white/[0.1] border border-white/[0.06]"
+          className="metal-key fixed right-4 w-7 h-7 flex items-center justify-center shadow-lg z-10"
+          style={{ bottom: 'calc(80px + 12px)' }}
         >
-          <Pencil size={14} />
+          <Pencil size={12} />
         </button>
       )}
 
-      {/* Fullscreen in-window visualizer overlay */}
       {vizFullscreen && (
         <FullscreenVisualizer source="analyser" onClose={handleCloseFullscreen} />
       )}
@@ -168,7 +172,6 @@ export default function App() {
 
       <UtilityTimerHost onOpenTimer={() => handleOpenUtility('timer')} />
 
-      {/* Global context menu */}
       <ContextMenu />
     </div>
   )

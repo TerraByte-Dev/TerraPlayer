@@ -1,9 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   Music2,
   ListMusic,
   Tag,
-  RefreshCw,
   Play,
   Shuffle,
   Trash2,
@@ -16,8 +15,28 @@ import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
 
+// Section hex codes for display
+const SECTION_CODES: Record<string, string> = {
+  Music: '0x01',
+  Playlists: '0x02',
+  Tags: '0x03',
+}
+
+// Uptime counter
+function useUptime() {
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    const id = window.setInterval(() => setSecs((v) => v + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  const h = String(Math.floor(secs / 3600)).padStart(2, '0')
+  const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0')
+  const s = String(secs % 60).padStart(2, '0')
+  return `${h}:${m}:${s}`
+}
+
 export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
-  const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading } =
+  const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
   const { openMenu } = useContextMenuStore()
@@ -25,6 +44,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
   const [showTagInput, setShowTagInput] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [showPlaylistInput, setShowPlaylistInput] = useState(false)
+  const uptime = useUptime()
 
   async function handleCreateTag() {
     if (!newTagName.trim()) return
@@ -123,151 +143,266 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
     ])
   }
 
+  const totalCount = tracks.length
+  const totalSeconds = tracks.reduce((s, t) => s + (t.duration || 0), 0)
+  const totalHours = Math.floor(totalSeconds / 3600)
+  const totalMins = Math.floor((totalSeconds % 3600) / 60)
+  const totalSecs = Math.floor(totalSeconds % 60)
+  const lengthDisplay = `${String(totalHours).padStart(2, '0')}:${String(totalMins).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`
+  const GB_50 = 50 * 1024 * 1024 * 1024
+  const spaceRatio = Math.min(1, driveBytes / GB_50)
+  const spaceGB = (driveBytes / (1024 * 1024 * 1024)).toFixed(1)
+
   return (
-    <aside className="w-56 flex-shrink-0 bg-surface-300 flex flex-col overflow-y-auto border-r border-white/[0.05]">
-      {/* App title */}
-      <div className="px-4 pt-3 pb-5 select-none">
-        <h1 className="text-[15px] font-semibold text-white/90 tracking-tight">Media Player</h1>
+    <aside
+      className="flex-shrink-0 flex flex-col overflow-y-auto"
+      style={{ width: 210, borderRight: '1px solid rgba(0,255,136,0.18)', background: '#020503' }}
+    >
+      {/* Header block */}
+      <div
+        className="flex-shrink-0 px-[14px] pt-[14px] pb-[10px]"
+        style={{ background: '#000', borderBottom: '1px solid rgba(0,255,136,0.18)' }}
+      >
+        <div className="font-lcd text-[18px] tracking-[2px] phosphor-glow" style={{ color: '#00FF88' }}>
+          MAINFRAME
+        </div>
+        <div className="font-term text-[11px] tracking-[1.5px] mt-0.5" style={{ color: '#00E5FF' }}>
+          music library · v2.0
+        </div>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span
+            style={{
+              display: 'inline-block',
+              width: 5,
+              height: 5,
+              background: '#00FF88',
+              transform: 'rotate(45deg)',
+              boxShadow: '0 0 5px #00FF88',
+            }}
+          />
+          <span className="font-term text-[11px]" style={{ color: '#1f5e3a' }}>
+            link.ok · {totalCount} tracks
+          </span>
+        </div>
       </div>
 
       {/* Library */}
-      <Section label="Music">
-        <NavItem
-          label="All Tracks"
-          active={isActive('all')}
-          onClick={() => setSidebarView({ kind: 'all' })}
-          icon={<Music2 size={13} />}
-        />
-      </Section>
+      <SectionLabel label="LIBRARY" code={SECTION_CODES.Music} />
+      <NavItem
+        label="all tracks"
+        active={isActive('all')}
+        onClick={() => setSidebarView({ kind: 'all' })}
+        count={totalCount}
+        icon={<Music2 size={12} />}
+      />
 
       {/* Playlists */}
-      <Section
-        label="Playlists"
+      <SectionLabel
+        label="PLAYLISTS"
+        code={SECTION_CODES.Playlists}
         action={
           <button
-            className="text-muted/50 hover:text-accent transition-colors"
+            style={{ color: 'rgba(155,245,184,0.40)' }}
+            className="font-term text-[11px] hover:text-phosphor transition-colors"
             onClick={() => setShowPlaylistInput((v) => !v)}
             title="New playlist"
           >
-            <Plus size={11} />
+            +
           </button>
         }
-      >
-        {showPlaylistInput && (
-          <div className="px-3 pb-2 flex gap-1">
-            <input
-              autoFocus
-              value={newPlaylistName}
-              onChange={(e) => setNewPlaylistName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
-              placeholder="playlist name..."
-              className="flex-1 bg-surface-100 text-white text-[11px] rounded px-2 py-1 outline-none border border-white/[0.08] focus:border-accent/40 transition-colors"
-            />
-            <button
-              onClick={handleCreatePlaylist}
-              className="text-[11px] px-2 py-1 rounded bg-accent/20 hover:bg-accent/30 text-accent transition-colors"
-            >
-              Add
-            </button>
-          </div>
-        )}
-        {playlists.map((p) => (
-          <NavItem
-            key={p.id}
-            label={p.name}
-            count={p.count}
-            active={isActive('playlist', p.id)}
-            onClick={() => setSidebarView({ kind: 'playlist', playlistId: p.id, name: p.name })}
-            onContextMenu={(e) => handlePlaylistContextMenu(e, p.id, p.name)}
-            icon={<ListMusic size={13} />}
+      />
+      {showPlaylistInput && (
+        <div className="px-[10px] pb-2 flex gap-1">
+          <input
+            autoFocus
+            value={newPlaylistName}
+            onChange={(e) => setNewPlaylistName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreatePlaylist()}
+            placeholder="playlist name..."
+            className="flex-1 font-term text-[13px] px-2 py-0.5 outline-none"
+            style={{
+              background: '#000',
+              border: '1px solid rgba(0,255,136,0.35)',
+              color: '#00FF88',
+              borderRadius: 0,
+            }}
           />
-        ))}
-        {playlists.length === 0 && !showPlaylistInput && (
-          <p className="px-4 pb-2 text-[11px] text-muted/40">No playlists</p>
-        )}
-      </Section>
+          <button
+            onClick={handleCreatePlaylist}
+            className="font-term text-[12px] px-2 transition-colors"
+            style={{
+              background: 'rgba(0,255,136,0.10)',
+              border: '1px solid rgba(0,255,136,0.35)',
+              color: '#00FF88',
+            }}
+          >
+            Add
+          </button>
+        </div>
+      )}
+      {playlists.map((p) => (
+        <NavItem
+          key={p.id}
+          label={p.name}
+          count={p.count}
+          active={isActive('playlist', p.id)}
+          onClick={() => setSidebarView({ kind: 'playlist', playlistId: p.id, name: p.name })}
+          onContextMenu={(e) => handlePlaylistContextMenu(e, p.id, p.name)}
+          icon={<ListMusic size={12} />}
+        />
+      ))}
+      {playlists.length === 0 && !showPlaylistInput && (
+        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+          no playlists
+        </p>
+      )}
 
       {/* Tags */}
-      <Section
-        label="Tags"
+      <SectionLabel
+        label="TAGS"
+        code={SECTION_CODES.Tags}
         action={
           <button
-            className="text-muted/50 hover:text-accent transition-colors"
+            style={{ color: 'rgba(155,245,184,0.40)' }}
+            className="font-term text-[11px] hover:text-phosphor transition-colors"
             onClick={() => setShowTagInput((v) => !v)}
             title="New tag"
           >
-            <Tag size={11} />
+            #
           </button>
         }
-      >
-        {showTagInput && (
-          <div className="px-3 pb-2 flex gap-1">
-            <input
-              autoFocus
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
-              placeholder="tag name…"
-              className="flex-1 bg-surface-100 text-white text-[11px] rounded px-2 py-1 outline-none border border-white/[0.08] focus:border-accent/40 transition-colors"
-            />
-            <button
-              onClick={handleCreateTag}
-              className="text-[11px] px-2 py-1 rounded bg-accent/20 hover:bg-accent/30 text-accent transition-colors"
-            >
-              Add
-            </button>
-          </div>
-        )}
-        {tags.map((tag) => (
-          <NavItem
-            key={tag.id}
-            label={tag.name}
-            active={isActive('tag', tag.id)}
-            onClick={() => setSidebarView({ kind: 'tag', tagId: tag.id, tagName: tag.name })}
-            onContextMenu={(e) => handleTagContextMenu(e, tag.id, tag.name)}
-            icon={<Tag size={13} />}
+      />
+      {showTagInput && (
+        <div className="px-[10px] pb-2 flex gap-1">
+          <input
+            autoFocus
+            value={newTagName}
+            onChange={(e) => setNewTagName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
+            placeholder="tag name..."
+            className="flex-1 font-term text-[13px] px-2 py-0.5 outline-none"
+            style={{
+              background: '#000',
+              border: '1px solid rgba(0,255,136,0.35)',
+              color: '#00FF88',
+              borderRadius: 0,
+            }}
           />
-        ))}
-        {tags.length === 0 && !showTagInput && (
-          <p className="px-4 pb-2 text-[11px] text-muted/40">No tags yet</p>
-        )}
-      </Section>
+          <button
+            onClick={handleCreateTag}
+            className="font-term text-[12px] px-2 transition-colors"
+            style={{
+              background: 'rgba(0,255,136,0.10)',
+              border: '1px solid rgba(0,255,136,0.35)',
+              color: '#00FF88',
+            }}
+          >
+            Add
+          </button>
+        </div>
+      )}
+      {tags.map((tag) => (
+        <NavItem
+          key={tag.id}
+          label={`#${tag.name}`}
+          active={isActive('tag', tag.id)}
+          onClick={() => setSidebarView({ kind: 'tag', tagId: tag.id, tagName: tag.name })}
+          onContextMenu={(e) => handleTagContextMenu(e, tag.id, tag.name)}
+          icon={<Tag size={12} />}
+        />
+      ))}
+      {tags.length === 0 && !showTagInput && (
+        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+          no tags
+        </p>
+      )}
 
-      {/* Spacer + refresh */}
       <div className="flex-1" />
+
+      {/* Utility dock */}
       <UtilityDock onOpen={onOpenUtility} />
-      <div className="p-3 border-t border-white/[0.05]">
+
+      {/* Status footer */}
+      <div
+        className="px-[10px] py-[8px]"
+        style={{ borderTop: '1px solid rgba(0,255,136,0.18)', background: '#000' }}
+      >
+        <div className="flex items-center justify-between mb-2 pb-1.5" style={{ borderBottom: '1px solid rgba(0,255,136,0.12)' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>MEDIA.DRIVE</span>
+          <span style={{ display: 'inline-block', width: 5, height: 5, background: '#00FF88', boxShadow: '0 0 5px #00FF88' }} />
+        </div>
+
+        {/* Songs */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>SONGS</span>
+          <span className="font-mono text-[9px] tabular-nums" style={{ color: '#00FF88' }}>{totalCount}</span>
+        </div>
+
+        {/* Space */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>SPACE</span>
+          <div className="flex-1 relative" style={{ height: 4, background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.12)' }}>
+            <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${spaceRatio * 100}%`, background: '#FFB000', boxShadow: '0 0 4px #FFB000' }} />
+          </div>
+          <span className="font-mono text-[9px] flex-shrink-0 text-right tabular-nums" style={{ color: '#FFB000', width: 32 }}>{spaceGB}G</span>
+        </div>
+
+        {/* Length */}
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>LENGTH</span>
+          <span className="font-mono text-[9px] tabular-nums" style={{ color: '#00E5FF' }}>{lengthDisplay}</span>
+        </div>
+        <div className="flex items-center justify-between pt-1.5 mt-0.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.10)' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgba(155,245,184,0.30)' }}>UPTIME</span>
+          <span className="font-lcd text-[11px] tabular-nums" style={{ color: '#1f5e3a' }}>{uptime}</span>
+        </div>
+      </div>
+
+      {/* Reindex button */}
+      <div className="px-[12px] pb-[10px]" style={{ background: '#000' }}>
         <button
           onClick={load}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 text-[11px] py-2 rounded-md bg-surface-100 hover:bg-white/[0.07] text-muted hover:text-white/80 transition-colors disabled:opacity-40"
+          className="w-full font-term text-[13px] tracking-[1.5px] uppercase py-[6px] transition-colors disabled:opacity-40"
+          style={{
+            background: 'transparent',
+            border: '1px solid #00FF88',
+            color: '#00FF88',
+            textShadow: '0 0 4px #00FF88',
+            borderRadius: 0,
+          }}
         >
-          <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
-          {loading ? 'Scanning…' : 'Refresh'}
+          {loading ? '> scanning...' : '> reindex'}
         </button>
       </div>
     </aside>
   )
 }
 
-function Section({
+function SectionLabel({
   label,
-  children,
+  code,
   action,
 }: {
   label: string
-  children: React.ReactNode
+  code?: string
   action?: React.ReactNode
 }) {
   return (
-    <div className="mt-1">
-      <div className="flex items-center px-4 py-1.5">
-        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted/40 flex-1">
-          {label}
+    <div
+      className="flex items-center px-[14px] pt-[12px] pb-[6px]"
+      style={{ borderTop: '1px dashed rgba(0,255,136,0.08)' }}
+    >
+      <span className="font-term text-[12px] tracking-[1.5px]" style={{ color: '#00E5FF' }}>
+        ▼ {label}
+      </span>
+      <div className="flex-1" />
+      {code && (
+        <span className="font-mono text-[9px] mr-1" style={{ color: 'rgba(155,245,184,0.30)' }}>
+          {code}
         </span>
-        {action}
-      </div>
-      {children}
+      )}
+      {action}
     </div>
   )
 }
@@ -291,16 +426,26 @@ function NavItem({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
-      className={`w-full flex items-center gap-2.5 px-4 py-1.5 text-[12px] text-left transition-colors ${
+      className="w-full flex items-center gap-2 px-[14px] py-[4px] text-left transition-colors"
+      style={
         active
-          ? 'text-white bg-white/[0.07]'
-          : 'text-muted/70 hover:text-white/80 hover:bg-white/[0.04]'
-      }`}
+          ? {
+              color: '#00FF88',
+              background: 'linear-gradient(90deg, rgba(0,255,136,0.15), transparent)',
+              textShadow: '0 0 6px #00FF88',
+            }
+          : { color: 'rgba(155,245,184,0.55)' }
+      }
     >
-      <span className={`flex-shrink-0 ${active ? 'text-accent' : 'text-muted/30'}`}>{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
+      <span className="font-term text-[14px] w-3 flex-shrink-0 select-none">
+        {active ? '>' : ' '}
+      </span>
+      <span className="flex-shrink-0" style={{ opacity: active ? 1 : 0.4 }}>{icon}</span>
+      <span className="flex-1 font-term text-[14px] truncate">{label}</span>
       {count !== undefined && (
-        <span className="text-[10px] text-muted/30 tabular-nums">{count}</span>
+        <span className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+          {String(count).padStart(4, '0')}
+        </span>
       )}
     </button>
   )

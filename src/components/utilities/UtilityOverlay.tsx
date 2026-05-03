@@ -33,16 +33,27 @@ type ClockInfo = { id: string; label: string; zone: string }
 const BOARD_SURFACE = '#f1efe7'
 
 const BOARD_COLORS = [
-  { name: 'Black', value: '#111827' },
-  { name: 'Blue', value: '#2563eb' },
-  { name: 'Red', value: '#dc2626' },
-  { name: 'Green', value: '#16a34a' },
+  { name: 'Black',  value: '#111827' },
+  { name: 'Blue',   value: '#2563eb' },
+  { name: 'Red',    value: '#dc2626' },
+  { name: 'Green',  value: '#16a34a' },
   { name: 'Purple', value: '#7c3aed' },
 ]
 
 const DEFAULT_CLOCKS: ClockInfo[] = [
   { id: 'default-est', label: 'EST', zone: 'America/New_York' },
 ]
+
+const INPUT_STYLE: React.CSSProperties = {
+  background: '#000',
+  border: '1px solid rgba(0,255,136,0.25)',
+  color: '#9bf5b8',
+  borderRadius: 0,
+  outline: 'none',
+}
+
+const INPUT_FOCUS_BORDER = 'rgba(0,255,136,0.55)'
+const INPUT_BLUR_BORDER  = 'rgba(0,255,136,0.25)'
 
 export default function UtilityOverlay({
   mode,
@@ -94,22 +105,35 @@ function UtilityShell({
   return (
     <div
       className={`fixed inset-0 z-40 no-drag ${
-        fullscreen
-          ? 'bg-[#061224]'
-          : 'flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm'
+        fullscreen ? '' : 'flex items-center justify-center px-4 py-6'
       }`}
+      style={{ background: fullscreen ? '#000' : 'rgba(0,0,0,0.60)' }}
     >
       <section
-        className={`flex min-h-0 flex-col overflow-hidden border border-aero-aqua/16 bg-[#07162b]/94 shadow-[0_0_36px_rgba(127,233,208,0.12)] backdrop-blur-xl ${
-          fullscreen
-            ? 'h-full w-full rounded-none'
-            : 'h-[min(720px,calc(100vh-48px))] w-[min(920px,calc(100vw-32px))] rounded-lg'
+        className={`flex min-h-0 flex-col overflow-hidden ${
+          fullscreen ? 'h-full w-full' : 'h-[min(720px,calc(100vh-48px))] w-[min(920px,calc(100vw-32px))]'
         }`}
+        style={{
+          background: '#020503',
+          border: '1px solid rgba(0,255,136,0.25)',
+          boxShadow: '0 0 36px rgba(0,255,136,0.10)',
+          borderRadius: 0,
+        }}
       >
-        <header className="flex h-11 flex-shrink-0 items-center justify-between border-b border-white/10 px-4">
+        <header
+          className="flex h-10 flex-shrink-0 items-center justify-between px-4"
+          style={{ borderBottom: '1px solid rgba(0,255,136,0.12)' }}
+        >
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-aero-aqua/70 shadow-[0_0_10px_rgba(127,233,208,0.7)]" />
-            <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-aero-aqua/70">
+            <span
+              className="h-2 w-2"
+              style={{
+                background: '#00FF88',
+                boxShadow: '0 0 8px rgba(0,255,136,0.8)',
+                borderRadius: 0,
+              }}
+            />
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em]" style={{ color: '#00E5FF' }}>
               {title}
             </p>
           </div>
@@ -117,12 +141,12 @@ function UtilityShell({
             <button
               onClick={() => onFullscreenChange(!fullscreen)}
               title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              className="utility-icon-button"
+              className="metal-key w-7 h-7 justify-center"
             >
-              {fullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
-            <button onClick={onClose} title="Close" className="utility-icon-button">
-              <X size={15} />
+            <button onClick={onClose} title="Close" className="metal-key w-7 h-7 justify-center">
+              <X size={13} />
             </button>
           </div>
         </header>
@@ -235,14 +259,17 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2">
+      <div
+        className="flex flex-shrink-0 flex-wrap items-center gap-2 px-3 py-2"
+        style={{ borderBottom: '1px solid rgba(0,255,136,0.10)' }}
+      >
         <SegmentedButton active={tool === 'brush'} onClick={() => setTool('brush')} title="Brush">
-          <Brush size={14} />
+          <Brush size={13} />
         </SegmentedButton>
         <SegmentedButton active={tool === 'eraser'} onClick={() => setTool('eraser')} title="Eraser">
-          <Eraser size={14} />
+          <Eraser size={13} />
         </SegmentedButton>
-        <div className="mx-1 h-5 w-px bg-white/10" />
+        <div className="mx-1 h-4 w-px" style={{ background: 'rgba(0,255,136,0.15)' }} />
         <div className="flex items-center gap-1.5">
           {BOARD_COLORS.map((item) => (
             <button
@@ -251,14 +278,14 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
               title={item.name}
               className={`h-5 w-5 rounded-full border transition-transform ${
                 color === item.value && tool === 'brush'
-                  ? 'scale-110 border-white/70'
-                  : 'border-white/20 hover:scale-105'
+                  ? 'scale-110 border-white/80'
+                  : 'border-white/25 hover:scale-105'
               }`}
               style={{ backgroundColor: item.value }}
             />
           ))}
         </div>
-        <label className="ml-1 flex min-w-36 items-center gap-2 text-[10px] uppercase tracking-[0.08em] text-muted/55">
+        <label className="ml-1 flex min-w-36 items-center gap-2 font-term text-[11px] uppercase tracking-[0.08em]" style={{ color: 'rgba(155,245,184,0.45)' }}>
           <span>Size</span>
           <input
             type="range"
@@ -269,33 +296,40 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
             onChange={(e) => setStrokeSize(Number(e.target.value))}
             className="w-28"
           />
-          <span className="w-5 text-right font-mono">{strokeSize}</span>
+          <span className="w-5 text-right font-term">{strokeSize}</span>
         </label>
         <div className="flex-1" />
         {savedPath && (
-          <span className="max-w-[180px] truncate text-[10px] text-aero-aqua/55" title={savedPath}>
+          <span className="max-w-[180px] truncate font-term text-[11px]" style={{ color: 'rgba(0,229,255,0.60)' }} title={savedPath}>
             Saved
           </span>
         )}
         {confirmClear ? (
-          <button onClick={clearBoard} className="utility-danger-button">
+          <button
+            onClick={clearBoard}
+            className="metal-key px-3 py-1 font-term text-[12px]"
+            style={{ color: '#FF3030', borderColor: 'rgba(255,48,48,0.40)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,48,48,0.10)'; e.currentTarget.style.color = '#ff6060' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#FF3030' }}
+          >
             Clear now
           </button>
         ) : (
-          <button onClick={() => setConfirmClear(true)} className="utility-quiet-button" title="Clear board">
-            <Trash2 size={13} />
+          <button onClick={() => setConfirmClear(true)} className="metal-key gap-1.5 px-2.5 py-1 font-term text-[12px]" title="Clear board">
+            <Trash2 size={12} />
             Clear
           </button>
         )}
-        <button onClick={saveBoard} className="utility-quiet-button" title="Save PNG">
-          <Save size={13} />
+        <button onClick={saveBoard} className="metal-key gap-1.5 px-2.5 py-1 font-term text-[12px]" title="Save PNG">
+          <Save size={12} />
           Save
         </button>
       </div>
       <div className={`min-h-0 flex-1 p-3 ${fullscreen ? 'p-5' : ''}`}>
         <div
           ref={wrapRef}
-          className="h-full overflow-hidden rounded-md border border-aero-sky/20 bg-[#f1efe7] shadow-[inset_0_0_24px_rgba(108,197,255,0.13)]"
+          className="h-full overflow-hidden bg-[#f1efe7]"
+          style={{ border: '1px solid rgba(0,255,136,0.15)' }}
         >
           <canvas
             ref={canvasRef}
@@ -317,7 +351,10 @@ function TimerTools({ fullscreen }: { fullscreen: boolean }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-shrink-0 items-center gap-1 border-b border-white/10 px-3 py-2">
+      <div
+        className="flex flex-shrink-0 items-center gap-1 px-3 py-2"
+        style={{ borderBottom: '1px solid rgba(0,255,136,0.10)' }}
+      >
         <TextTab active={tab === 'timer'} onClick={() => setTab('timer')}>Timer</TextTab>
         <TextTab active={tab === 'stopwatch'} onClick={() => setTab('stopwatch')}>Stopwatch</TextTab>
         <TextTab active={tab === 'clock'} onClick={() => setTab('clock')}>World Clock</TextTab>
@@ -361,11 +398,17 @@ function CountdownTimer({ fullscreen }: { fullscreen: boolean }) {
   return (
     <div className={`mx-auto flex max-w-3xl flex-col gap-5 ${fullscreen ? 'pt-14' : ''}`}>
       <div className="text-center">
-        <p className={`${fullscreen ? 'text-[96px]' : 'text-[64px]'} font-mono tabular-nums text-white/90`}>
+        <p
+          className={`${fullscreen ? 'text-[96px]' : 'text-[64px]'} font-lcd tabular-nums phosphor-glow leading-none`}
+          style={{ color: '#00FF88' }}
+        >
           {formatTimer(liveRemaining)}
         </p>
         {ringing && (
-          <button onClick={dismiss} className="mt-3 rounded-md border border-aero-aqua/35 bg-aero-aqua/12 px-4 py-2 text-[12px] text-aero-aqua">
+          <button
+            onClick={dismiss}
+            className="mt-3 metal-key is-primary px-4 py-2 font-term text-[12px]"
+          >
             Dismiss
           </button>
         )}
@@ -389,35 +432,44 @@ function CountdownTimer({ fullscreen }: { fullscreen: boolean }) {
       </div>
 
       <div className="mx-auto flex flex-wrap items-center justify-center gap-2">
-        <button onClick={running ? pause : start} className="utility-primary-button">
-          {running ? <Pause size={14} /> : <Play size={14} />}
+        <button onClick={running ? pause : start} className="metal-key is-primary gap-1.5 px-4 py-2 font-term text-[13px]">
+          {running ? <Pause size={13} /> : <Play size={13} />}
           {running ? 'Pause' : 'Start'}
         </button>
-        <button onClick={reset} className="utility-quiet-button">
-          <RotateCcw size={13} />
+        <button onClick={reset} className="metal-key gap-1.5 px-4 py-2 font-term text-[13px]">
+          <RotateCcw size={12} />
           Reset
         </button>
       </div>
 
-      <div className="mx-auto grid w-full max-w-xl min-w-0 gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
-        <label className="grid min-w-0 gap-1 text-[10px] uppercase tracking-[0.1em] text-muted/50">
+      <div
+        className="mx-auto grid w-full max-w-xl min-w-0 gap-3 p-3"
+        style={{ border: '1px solid rgba(0,255,136,0.15)', background: 'rgba(0,255,136,0.03)' }}
+      >
+        <label className="grid min-w-0 gap-1 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'rgba(155,245,184,0.45)' }}>
           Alarm action
           <select
             value={alarmAction}
             onChange={(e) => setAlarmAction(e.target.value as AlarmAction)}
-            className="min-w-0 w-full max-w-full rounded-md border border-white/10 bg-surface-100 px-2 py-2 text-[12px] normal-case tracking-normal text-white/75 outline-none"
+            className="min-w-0 w-full max-w-full px-2 py-2 font-term text-[12px] normal-case tracking-normal"
+            style={INPUT_STYLE}
+            onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
           >
             <option value="song">Play selected song</option>
             <option value="stop">Stop current music</option>
           </select>
         </label>
         {alarmAction === 'song' && (
-          <label className="grid min-w-0 gap-1 text-[10px] uppercase tracking-[0.1em] text-muted/50">
+          <label className="grid min-w-0 gap-1 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'rgba(155,245,184,0.45)' }}>
             Alarm song
             <select
               value={alarmPath}
               onChange={(e) => setAlarmPath(e.target.value)}
-              className="min-w-0 w-full max-w-full truncate rounded-md border border-white/10 bg-surface-100 px-2 py-2 text-[12px] normal-case tracking-normal text-white/75 outline-none"
+              className="min-w-0 w-full max-w-full truncate px-2 py-2 font-term text-[12px] normal-case tracking-normal"
+              style={INPUT_STYLE}
+              onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
             >
               {alarmTracks.map((track) => (
                 <option key={track.path} value={track.path}>
@@ -467,29 +519,49 @@ function Stopwatch({ fullscreen }: { fullscreen: boolean }) {
 
   return (
     <div className={`mx-auto flex max-w-2xl flex-col items-center gap-5 ${fullscreen ? 'pt-20' : ''}`}>
-      <p className={`${fullscreen ? 'text-[96px]' : 'text-[64px]'} font-mono tabular-nums text-white/90`}>
+      <p
+        className={`${fullscreen ? 'text-[96px]' : 'text-[64px]'} font-lcd tabular-nums phosphor-glow leading-none`}
+        style={{ color: '#00FF88' }}
+      >
         {formatMs(elapsed)}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <button onClick={running ? pause : start} className="utility-primary-button">
-          {running ? <Pause size={14} /> : <Play size={14} />}
+        <button onClick={running ? pause : start} className="metal-key is-primary gap-1.5 px-4 py-2 font-term text-[13px]">
+          {running ? <Pause size={13} /> : <Play size={13} />}
           {running ? 'Pause' : 'Start'}
         </button>
-        <button onClick={() => setLaps((items) => [elapsed, ...items].slice(0, 12))} className="utility-quiet-button" disabled={elapsed <= 0}>
+        <button
+          onClick={() => setLaps((items) => [elapsed, ...items].slice(0, 12))}
+          className="metal-key px-4 py-2 font-term text-[13px]"
+          disabled={elapsed <= 0}
+        >
           Lap
         </button>
-        <button onClick={reset} className="utility-quiet-button">
-          <RotateCcw size={13} />
+        <button onClick={reset} className="metal-key gap-1.5 px-4 py-2 font-term text-[13px]">
+          <RotateCcw size={12} />
           Reset
         </button>
       </div>
-      <div className="grid max-h-60 w-full gap-1 overflow-y-auto rounded-lg border border-white/10 bg-white/[0.03] p-2">
+      <div
+        className="grid max-h-60 w-full gap-1 overflow-y-auto p-2"
+        style={{ border: '1px solid rgba(0,255,136,0.12)', background: 'rgba(0,255,136,0.02)' }}
+      >
         {laps.length === 0 ? (
-          <p className="py-8 text-center text-[12px] text-white/25">No laps</p>
+          <p className="py-8 text-center font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.25)' }}>
+            No laps
+          </p>
         ) : laps.map((lap, index) => (
-          <div key={`${lap}-${index}`} className="flex items-center justify-between rounded-md bg-white/[0.035] px-3 py-2 text-[12px]">
-            <span className="font-mono text-white/35">Lap {laps.length - index}</span>
-            <span className="font-mono tabular-nums text-white/75">{formatMs(lap)}</span>
+          <div
+            key={`${lap}-${index}`}
+            className="flex items-center justify-between px-3 py-2"
+            style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid rgba(0,255,136,0.08)' }}
+          >
+            <span className="font-mono text-[11px]" style={{ color: 'rgba(155,245,184,0.40)' }}>
+              Lap {laps.length - index}
+            </span>
+            <span className="font-lcd tabular-nums text-[13px]" style={{ color: '#9bf5b8' }}>
+              {formatMs(lap)}
+            </span>
           </div>
         ))}
       </div>
@@ -547,24 +619,32 @@ function WorldClock({ fullscreen }: { fullscreen: boolean }) {
               value={newClockName}
               onChange={(e) => setNewClockName(e.target.value)}
               placeholder="clock name"
-              className="min-w-0 rounded-md border border-white/10 bg-surface-100 px-2 py-1.5 text-[11px] text-white/75 outline-none placeholder:text-white/25"
+              className="min-w-0 px-2 py-1.5 font-term text-[12px] placeholder:opacity-30"
+              style={{ ...INPUT_STYLE }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
             />
             <select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
-              className="min-w-0 w-full rounded-md border border-white/10 bg-surface-100 px-2 py-1.5 text-[11px] text-white/75 outline-none"
+              className="min-w-0 w-full px-2 py-1.5 font-term text-[12px]"
+              style={INPUT_STYLE}
+              onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
             >
               {timeZones.map((zone) => (
-                <option key={zone} value={zone}>
-                  {zone}
-                </option>
+                <option key={zone} value={zone}>{zone}</option>
               ))}
             </select>
           </div>
         )}
         {adding ? (
-          <button onClick={addClock} className="utility-primary-button" disabled={timeZones.length === 0}>
-            <Plus size={13} />
+          <button
+            onClick={addClock}
+            className="metal-key is-primary gap-1.5 px-3 py-1.5 font-term text-[12px]"
+            disabled={timeZones.length === 0}
+          >
+            <Plus size={12} />
             Add
           </button>
         ) : (
@@ -573,40 +653,52 @@ function WorldClock({ fullscreen }: { fullscreen: boolean }) {
               if (timeZones[0]) setSelectedZone(timeZones[0])
               setAdding(true)
             }}
-            className="utility-quiet-button"
+            className="metal-key gap-1.5 px-3 py-1.5 font-term text-[12px]"
             disabled={timeZones.length === 0}
           >
-            <Plus size={13} />
+            <Plus size={12} />
             Clock
           </button>
         )}
       </div>
       <div className={`grid gap-3 ${fullscreen ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2'}`}>
         {clocks.map((clock) => (
-          <div key={clock.id} className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
-            <div className="mb-4 flex min-w-0 items-center justify-between gap-2">
+          <div
+            key={clock.id}
+            className="p-4"
+            style={{ border: '1px solid rgba(0,255,136,0.15)', background: 'rgba(0,255,136,0.03)' }}
+          >
+            <div className="mb-3 flex min-w-0 items-center justify-between gap-2">
               <input
                 value={clock.label}
                 onChange={(e) => renameClock(clock.id, e.target.value)}
-                onBlur={() => {
+                title="Clock name"
+                className="min-w-0 flex-1 px-1 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] bg-transparent border border-transparent transition-colors"
+                style={{ color: '#00E5FF', borderRadius: 0, outline: 'none' }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.30)')}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'transparent'
                   if (!clock.label.trim()) renameClock(clock.id, defaultClockLabel(clock.zone))
                 }}
-                title="Clock name"
-                className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 text-[10px] font-mono uppercase tracking-[0.14em] text-aero-aqua/70 outline-none transition-colors hover:border-white/10 hover:bg-white/[0.035] focus:border-aero-aqua/25 focus:bg-white/[0.05]"
               />
               <div className="flex min-w-0 items-center gap-2">
-                <p className="min-w-0 truncate text-[10px] text-white/25">{clock.zone}</p>
+                <p className="min-w-0 truncate font-term text-[10px]" style={{ color: 'rgba(155,245,184,0.25)' }}>
+                  {clock.zone}
+                </p>
                 <button
                   onClick={() => removeClock(clock.id)}
                   disabled={clocks.length <= 1}
-                  className="text-white/20 transition-colors hover:text-white/60 disabled:opacity-20 disabled:hover:text-white/20"
+                  className="transition-colors disabled:opacity-20"
+                  style={{ color: 'rgba(155,245,184,0.30)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = '#9bf5b8')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(155,245,184,0.30)')}
                   title="Remove clock"
                 >
                   <X size={12} />
                 </button>
               </div>
             </div>
-            <p className="font-mono text-3xl tabular-nums text-white/90">
+            <p className="font-lcd text-3xl tabular-nums phosphor-glow" style={{ color: '#00FF88' }}>
               {now.toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -614,7 +706,7 @@ function WorldClock({ fullscreen }: { fullscreen: boolean }) {
                 timeZone: clock.zone,
               })}
             </p>
-            <p className="mt-2 text-[11px] text-white/35">
+            <p className="mt-1.5 font-term text-[11px]" style={{ color: 'rgba(155,245,184,0.40)' }}>
               {now.toLocaleDateString([], {
                 weekday: 'short',
                 month: 'short',
@@ -711,16 +803,22 @@ function RandomNumberTool({ fullscreen }: { fullscreen: boolean }) {
   return (
     <div className={`mx-auto flex max-w-2xl flex-col items-center gap-5 px-2 ${fullscreen ? 'pt-24' : 'pt-6'}`}>
       <div className="text-center">
-        <div className={`${fullscreen ? 'text-[140px]' : 'text-[88px]'} min-h-[1em] font-mono font-semibold leading-none tabular-nums text-white/90`}>
+        <div
+          className={`${fullscreen ? 'text-[140px]' : 'text-[88px]'} min-h-[1em] font-lcd font-semibold leading-none tabular-nums phosphor-glow`}
+          style={{ color: '#00FF88' }}
+        >
           {resultLabel}
         </div>
-        <p className="mt-2 text-[11px] font-mono uppercase tracking-[0.14em] text-aero-aqua/45">
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: 'rgba(0,229,255,0.50)' }}>
           {mode === 'coin' ? 'Coin flip' : mode === 'dice' ? 'Dice roll' : `1 to ${max}`}
         </p>
       </div>
 
-      <div className="grid w-full max-w-md gap-3 rounded-lg border border-white/10 bg-white/[0.035] p-3">
-        <label className="grid gap-1 text-[10px] uppercase tracking-[0.1em] text-muted/50">
+      <div
+        className="grid w-full max-w-md gap-3 p-3"
+        style={{ border: '1px solid rgba(0,255,136,0.15)', background: 'rgba(0,255,136,0.02)' }}
+      >
+        <label className="grid gap-1 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'rgba(155,245,184,0.45)' }}>
           Maximum
           <input
             type="number"
@@ -731,25 +829,37 @@ function RandomNumberTool({ fullscreen }: { fullscreen: boolean }) {
               setMax(Number(e.target.value))
               setMode('custom')
             }}
-            className="rounded-md border border-white/10 bg-surface-100 px-2 py-2 text-[13px] normal-case tracking-normal text-white/80 outline-none"
+            className="px-2 py-2 font-term text-[13px] normal-case tracking-normal"
+            style={INPUT_STYLE}
+            onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
           />
         </label>
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => roll('coin', 2)} className="utility-quiet-button justify-center">
+          <button
+            onClick={() => roll('coin', 2)}
+            className="metal-key justify-center font-term text-[12px]"
+          >
             Coin
           </button>
-          <button onClick={() => roll('dice', 6)} className="utility-quiet-button justify-center">
-            <Dice5 size={13} />
+          <button
+            onClick={() => roll('dice', 6)}
+            className="metal-key justify-center gap-1.5 font-term text-[12px]"
+          >
+            <Dice5 size={12} />
             Dice
           </button>
-          <button onClick={() => roll('custom', max)} className="utility-primary-button justify-center">
+          <button
+            onClick={() => roll('custom', max)}
+            className="metal-key is-primary justify-center font-term text-[12px]"
+          >
             {result === null ? 'Pick' : repeatLabel}
           </button>
         </div>
       </div>
 
       {fullscreen && result !== null && (
-        <button onClick={() => roll(mode, max)} className="utility-primary-button px-5 py-2.5">
+        <button onClick={() => roll(mode, max)} className="metal-key is-primary px-5 py-2.5 font-term text-[13px]">
           {repeatLabel}
         </button>
       )}
@@ -772,11 +882,25 @@ function SegmentedButton({
     <button
       onClick={onClick}
       title={title}
-      className={`flex h-7 w-8 items-center justify-center rounded-md border transition-colors ${
-        active
-          ? 'border-aero-aqua/35 bg-aero-aqua/12 text-aero-aqua'
-          : 'border-white/10 bg-white/[0.035] text-white/45 hover:text-white/75'
-      }`}
+      className="flex h-7 w-8 items-center justify-center transition-colors"
+      style={{
+        border: active ? '1px solid rgba(0,255,136,0.40)' : '1px solid rgba(0,255,136,0.15)',
+        background: active ? 'rgba(0,255,136,0.12)' : 'transparent',
+        color: active ? '#00FF88' : 'rgba(155,245,184,0.45)',
+        borderRadius: 0,
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'rgba(0,255,136,0.08)'
+          e.currentTarget.style.color = '#9bf5b8'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'rgba(155,245,184,0.45)'
+        }
+      }}
     >
       {children}
     </button>
@@ -795,11 +919,25 @@ function TextTab({
   return (
     <button
       onClick={onClick}
-      className={`rounded-md px-3 py-1.5 text-[11px] transition-colors ${
-        active
-          ? 'bg-aero-aqua/12 text-aero-aqua'
-          : 'text-muted/55 hover:bg-white/[0.04] hover:text-white/75'
-      }`}
+      className="px-3 py-1.5 font-term text-[12px] transition-colors"
+      style={{
+        background: active ? 'rgba(0,255,136,0.12)' : 'transparent',
+        border: active ? '1px solid rgba(0,255,136,0.35)' : '1px solid transparent',
+        color: active ? '#00FF88' : 'rgba(155,245,184,0.50)',
+        borderRadius: 0,
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'rgba(0,255,136,0.06)'
+          e.currentTarget.style.color = '#9bf5b8'
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'rgba(155,245,184,0.50)'
+        }
+      }}
     >
       {children}
     </button>
@@ -820,7 +958,7 @@ function NumberField({
   onChange: (value: number) => void
 }) {
   return (
-    <label className="grid gap-1 text-[10px] uppercase tracking-[0.1em] text-muted/50">
+    <label className="grid gap-1 font-mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'rgba(155,245,184,0.45)' }}>
       {label}
       <input
         type="number"
@@ -829,7 +967,10 @@ function NumberField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Math.max(0, Math.min(max, Number(e.target.value) || 0)))}
-        className="rounded-md border border-white/10 bg-surface-100 px-2 py-2 text-[13px] normal-case tracking-normal text-white/80 outline-none disabled:opacity-45"
+        className="px-2 py-2 font-term text-[13px] normal-case tracking-normal disabled:opacity-45"
+        style={INPUT_STYLE}
+        onFocus={(e) => (e.currentTarget.style.borderColor = INPUT_FOCUS_BORDER)}
+        onBlur={(e) => (e.currentTarget.style.borderColor = INPUT_BLUR_BORDER)}
       />
     </label>
   )

@@ -45,7 +45,7 @@ export default function TagPanel() {
 
   return (
     <div className="p-4 space-y-3">
-      <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted/40">Tags</p>
+      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>TAGS</p>
 
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => {
@@ -55,18 +55,20 @@ export default function TagPanel() {
               key={tag.id}
               onClick={() => toggleTag(tag)}
               disabled={saving}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${
-                active
-                  ? 'bg-accent/20 text-accent border border-accent/30'
-                  : 'bg-white/[0.05] text-muted/60 border border-white/[0.06] hover:text-white/70 hover:bg-white/[0.08]'
-              }`}
+              className={`px-2.5 py-1 font-term text-[12px] transition-colors ${active ? 'phosphor-glow' : ''}`}
+              style={{
+                background: active ? 'rgba(0,255,136,0.15)' : 'transparent',
+                border: active ? '1px solid rgba(0,255,136,0.55)' : '1px solid rgba(0,255,136,0.20)',
+                color: active ? '#00FF88' : 'rgba(155,245,184,0.55)',
+                borderRadius: 0,
+              }}
             >
-              {tag.name}
+              #{tag.name}
             </button>
           )
         })}
         {tags.length === 0 && (
-          <p className="text-[11px] text-muted/30">No tags defined</p>
+          <p className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>no tags defined</p>
         )}
       </div>
 
@@ -75,12 +77,20 @@ export default function TagPanel() {
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-          placeholder="New tag…"
-          className="flex-1 bg-white/[0.05] text-white/80 text-[11px] rounded-md px-2.5 py-1.5 outline-none border border-white/[0.07] focus:border-accent/40 transition-colors placeholder:text-muted/30"
+          placeholder="new tag..."
+          className="flex-1 font-term text-[12px] px-2.5 py-1.5 outline-none transition-colors placeholder:opacity-30"
+          style={{
+            background: '#000',
+            border: '1px solid rgba(0,255,136,0.25)',
+            color: '#9bf5b8',
+            borderRadius: 0,
+          }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
+          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
         />
         <button
           onClick={handleCreate}
-          className="p-1.5 rounded-md bg-accent/15 hover:bg-accent/25 text-accent transition-colors"
+          className="metal-key is-primary p-1.5"
         >
           <Plus size={13} />
         </button>

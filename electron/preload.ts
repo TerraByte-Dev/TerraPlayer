@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('hub', {
   removeFolder: (path: string) => ipcRenderer.invoke('lib:removeFolder', path),
   pickFolder: () => ipcRenderer.invoke('lib:pickFolder'),
   suggestMusicFolder: () => ipcRenderer.invoke('lib:suggestMusicFolder'),
+  getDriveStats: () => ipcRenderer.invoke('lib:getDriveStats'),
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   writeTags: (path: string, tags: Record<string, string | number>) =>
     ipcRenderer.invoke('meta:writeTags', path, tags),

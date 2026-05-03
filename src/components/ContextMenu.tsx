@@ -31,14 +31,8 @@ export default function ContextMenu() {
     const rect = ref.current.getBoundingClientRect()
     const maxHeight = Math.max(80, window.innerHeight - viewportPad * 2)
     const renderedHeight = Math.min(rect.height, maxHeight)
-    const left = Math.max(
-      viewportPad,
-      Math.min(x, window.innerWidth - menuW - viewportPad)
-    )
-    const top = Math.max(
-      viewportPad,
-      Math.min(y, window.innerHeight - renderedHeight - viewportPad)
-    )
+    const left = Math.max(viewportPad, Math.min(x, window.innerWidth - menuW - viewportPad))
+    const top = Math.max(viewportPad, Math.min(y, window.innerHeight - renderedHeight - viewportPad))
     setPosition({ left, top, maxHeight })
   }, [open, x, y, items])
 
@@ -47,45 +41,58 @@ export default function ContextMenu() {
   return (
     <div
       ref={ref}
-      className="fixed z-[100] rounded-xl border border-white/[0.08] shadow-2xl py-1 overflow-y-auto"
+      className="fixed z-[100] py-1 overflow-y-auto"
       style={{
         left: position.left,
         top: position.top,
         width: menuW,
         maxHeight: position.maxHeight || window.innerHeight - viewportPad * 2,
-        background: 'rgba(10,20,40,0.97)',
-        backdropFilter: 'blur(16px)',
+        background: '#000',
+        border: '1px solid #00FF88',
+        borderRadius: 0,
+        boxShadow: '0 0 12px rgba(0,255,136,0.30)',
         visibility: position.maxHeight ? 'visible' : 'hidden',
       }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-      }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
     >
       {items.map((item, i) => {
         if (item.separator) {
-          return <div key={i} className="my-1 h-px bg-white/[0.07] mx-2" />
+          return (
+            <div
+              key={i}
+              className="my-1 h-px mx-2"
+              style={{ background: 'rgba(0,255,136,0.08)', borderTop: '1px dashed rgba(0,255,136,0.08)' }}
+            />
+          )
         }
         return (
           <button
             key={i}
             disabled={item.disabled}
             onClick={() => {
-              if (!item.disabled) {
-                item.onClick?.()
-                closeMenu()
-              }
+              if (!item.disabled) { item.onClick?.(); closeMenu() }
             }}
-            className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-[12px] text-left transition-colors ${
-              item.disabled
-                ? 'text-muted/25 cursor-default'
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 font-term text-[13px] text-left transition-colors"
+            style={{
+              color: item.disabled
+                ? 'rgba(155,245,184,0.25)'
                 : item.danger
-                ? 'text-red-400/80 hover:text-red-300 hover:bg-red-500/10'
-                : 'text-ink-100/70 hover:text-white hover:bg-white/[0.07]'
-            }`}
+                ? '#FF3030'
+                : '#9bf5b8',
+              cursor: item.disabled ? 'default' : 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              if (item.disabled) return
+              e.currentTarget.style.background = 'rgba(0,255,136,0.10)'
+              e.currentTarget.style.color = item.danger ? '#ff6060' : '#00FF88'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = ''
+              e.currentTarget.style.color = item.disabled ? 'rgba(155,245,184,0.25)' : item.danger ? '#FF3030' : '#9bf5b8'
+            }}
           >
             {item.icon && (
-              <span className={`flex-shrink-0 ${item.disabled ? 'opacity-30' : 'opacity-50'}`}>
+              <span style={{ opacity: item.disabled ? 0.3 : 0.5, flexShrink: 0 }}>
                 {item.icon}
               </span>
             )}

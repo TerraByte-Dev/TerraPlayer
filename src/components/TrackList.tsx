@@ -5,7 +5,7 @@ import { usePlayerStore } from '@/store/player'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { fmtDuration, hub } from '@/lib/ipc'
 import type { Track } from '@/lib/ipc'
-import placeholderCover from '@/assets/y2k-note-placeholder.png'
+import VectorGridCover from './VectorGridCover'
 
 type SortKey = 'title' | 'artist' | 'album' | 'duration' | 'playlist'
 
@@ -24,6 +24,7 @@ export default function TrackList() {
   const [tagViewLoading, setTagViewLoading] = useState(false)
   const [musicSuggestion, setMusicSuggestion] = useState<{ path: string; exists: boolean } | null>(null)
   const [showReadErrors, setShowReadErrors] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (folders.length === 0) {
@@ -60,6 +61,17 @@ export default function TrackList() {
     return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av)
   })
 
+  const filtered = searchQuery.trim()
+    ? sorted.filter((t) => {
+        const q = searchQuery.toLowerCase()
+        return (
+          (t.title || '').toLowerCase().includes(q) ||
+          (t.artist || '').toLowerCase().includes(q) ||
+          (t.album || '').toLowerCase().includes(q)
+        )
+      })
+    : sorted
+
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortAsc((v) => !v)
     else { setSortKey(key); setSortAsc(true) }
@@ -68,15 +80,15 @@ export default function TrackList() {
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
       ? sortAsc
-        ? <ChevronUp size={10} className="text-accent" />
-        : <ChevronDown size={10} className="text-accent" />
+        ? <ChevronUp size={10} style={{ color: '#00FF88' }} />
+        : <ChevronDown size={10} style={{ color: '#00FF88' }} />
       : null
 
   const current = currentTrack()
 
   const viewTitle =
     sidebarView.kind === 'all'
-      ? 'All Tracks'
+      ? 'all tracks'
       : sidebarView.kind === 'playlist'
       ? sidebarView.name
       : sidebarView.tagName
@@ -161,74 +173,100 @@ export default function TrackList() {
 
   if (loading || tagViewLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted/50 text-sm">
-        Scanning…
+      <div className="flex-1 flex items-center justify-center font-term text-[14px]"
+        style={{ color: 'rgba(155,245,184,0.55)' }}>
+        scanning...
       </div>
     )
   }
 
   if (folders.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-white/[0.04] flex items-center justify-center">
-          <Music size={22} className="text-muted/40" />
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center track-scan">
+        <div
+          className="w-14 h-14 flex items-center justify-center"
+          style={{ border: '1px solid rgba(0,255,136,0.25)', background: 'rgba(0,255,136,0.04)' }}
+        >
+          <Music size={22} style={{ color: 'rgba(0,255,136,0.40)' }} />
         </div>
         <div>
-          <p className="text-white/70 text-sm font-medium">No music folder</p>
-          <p className="text-muted/50 text-xs mt-1">Add a folder to get started</p>
+          <p className="font-term text-[14px]" style={{ color: '#9bf5b8' }}>no music folder</p>
+          <p className="font-term text-[13px] mt-1" style={{ color: 'rgba(155,245,184,0.55)' }}>
+            add a folder to get started
+          </p>
         </div>
         <div className="flex flex-col items-center gap-2 w-full max-w-[220px]">
           <button
             onClick={addFolder}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-accent/15 hover:bg-accent/25 text-accent text-sm font-medium transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 font-term text-[14px] tracking-[1px] transition-colors"
+            style={{ border: '1px solid #00FF88', color: '#00FF88', background: 'rgba(0,255,136,0.08)' }}
           >
             <FolderPlus size={14} />
-            Choose folder…
+            choose folder...
           </button>
           {musicSuggestion?.exists && (
             <button
               onClick={() => addFolderByPath(musicSuggestion.path)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-white/[0.05] hover:bg-white/[0.09] text-white/60 hover:text-white/80 text-sm transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 font-term text-[14px] transition-colors"
               title={musicSuggestion.path}
+              style={{
+                border: '1px solid rgba(0,255,136,0.25)',
+                color: 'rgba(155,245,184,0.55)',
+                background: 'rgba(0,255,136,0.03)',
+              }}
             >
               <Music size={14} />
-              Use my Music folder
+              use my Music folder
             </button>
           )}
         </div>
         {error && (
-          <p className="text-red-400/80 text-xs max-w-xs">{error}</p>
+          <p className="font-term text-[13px] max-w-xs" style={{ color: '#FF3030' }}>{error}</p>
         )}
       </div>
     )
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden track-scan">
       {error && (
-        <div className="flex items-start gap-2 px-4 py-2.5 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[12px]">
+        <div className="flex items-start gap-2 px-4 py-2.5 text-[12px]"
+          style={{
+            background: 'rgba(255,48,48,0.06)',
+            borderBottom: '1px solid rgba(255,48,48,0.20)',
+            color: '#FF3030',
+          }}>
           <AlertCircle size={13} className="flex-shrink-0 mt-px" />
-          <span className="flex-1">{error}</span>
-          <button onClick={clearError} className="flex-shrink-0 hover:text-red-300 transition-colors">
+          <span className="flex-1 font-term">{error}</span>
+          <button onClick={clearError} className="flex-shrink-0 hover:opacity-70 transition-opacity">
             <X size={12} />
           </button>
         </div>
       )}
 
       {!error && lastSummary && lastSummary.folders > 0 && lastSummary.scanned === 0 && (
-        <div className="flex items-start gap-2 px-4 py-2.5 bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400/80 text-[12px]">
+        <div className="flex items-start gap-2 px-4 py-2.5 text-[12px]"
+          style={{
+            background: 'rgba(255,176,0,0.06)',
+            borderBottom: '1px solid rgba(255,176,0,0.20)',
+            color: '#FFB000',
+          }}>
           <AlertCircle size={13} className="flex-shrink-0 mt-px" />
-          <span className="flex-1">
-            No audio files found. Media Player supports <code className="text-yellow-300/70">.mp3</code> and <code className="text-yellow-300/70">.m4a</code>.
+          <span className="font-term flex-1">
+            no audio files found — supports{' '}
+            <code className="font-mono" style={{ color: '#FFB000' }}>.mp3</code>
+            {' '}and{' '}
+            <code className="font-mono" style={{ color: '#FFB000' }}>.m4a</code>
           </span>
         </div>
       )}
 
       {lastSummary && lastSummary.errors.length > 0 && (
-        <div className="px-4 py-2 border-b border-white/[0.04] text-[11px] text-muted/40">
+        <div className="px-4 py-2 text-[11px]"
+          style={{ borderBottom: '1px solid rgba(0,255,136,0.06)', color: 'rgba(155,245,184,0.40)' }}>
           <button
             onClick={() => setShowReadErrors((v) => !v)}
-            className="hover:text-muted/70 transition-colors"
+            className="font-term hover:opacity-80 transition-opacity"
           >
             {lastSummary.errors.length} folder{lastSummary.errors.length > 1 ? 's' : ''} couldn't be read
             {showReadErrors ? ' ▴' : ' ▾'}
@@ -236,44 +274,99 @@ export default function TrackList() {
           {showReadErrors && (
             <ul className="mt-1 space-y-0.5 pl-2">
               {lastSummary.errors.map((e, i) => (
-                <li key={i} className="text-muted/30 truncate" title={e}>{e}</li>
+                <li key={i} className="font-term truncate" style={{ color: 'rgba(155,245,184,0.25)' }} title={e}>{e}</li>
               ))}
             </ul>
           )}
         </div>
       )}
 
-      <div className="px-6 py-4 flex items-baseline gap-3 border-b border-white/[0.05]">
-        <h2 className="text-[15px] font-semibold text-white/90">{viewTitle}</h2>
-        <span className="text-[11px] text-muted/50">{sorted.length} tracks</span>
+      {/* View header */}
+      <div
+        className="px-[18px] py-[12px] flex items-end justify-between"
+        style={{ borderBottom: '1px solid rgba(0,255,136,0.18)' }}
+      >
+        <div className="min-w-0">
+          <div className="font-term text-[11px]" style={{ color: '#00E5FF' }}>
+            library /
+          </div>
+          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none" style={{ color: '#00FF88' }}>
+            {viewTitle}
+          </div>
+          <div className="font-term text-[11px] mt-1" style={{ color: '#1f5e3a' }}>
+            · {filtered.length} entries · sorted={sortKey} {sortAsc ? 'asc' : 'desc'}
+          </div>
+        </div>
+
+        {/* Search */}
+        <div
+          className="flex items-center px-[10px] py-[4px] ml-4 flex-shrink-0"
+          style={{
+            background: '#000',
+            border: '1px solid #00FF88',
+            boxShadow: '0 0 8px rgba(0,255,136,0.20), inset 0 0 8px rgba(0,255,136,0.05)',
+          }}
+        >
+          <span className="font-term text-[14px] mr-1" style={{ color: '#00E5FF' }}>?</span>
+          <span className="font-term text-[14px] mr-1" style={{ color: 'rgba(155,245,184,0.30)' }}>grep</span>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="font-term text-[14px] bg-transparent outline-none w-28"
+            style={{ color: '#00FF88' }}
+            placeholder=""
+          />
+          {!searchQuery && (
+            <span className="font-term text-[14px] term-caret" style={{ color: '#00FF88' }}>█</span>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-[40px_1fr_1fr_1fr_1fr_52px] px-4 py-2 border-b border-white/[0.04] select-none">
+      {/* Column headers */}
+      <div
+        className="grid px-[10px] py-[4px] select-none flex-shrink-0"
+        style={{
+          gridTemplateColumns: '40px 36px 1fr 1fr 1fr 110px 60px',
+          background: 'rgba(0,255,136,0.05)',
+          borderBottom: '1px solid rgba(0,255,136,0.18)',
+        }}
+      >
+        <span className="font-mono text-[9px] tracking-[1.5px] uppercase" style={{ color: '#00E5FF' }}>id</span>
         <span />
-        {(['title', 'artist', 'album', 'playlist'] as SortKey[]).map((k) => (
+        {(['title', 'artist', 'album'] as SortKey[]).map((k) => (
           <button
             key={k}
             onClick={() => handleSort(k)}
-            className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted/40 hover:text-muted/70 transition-colors text-left"
+            className="flex items-center gap-1 font-mono text-[9px] tracking-[1.5px] uppercase text-left transition-opacity hover:opacity-80"
+            style={{ color: '#00E5FF' }}
           >
-            {k === 'playlist' ? 'folder' : k} <SortIcon k={k} />
+            {k} <SortIcon k={k} />
           </button>
         ))}
         <button
-          onClick={() => handleSort('duration')}
-          className="flex items-center justify-end gap-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted/40 hover:text-muted/70 transition-colors"
+          onClick={() => handleSort('playlist')}
+          className="flex items-center gap-1 font-mono text-[9px] tracking-[1.5px] uppercase text-left"
+          style={{ color: '#00E5FF' }}
         >
-          <SortIcon k="duration" /> Time
+          path <SortIcon k="playlist" />
+        </button>
+        <button
+          onClick={() => handleSort('duration')}
+          className="flex items-center justify-end gap-1 font-mono text-[9px] tracking-[1.5px] uppercase"
+          style={{ color: '#00E5FF' }}
+        >
+          <SortIcon k="duration" /> dur
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {sorted.length === 0 && (
-          <div className="flex items-center justify-center h-32 text-muted/40 text-sm">
-            No tracks found
+        {filtered.length === 0 && (
+          <div className="flex items-center justify-center h-32 font-term text-[14px]"
+            style={{ color: 'rgba(155,245,184,0.30)' }}>
+            no tracks found
           </div>
         )}
-        {sorted.map((track) => {
+        {filtered.map((track, idx) => {
           const isCurrentTrack = current?.id === track.id
           const isSelected = selectedTrackId === track.id
 
@@ -283,59 +376,82 @@ export default function TrackList() {
               onClick={() => handleRowClick(track)}
               onDoubleClick={() => handleRowDoubleClick(track)}
               onContextMenu={(e) => handleContextMenu(e, track)}
-              className={`grid grid-cols-[40px_1fr_1fr_1fr_1fr_52px] px-4 py-[7px] items-center cursor-pointer select-none transition-colors group ${
-                isSelected
-                  ? 'bg-white/[0.07] text-white'
-                  : 'hover:bg-white/[0.04] text-muted/70'
-              } ${isCurrentTrack ? '!text-accent' : ''}`}
+              className="grid px-[10px] py-[3px] items-center cursor-pointer select-none transition-colors group"
+              style={{
+                gridTemplateColumns: '40px 36px 1fr 1fr 1fr 110px 60px',
+                borderLeft: isSelected || isCurrentTrack ? '2px solid #00FF88' : '2px solid transparent',
+                background: isSelected
+                  ? 'rgba(0,255,136,0.15)'
+                  : isCurrentTrack
+                  ? 'rgba(0,255,136,0.08)'
+                  : undefined,
+              }}
             >
-              {/* Cover / play indicator */}
-              <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 relative bg-white/[0.05]">
-                {track.coverDataUrl ? (
-                  <>
-                    <img src={track.coverDataUrl} alt="" className="w-full h-full object-cover" />
-                    <div
-                      onClick={(e) => handleCoverClick(e, track)}
-                      className={`absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity cursor-pointer ${
-                        isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                    >
-                      {isCurrentTrack && isPlaying
-                        ? <Pause size={12} className="text-white fill-white" />
-                        : <Play size={12} className="text-white fill-white" />
-                      }
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <img src={placeholderCover} alt="" className="w-full h-full object-cover" />
-                    <div
-                      onClick={(e) => handleCoverClick(e, track)}
-                      className={`absolute inset-0 bg-black/35 flex items-center justify-center transition-opacity cursor-pointer ${
-                        isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                    >
-                      {isCurrentTrack && isPlaying
-                        ? <Pause size={12} className="text-white fill-white" />
-                        : <Play size={12} className="text-white fill-white" />
-                      }
-                    </div>
-                  </>
-                )}
+              {/* ID / play indicator */}
+              <span className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+                {isCurrentTrack ? '▶' : String(idx + 1).padStart(4, '0')}
+              </span>
+
+              {/* Cover */}
+              <div className="relative cursor-pointer" onClick={(e) => handleCoverClick(e, track)}>
+                <VectorGridCover src={track.coverDataUrl} label={`A:${String(idx + 1).padStart(3, '0')}`} size={24} />
+                <div
+                  className={`absolute inset-0 flex items-center justify-center transition-opacity ${
+                    isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                  style={{ background: 'rgba(0,0,0,0.5)' }}
+                >
+                  {isCurrentTrack && isPlaying
+                    ? <Pause size={10} className="fill-current" style={{ color: '#fff' }} />
+                    : <Play size={10} className="fill-current" style={{ color: '#fff' }} />
+                  }
+                </div>
               </div>
 
-              <span className={`truncate text-[13px] ${isCurrentTrack ? 'text-accent' : 'text-white/80'} font-medium`}>
-                {track.title || '—'}
+              {/* Title */}
+              <span
+                className={`font-term text-[14px] truncate px-2 ${isCurrentTrack ? 'phosphor-glow' : ''}`}
+                style={{ color: isCurrentTrack ? '#00FF88' : '#9bf5b8' }}
+              >
+                {isCurrentTrack ? `▶ ${track.title || '—'}` : (track.title || '—')}
               </span>
-              <span className="truncate text-[13px]">{track.artist || '—'}</span>
-              <span className="truncate text-[13px]">{track.album || '—'}</span>
-              <span className="truncate text-[12px] text-muted/40">{track.playlist}</span>
-              <span className="text-[11px] text-right font-mono text-muted/40 tabular-nums">
+
+              {/* Artist */}
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgba(155,245,184,0.55)' }}>
+                {track.artist || '—'}
+              </span>
+
+              {/* Album */}
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgba(155,245,184,0.55)' }}>
+                {track.album || '—'}
+              </span>
+
+              {/* Path */}
+              <span className="font-term text-[12px] truncate" style={{ color: 'rgba(155,245,184,0.30)' }}>
+                ./{track.playlist || ''}
+              </span>
+
+              {/* Duration */}
+              <span
+                className="font-term text-[12px] text-right tabular-nums"
+                style={{ color: isCurrentTrack ? '#00FF88' : 'rgba(155,245,184,0.55)' }}
+              >
                 {fmtDuration(track.duration)}
               </span>
             </div>
           )
         })}
+
+        {/* Trailing prompt (All Tracks view only) */}
+        {sidebarView.kind === 'all' && filtered.length > 0 && (
+          <div className="px-[10px] py-[8px] font-term text-[13px] select-none">
+            <span style={{ color: '#00E5FF' }}>tracks@mainframe</span>
+            <span style={{ color: '#9bf5b8' }}>:</span>
+            <span style={{ color: '#FFB000' }}>~/library</span>
+            <span style={{ color: '#9bf5b8' }}>$ </span>
+            <span className="term-caret" style={{ color: '#00FF88' }}>█</span>
+          </div>
+        )}
       </div>
     </div>
   )

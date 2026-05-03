@@ -380,3 +380,13 @@ export async function getTracksForTag(tagId: number): Promise<TrackRow[]> {
   )
   return rows.map(rowToTrack)
 }
+
+export async function getDriveStats(): Promise<{ totalBytes: number }> {
+  const db = await getDb()
+  const paths = dbAll<{ path: string }>(db, 'SELECT path FROM tracks', [])
+  let totalBytes = 0
+  for (const { path } of paths) {
+    try { totalBytes += statSync(path).size } catch { /* file missing */ }
+  }
+  return { totalBytes }
+}

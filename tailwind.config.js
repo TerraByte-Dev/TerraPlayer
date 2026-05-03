@@ -4,40 +4,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Remap surface tokens to Frutiger Aero navy palette (keeps all existing class names working)
-        surface: {
-          100: '#132b55',
-          200: '#0d2040',
-          300: '#0a1a33',
-          400: '#061224',
+        bg:        '#000000',
+        panel:     '#020503',
+        panelLite: '#04090a',
+        lcd:       '#020a05',
+        phosphor: {
+          DEFAULT: '#00FF88',
+          bright:  '#7CFF6B',
+          dim:     '#1f5e3a',
+          faint:   'rgba(0,255,136,0.20)',
         },
-        // Remap accent to aqua (keeps bg-accent, text-accent, etc. working)
-        accent: {
-          DEFAULT: '#7fe9d0',
-          dim: '#6cc5ff',
-        },
-        muted: '#5c7a99',
-        // New Aero palette tokens
-        navy: {
-          900: '#061224',
-          800: '#0a1a33',
-          700: '#132b55',
-        },
-        aero: {
-          sky: '#6cc5ff',
-          aqua: '#7fe9d0',
-          lime: '#b6f25c',
-          bubble: '#c5f0ff',
+        term: {
+          cyan:    '#00E5FF',
+          amber:   '#FFB000',
+          magenta: '#FF2E9A',
+          red:     '#FF3030',
         },
         ink: {
-          100: '#eaf6ff',
-          300: '#9fb6cc',
-          500: '#5c7a99',
+          DEFAULT: '#9bf5b8',
+          dim:     'rgba(155,245,184,0.55)',
+          faint:   'rgba(155,245,184,0.30)',
         },
+        rule:    'rgba(0,255,136,0.18)',
+        ruleDim: 'rgba(0,255,136,0.08)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
+        term: ['"VT323"', 'monospace'],
+        lcd:  ['"Share Tech Mono"', '"VT323"', 'monospace'],
       },
     },
   },

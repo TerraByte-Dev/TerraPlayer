@@ -19,6 +19,7 @@ interface LibraryState {
   selectedTrackId: number | null
   rightPanelOpen: boolean
   panelMode: 'metadata' | 'queue'
+  driveBytes: number
 
   load: () => Promise<void>
   refreshTrack: (path: string) => Promise<void>
@@ -48,6 +49,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   selectedTrackId: null,
   rightPanelOpen: false,
   panelMode: 'metadata' as 'metadata' | 'queue',
+  driveBytes: 0,
 
   load: async () => {
     set({ loading: true, error: null })
@@ -55,8 +57,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // scanLibrary must finish first — it may insert into library_folders on first run,
       // and listFolders run in parallel would read before that insert completes.
       const { playlists, tracks, summary } = await hub.scanLibrary()
-      const [tags, folders] = await Promise.all([hub.listTags(), hub.listFolders()])
-      set({ playlists, tracks, tags, folders, loading: false, lastSummary: summary })
+      const [tags, folders, { totalBytes }] = await Promise.all([
+        hub.listTags(),
+        hub.listFolders(),
+        hub.getDriveStats(),
+      ])
+      set({ playlists, tracks, tags, folders, loading: false, lastSummary: summary, driveBytes: totalBytes })
     } catch (e) {
       set({ loading: false, error: String(e) })
     }

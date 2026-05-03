@@ -20,6 +20,7 @@ import {
   listLibraryFolders,
   addLibraryFolder,
   removeLibraryFolder,
+  getDriveStats,
 } from './ipc/library'
 import { writeTags } from './ipc/metadata'
 
@@ -34,12 +35,12 @@ function createWindow(): void {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#061224',
+    backgroundColor: '#020503',
     titleBarStyle: 'hidden',
     titleBarOverlay: {
-      color: '#061224',
-      symbolColor: '#5c7a99',
-      height: 32,
+      color: '#000000',
+      symbolColor: '#00FF88',
+      height: 24,
     },
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
@@ -89,6 +90,7 @@ app.whenReady().then(() => {
     try { statSync(path); exists = true } catch { /* noop */ }
     return { path, exists }
   })
+  ipcMain.handle('lib:getDriveStats', () => getDriveStats())
 
   // Metadata / tags
   ipcMain.handle('meta:writeTags', (_, path: string, tags: Record<string, string | number>) =>

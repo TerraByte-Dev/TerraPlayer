@@ -71,7 +71,7 @@ export default function UtilityTimerHost({ onOpenTimer }: { onOpenTimer: () => v
 
   if (!running && !ringing) return <audio ref={audioRef} />
 
-  const label = ringing ? 'Timer done' : formatTimer(remaining())
+  const label = ringing ? 'TIMER DONE' : formatTimer(remaining())
 
   return (
     <>
@@ -83,13 +83,12 @@ export default function UtilityTimerHost({ onOpenTimer }: { onOpenTimer: () => v
           if (ringing) dismiss()
         }}
         title={ringing ? 'Open timer. Right-click to dismiss.' : 'Open running timer'}
-        className={`fixed bottom-[70px] left-60 z-20 flex h-8 items-center gap-2 rounded-full border px-3 text-[11px] font-mono tabular-nums shadow-lg backdrop-blur-xl transition-colors ${
-          ringing
-            ? 'border-aero-aqua/40 bg-aero-aqua/14 text-aero-aqua'
-            : 'border-white/[0.07] bg-white/[0.055] text-muted/65 hover:text-aero-aqua'
+        className={`fixed bottom-[92px] left-60 z-20 flex h-7 items-center gap-2 px-3 font-term text-[12px] tabular-nums shadow-lg transition-colors ${
+          ringing ? 'metal-key is-primary' : 'metal-key'
         }`}
+        style={ringing ? undefined : { color: 'rgba(155,245,184,0.65)' }}
       >
-        <AlarmClock size={13} />
+        <AlarmClock size={12} />
         {label}
       </button>
     </>
