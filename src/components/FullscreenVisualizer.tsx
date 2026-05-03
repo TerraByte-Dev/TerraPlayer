@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
 import { getAnalyser } from '@/lib/audio'
 import { usePlayerStore } from '@/store/player'
@@ -22,23 +22,50 @@ const BAR_GAP = 2
 
 const SEG_COLORS = { peak: '#00E5FF' }
 
-function segColor(ratio: number): string {
-  if (ratio < 0.20) return '#004D29'
-  if (ratio < 0.38) return '#00AA55'
-  if (ratio < 0.55) return '#00FF88'
-  if (ratio < 0.65) return '#88FF44'
-  if (ratio < 0.75) return '#FFB000'
-  if (ratio < 0.85) return '#FF7700'
-  return '#FF3030'
+interface Stop { at: number; rgb: string }
+
+function lerpStops(stops: Stop[], t: number, alpha = 1): string {
+  if (t <= stops[0].at) return `rgba(${stops[0].rgb},${alpha})`
+  if (t >= stops[stops.length - 1].at) return `rgba(${stops[stops.length - 1].rgb},${alpha})`
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i].at) {
+      const a = stops[i - 1], b = stops[i]
+      const k = (t - a.at) / (b.at - a.at)
+      const [ar, ag, ab] = a.rgb.split(',').map(Number)
+      const [br, bg, bb] = b.rgb.split(',').map(Number)
+      const r = Math.round(ar + (br - ar) * k)
+      const g = Math.round(ag + (bg - ag) * k)
+      const bl = Math.round(ab + (bb - ab) * k)
+      return `rgba(${r},${g},${bl},${alpha})`
+    }
+  }
+  return `rgba(${stops[0].rgb},${alpha})`
 }
 
-function ringTickColor(val: number, alpha: number): string {
-  if (val < 0.45) return `rgba(0,255,136,${alpha})`
-  if (val < 0.70) return `rgba(255,176,0,${alpha})`
-  return `rgba(255,48,48,${alpha})`
+function mulberry32(seed: number) {
+  return () => {
+    seed = (seed + 0x6D2B79F5) | 0
+    let t = seed
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
 }
 
-type ColorPreset = 'phosphor' | 'cyan' | 'amber'
+function buildBlockShuffle(baseMapping: number[], blockSize: number, seed: number): Uint16Array {
+  const rng = mulberry32(seed)
+  const out = new Uint16Array(baseMapping)
+  for (let start = 0; start < out.length; start += blockSize) {
+    const end = Math.min(start + blockSize, out.length)
+    for (let i = end - 1; i > start; i--) {
+      const j = start + Math.floor(rng() * (i - start + 1))
+      const tmp = out[i]; out[i] = out[j]; out[j] = tmp
+    }
+  }
+  return out
+}
+
+type ColorPreset = 'spectrum' | 'phosphor' | 'cyan' | 'amber'
 
 interface VizSettings {
   bars: boolean
@@ -49,10 +76,41 @@ interface VizSettings {
   intensity: number
 }
 
-const COLOR_PRESETS: Record<ColorPreset, { glowRgb: string; ringHue: number; name: string }> = {
-  phosphor: { glowRgb: '0,255,136',   ringHue: 150, name: 'Phosphor' },
-  cyan:     { glowRgb: '0,229,255',   ringHue: 185, name: 'Cyan' },
-  amber:    { glowRgb: '255,176,0',   ringHue: 42,  name: 'Amber' },
+const COLOR_PRESETS: Record<ColorPreset, { glowRgb: string; ringHue: number; name: string; stops: Stop[] }> = {
+  spectrum: {
+    glowRgb: '0,255,136', ringHue: 150, name: 'Spectrum',
+    stops: [
+      { at: 0.00, rgb: '0,77,41' },
+      { at: 0.30, rgb: '0,255,136' },
+      { at: 0.60, rgb: '255,176,0' },
+      { at: 0.85, rgb: '255,119,0' },
+      { at: 1.00, rgb: '255,48,48' },
+    ],
+  },
+  phosphor: {
+    glowRgb: '0,255,136', ringHue: 150, name: 'Phosphor',
+    stops: [
+      { at: 0.00, rgb: '0,51,34' },
+      { at: 0.50, rgb: '0,255,136' },
+      { at: 1.00, rgb: '170,255,204' },
+    ],
+  },
+  cyan: {
+    glowRgb: '0,229,255', ringHue: 185, name: 'Cyan',
+    stops: [
+      { at: 0.00, rgb: '0,31,51' },
+      { at: 0.50, rgb: '0,229,255' },
+      { at: 1.00, rgb: '204,247,255' },
+    ],
+  },
+  amber: {
+    glowRgb: '255,176,0', ringHue: 42, name: 'Amber',
+    stops: [
+      { at: 0.00, rgb: '51,26,0' },
+      { at: 0.50, rgb: '255,176,0' },
+      { at: 1.00, rgb: '255,230,153' },
+    ],
+  },
 }
 
 const EMPTY_QUEUE = { nowPlaying: null, upNext: [], comingUp: [] }
@@ -76,8 +134,19 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState<VizSettings>({
     bars: true, ring: true, bubbles: true, atmosphere: true,
-    colors: 'phosphor', intensity: 1,
+    colors: 'spectrum', intensity: 1,
   })
+  const [permSeed, setPermSeed] = useState(1)
+  const barPerm = useMemo(() => {
+    const base = Array.from({ length: BAR_COUNT }, (_, i) =>
+      i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS)
+    return buildBlockShuffle(base, 8, permSeed)
+  }, [permSeed])
+  const ringPerm = useMemo(() => {
+    const base = Array.from({ length: RING_TICKS }, (_, i) =>
+      Math.min(i, RING_TICKS - i, RING_TICKS / 2 - 1))
+    return buildBlockShuffle(base, 12, permSeed * 7919)
+  }, [permSeed])
   const [ipcPlayback, setIpcPlayback] = useState<PlaybackSnapshot>({
     isPlaying: false, title: '', artist: '', coverDataUrl: null,
     currentTime: 0, duration: 0, volume: 0.8, queue: EMPTY_QUEUE,
@@ -269,22 +338,36 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
         const maxH = horizonY * 0.88 * visualPower
         const totalSegs = Math.floor(maxH / (segH + segGap))
 
+        // Pass 1: update all peaks
         for (let i = 0; i < BAR_COUNT; i++) {
-          const sourceIdx = i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS
+          const sourceIdx = barPerm[i]
           const [lo, hi] = logBinRange(sourceIdx, SOURCE_BARS, binCount)
           let maxBin = 0
           for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
-          const val = maxBin / 255
+          barPeakRef.current[i] = Math.max(maxBin / 255, barPeakRef.current[i] * 0.86)
+        }
 
-          barPeakRef.current[i] = Math.max(val, barPeakRef.current[i] * 0.86)
-          const x = i * (barW + barGapPx)
+        // Pass 2: sort bars by peak descending, assign screen positions center-out
+        // so dead/empty bars (lowest peak) always land at the outer edges
+        const sortedBars = Array.from({ length: BAR_COUNT }, (_, i) => i)
+          .sort((a, b) => barPeakRef.current[b] - barPeakRef.current[a])
+        const screenPos = new Uint8Array(BAR_COUNT)
+        let L = SOURCE_BARS - 1, R = SOURCE_BARS
+        for (let rank = 0; rank < BAR_COUNT; rank++) {
+          if (rank % 2 === 0) { screenPos[sortedBars[rank]] = L; L-- }
+          else                { screenPos[sortedBars[rank]] = R; R++ }
+        }
+
+        // Pass 3: draw at computed positions
+        for (let i = 0; i < BAR_COUNT; i++) {
+          const x = screenPos[i] * (barW + barGapPx)
           const segCount = Math.floor(barPeakRef.current[i] * totalSegs)
 
           for (let s = 0; s < segCount; s++) {
             const sy = horizonY - (s + 1) * (segH + segGap)
             if (sy < 0) break
             const ratio = (s + 1) / totalSegs
-            ctx!.fillStyle = segColor(ratio)
+            ctx!.fillStyle = lerpStops(preset.stops, ratio)
             ctx!.fillRect(x, sy, barW, segH)
           }
 
@@ -308,7 +391,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
 
       if (settings.ring) {
         for (let i = 0; i < RING_TICKS; i++) {
-          const sourceIdx = Math.min(i, RING_TICKS - i, RING_TICKS / 2 - 1)
+          const sourceIdx = ringPerm[i]
           const [lo, hi] = logBinRange(sourceIdx, RING_TICKS / 2, binCount)
           let maxBin = 0
           for (let b = lo; b < hi; b++) maxBin = Math.max(maxBin, data[b])
@@ -323,7 +406,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
           const cos = Math.cos(angle)
           const sin = Math.sin(angle)
           const tickAlpha = 0.3 + ringPeakRef.current[i] * 0.55
-          ctx!.strokeStyle = ringTickColor(ringPeakRef.current[i], tickAlpha)
+          ctx!.strokeStyle = lerpStops(preset.stops, ringPeakRef.current[i], tickAlpha)
           ctx!.lineWidth = Math.max(1, (W / BAR_COUNT) * 0.5)
           ctx!.beginPath()
           ctx!.moveTo(cx + cos * ringR, cy + sin * ringR)
@@ -350,7 +433,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
     }
-  }, [source, settings])
+  }, [source, settings, barPerm, ringPerm])
 
   function runCommand(command: VisualizerCommand) {
     window.hub.sendVisualizerCommand(command)
@@ -440,7 +523,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
                 </span>
               </button>
             ))}
-            <div className="grid grid-cols-3 gap-1 mt-1.5 pt-1.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.12)' }}>
+            <div className="grid grid-cols-2 gap-1 mt-1.5 pt-1.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.12)' }}>
               {(Object.keys(COLOR_PRESETS) as ColorPreset[]).map((preset) => (
                 <button
                   key={preset}
@@ -457,6 +540,20 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => setPermSeed((s) => s + 1)}
+              className="w-full mt-1 px-2 py-1 font-term text-[11px] transition-colors"
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(0,255,136,0.15)',
+                color: 'rgba(155,245,184,0.45)',
+                borderRadius: 0,
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(0,255,136,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#9bf5b8' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(155,245,184,0.45)' }}
+            >
+              ↺ RANDOMIZE LAYOUT
+            </button>
             <label className="flex items-center gap-1.5 mt-1.5 pt-1.5 font-term text-[11px]" style={{ borderTop: '1px dashed rgba(0,255,136,0.12)', color: 'rgba(155,245,184,0.40)' }}>
               <span>PWR</span>
               <input
