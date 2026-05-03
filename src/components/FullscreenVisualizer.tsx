@@ -147,6 +147,10 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       Math.min(i, RING_TICKS - i, RING_TICKS / 2 - 1))
     return buildBlockShuffle(base, 12, permSeed * 7919)
   }, [permSeed])
+  const barJitter = useMemo(() => {
+    const rng = mulberry32(permSeed * 31337)
+    return Float32Array.from({ length: BAR_COUNT }, () => 0.93 + rng() * 0.14)
+  }, [permSeed])
   const [ipcPlayback, setIpcPlayback] = useState<PlaybackSnapshot>({
     isPlaying: false, title: '', artist: '', coverDataUrl: null,
     currentTime: 0, duration: 0, volume: 0.8, queue: EMPTY_QUEUE,
@@ -374,7 +378,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
         // Pass 3: draw at computed positions
         for (let i = 0; i < BAR_COUNT; i++) {
           const x = renderAt[i] * (barW + barGapPx)
-          const segCount = Math.floor(barPeakRef.current[i] * totalSegs)
+          const segCount = Math.floor(barPeakRef.current[i] * totalSegs * barJitter[i])
 
           for (let s = 0; s < segCount; s++) {
             const sy = horizonY - (s + 1) * (segH + segGap)
@@ -446,7 +450,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       cancelAnimationFrame(rafRef.current)
       window.removeEventListener('resize', resize)
     }
-  }, [source, settings, barPerm, ringPerm])
+  }, [source, settings, barPerm, ringPerm, barJitter])
 
   function runCommand(command: VisualizerCommand) {
     window.hub.sendVisualizerCommand(command)
