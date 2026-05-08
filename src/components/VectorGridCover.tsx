@@ -1,4 +1,4 @@
-import React, { useId } from 'react'
+import React from 'react'
 
 interface Props {
   src?: string | null
@@ -6,10 +6,11 @@ interface Props {
   size?: number
 }
 
-export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
-  const uid = useId().replace(/:/g, '')
-  const patternId = `grid-${uid}`
+// Single shared pattern ID — all instances define the same pattern so Chromium
+// resolves url(#vcg-pat) from whichever <defs> is first in the document.
+const PAT_ID = 'vcg-pat'
 
+export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
   return (
     <div
       style={{
@@ -29,6 +30,11 @@ export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Pro
         <img
           src={src}
           alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          fetchPriority="low"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
       )}
@@ -41,11 +47,11 @@ export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Pro
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
-          <pattern id={patternId} width="8" height="8" patternUnits="userSpaceOnUse">
+          <pattern id={PAT_ID} width="8" height="8" patternUnits="userSpaceOnUse">
             <path d="M 8 0 L 0 0 0 8" fill="none" stroke="#00FF88" strokeWidth="0.4" opacity="0.4" />
           </pattern>
         </defs>
-        {!src && <rect width={size} height={size} fill={`url(#${patternId})`} />}
+        {!src && <rect width={size} height={size} fill={`url(#${PAT_ID})`} />}
         <circle cx={size / 2} cy={size / 2} r={size * 0.29} fill="none" stroke="#00FF88" strokeWidth="0.8" opacity="0.75" />
         <circle cx={size / 2} cy={size / 2} r={size * 0.18} fill="none" stroke="#00E5FF" strokeWidth="0.6" opacity="0.6" />
         <line x1="0" y1={size / 2} x2={size} y2={size / 2} stroke="#00FF88" strokeWidth="0.4" opacity="0.5" />

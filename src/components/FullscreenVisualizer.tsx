@@ -152,7 +152,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     return Float32Array.from({ length: BAR_COUNT }, () => 0.93 + rng() * 0.14)
   }, [permSeed])
   const [ipcPlayback, setIpcPlayback] = useState<PlaybackSnapshot>({
-    isPlaying: false, title: '', artist: '', coverDataUrl: null,
+    isPlaying: false, title: '', artist: '', coverUrl: null,
     currentTime: 0, duration: 0, volume: 0.8, queue: EMPTY_QUEUE,
   })
   const currentTrack = usePlayerStore((s) => s.currentTrack())
@@ -165,7 +165,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
   const localActiveQueue = usePlayerStore((s) => s.activeQueue())
   const toQueueTrack = (item: typeof localActiveQueue[number]): QueueSnapshotTrack => ({
     id: item.id, title: item.title, artist: item.artist,
-    duration: item.duration, coverDataUrl: item.coverDataUrl,
+    duration: item.duration, coverUrl: item.coverUrl,
   })
 
   const playback: PlaybackSnapshot = source === 'ipc'
@@ -174,7 +174,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
         isPlaying: localPlaying,
         title: currentTrack?.title ?? '',
         artist: currentTrack?.artist ?? '',
-        coverDataUrl: currentTrack?.coverDataUrl ?? null,
+        coverUrl: currentTrack?.coverUrl ?? null,
         currentTime: localCurrentTime,
         duration: localDuration,
         volume: localVolume,
@@ -636,7 +636,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
         >
           {/* Cover + metadata */}
           <div className="flex items-center gap-3 min-w-0 flex-shrink-0" style={{ width: 180 }}>
-            <VectorGridCover src={playback.coverDataUrl} size={40} label="A:VIZ" />
+            <VectorGridCover src={playback.coverUrl} size={40} label="A:VIZ" />
             <div className="min-w-0">
               <p className="font-lcd text-[13px] truncate phosphor-glow" style={{ color: '#00FF88' }}>
                 {playback.title || '—'}
@@ -788,7 +788,7 @@ function FullscreenQueueRow({
       }}
     >
       <div className="flex-shrink-0">
-        <VectorGridCover src={track.coverDataUrl} size={28} label={label} />
+        <VectorGridCover src={track.coverUrl} size={28} label={label} />
       </div>
       <div className="min-w-0 flex-1">
         <p

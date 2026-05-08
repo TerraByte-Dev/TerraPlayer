@@ -68,14 +68,16 @@ export function resumeContext(): void {
   if (c.state === 'suspended') c.resume()
 }
 
-export function startPublishing(): void {
+export function startPublishing(isPlayingFn?: () => boolean): void {
   if (publishRaf !== null) return
   const a = getAnalyser()
   const buf = new Uint8Array(a.frequencyBinCount)
   function loop() {
     publishRaf = requestAnimationFrame(loop)
-    a.getByteFrequencyData(buf)
-    window.hub.publishAudioFrame(buf)
+    if (!isPlayingFn || isPlayingFn()) {
+      a.getByteFrequencyData(buf)
+      window.hub.publishAudioFrame(buf)
+    }
   }
   loop()
 }

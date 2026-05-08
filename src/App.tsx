@@ -11,6 +11,7 @@ import ContextMenu from './components/ContextMenu'
 import QueuePanel from './components/QueuePanel'
 import UtilityOverlay from './components/utilities/UtilityOverlay'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
+import Settings from './components/Settings'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
@@ -22,6 +23,7 @@ export default function App() {
   const [dragActive, setDragActive] = useState(false)
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     load()
@@ -114,7 +116,7 @@ export default function App() {
       )}
 
       <div className="relative z-[1] flex flex-1 overflow-hidden">
-        <Sidebar onOpenUtility={handleOpenUtility} />
+        <Sidebar onOpenUtility={handleOpenUtility} onOpenSettings={() => setSettingsOpen(true)} />
 
         <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#000' }}>
           <TrackList />
@@ -169,6 +171,8 @@ export default function App() {
           onFullscreenChange={handleUtilityFullscreen}
         />
       )}
+
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
 
       <UtilityTimerHost onOpenTimer={() => handleOpenUtility('timer')} />
 

@@ -23,6 +23,7 @@ import {
   getDriveStats,
 } from './ipc/library'
 import { writeTags } from './ipc/metadata'
+import { autoUpdater } from 'electron-updater'
 
 registerHubProtocol()
 
@@ -72,6 +73,35 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   handleHubProtocol()
+
+  // Auto-updater
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.on('update-available', (info) =>
+    mainWindow?.webContents.send('updater:available', { version: info.version })
+  )
+  autoUpdater.on('update-not-available', () =>
+    mainWindow?.webContents.send('updater:not-available')
+  )
+  autoUpdater.on('download-progress', (p) =>
+    mainWindow?.webContents.send('updater:progress', { percent: Math.floor(p.percent) })
+  )
+  autoUpdater.on('update-downloaded', () =>
+    mainWindow?.webContents.send('updater:downloaded')
+  )
+  autoUpdater.on('error', (err) =>
+    mainWindow?.webContents.send('updater:error', { message: err.message })
+  )
+  ipcMain.handle('updater:get-version', () => app.getVersion())
+  ipcMain.handle('updater:check', async () => {
+    if (!app.isPackaged) return { available: false, devMode: true }
+    try { await autoUpdater.checkForUpdates() } catch (e) {
+      mainWindow?.webContents.send('updater:error', { message: (e as Error).message })
+    }
+    return { available: false }
+  })
+  ipcMain.handle('updater:download', () => autoUpdater.downloadUpdate())
+  ipcMain.handle('updater:install', () => { autoUpdater.quitAndInstall() })
 
   // Library
   ipcMain.handle('lib:scan', () => scanLibrary())

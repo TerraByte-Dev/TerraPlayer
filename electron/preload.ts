@@ -77,4 +77,36 @@ contextBridge.exposeInMainWorld('hub', {
     ipcRenderer.on('viz:control', handler)
     return () => ipcRenderer.off('viz:control', handler)
   },
+
+  // Updater
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('updater:get-version'),
+  checkForUpdate: (): Promise<{ available: boolean; devMode?: boolean }> =>
+    ipcRenderer.invoke('updater:check'),
+  downloadUpdate: (): Promise<void> => ipcRenderer.invoke('updater:download'),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('updater:install'),
+  onUpdateAvailable: (cb: (info: { version: string }) => void) => {
+    const handler = (_: IpcRendererEvent, info: { version: string }) => cb(info)
+    ipcRenderer.on('updater:available', handler)
+    return () => ipcRenderer.off('updater:available', handler)
+  },
+  onUpdateNotAvailable: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('updater:not-available', handler)
+    return () => ipcRenderer.off('updater:not-available', handler)
+  },
+  onUpdateProgress: (cb: (info: { percent: number }) => void) => {
+    const handler = (_: IpcRendererEvent, info: { percent: number }) => cb(info)
+    ipcRenderer.on('updater:progress', handler)
+    return () => ipcRenderer.off('updater:progress', handler)
+  },
+  onUpdateDownloaded: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('updater:downloaded', handler)
+    return () => ipcRenderer.off('updater:downloaded', handler)
+  },
+  onUpdateError: (cb: (info: { message: string }) => void) => {
+    const handler = (_: IpcRendererEvent, info: { message: string }) => cb(info)
+    ipcRenderer.on('updater:error', handler)
+    return () => ipcRenderer.off('updater:error', handler)
+  },
 })

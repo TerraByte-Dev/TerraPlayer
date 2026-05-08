@@ -1,6 +1,11 @@
 import { spawn } from 'child_process'
 import { join } from 'path'
-import { app, nativeImage } from 'electron'
+import { app } from 'electron'
+
+export interface CoverBuf {
+  data: Buffer
+  format: string // e.g. 'image/jpeg'
+}
 
 export interface RawMeta {
   title: string
@@ -8,19 +13,10 @@ export interface RawMeta {
   album: string
   year: number | null
   duration: number
-  coverDataUrl: string | null
+  coverBuf: CoverBuf | null
 }
 
 const SUPPORTED_COVER_FORMATS = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
-
-function coverDataUrlFromPicture(format: string | undefined, data: Uint8Array): string | null {
-  if (!format || !SUPPORTED_COVER_FORMATS.has(format.toLowerCase())) return null
-
-  const image = nativeImage.createFromBuffer(Buffer.from(data))
-  if (image.isEmpty()) return null
-
-  return image.toDataURL()
-}
 
 export async function readMeta(filePath: string): Promise<RawMeta> {
   // Dynamic import: music-metadata v10+ is ESM-only
@@ -28,10 +24,13 @@ export async function readMeta(filePath: string): Promise<RawMeta> {
   const meta = await parseFile(filePath, { duration: true, skipCovers: false })
   const { common, format } = meta
 
-  let coverDataUrl: string | null = null
+  let coverBuf: CoverBuf | null = null
   if (common.picture && common.picture.length > 0) {
     const pic = common.picture[0]
-    coverDataUrl = coverDataUrlFromPicture(pic.format, pic.data)
+    const fmt = pic.format?.toLowerCase() ?? ''
+    if (SUPPORTED_COVER_FORMATS.has(fmt)) {
+      coverBuf = { data: Buffer.from(pic.data), format: fmt }
+    }
   }
 
   const artists = common.artists?.length
@@ -44,7 +43,7 @@ export async function readMeta(filePath: string): Promise<RawMeta> {
     album: common.album ?? '',
     year: common.year ?? null,
     duration: format.duration ?? 0,
-    coverDataUrl,
+    coverBuf,
   }
 }
 
