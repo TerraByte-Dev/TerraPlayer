@@ -154,6 +154,16 @@ function UpdatesPane({
   onInstall: () => void
   onRetry: () => void
 }) {
+  const [confirmUninstall, setConfirmUninstall] = React.useState(false)
+  const [uninstallErr, setUninstallErr] = React.useState('')
+
+  async function handleUninstall() {
+    const r = await window.hub.uninstallApp()
+    if (!r.ok) setUninstallErr(
+      r.reason === 'dev-mode' ? 'uninstall only works in packaged builds' : (r.reason || 'failed to launch uninstaller')
+    )
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -194,6 +204,48 @@ function UpdatesPane({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Danger zone */}
+      <div style={{ borderTop: '1px solid rgba(255,85,85,0.15)' }} className="pt-4 mt-2 flex flex-col gap-2">
+        <div className="font-term text-[10px] tracking-[2px]" style={{ color: 'rgba(255,85,85,0.55)' }}>
+          DANGER ZONE
+        </div>
+        {!confirmUninstall ? (
+          <button
+            className="px-4 h-8 font-term text-[10px] tracking-[1px] self-start"
+            onClick={() => { setUninstallErr(''); setConfirmUninstall(true) }}
+            style={{
+              color: '#ff6b6b',
+              background: 'rgba(255,85,85,0.06)',
+              border: '1px solid rgba(255,85,85,0.35)',
+            }}
+          >
+            UNINSTALL T-PLAY
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-term text-[11px]" style={{ color: '#ff6b6b' }}>
+              this will remove T-Play. continue?
+            </span>
+            <button
+              className="px-3 h-7 font-term text-[10px] tracking-[1px]"
+              onClick={handleUninstall}
+              style={{ color: '#000', background: '#ff5555', border: '1px solid #ff5555' }}
+            >
+              YES, UNINSTALL
+            </button>
+            <button
+              className="metal-key px-3 h-7 font-term text-[10px] tracking-[1px]"
+              onClick={() => setConfirmUninstall(false)}
+            >
+              CANCEL
+            </button>
+          </div>
+        )}
+        {uninstallErr && (
+          <p className="font-term text-[11px]" style={{ color: '#ff5555' }}>{uninstallErr}</p>
+        )}
       </div>
     </div>
   )
