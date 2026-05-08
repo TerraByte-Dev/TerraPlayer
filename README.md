@@ -1,10 +1,8 @@
-# tb-mediaplayer
+# T-Play
 
 An offline desktop music player with a y2k / phosphor-terminal aesthetic. Built with Electron, React, and TypeScript.
 
 Point it at a folder of local audio files — it scans the library, reads metadata and cover art, and gives you a fully featured player with no internet dependency.
-
-![MAINFRAME](build/icon.ico)
 
 ---
 
@@ -16,6 +14,7 @@ Point it at a folder of local audio files — it scans the library, reads metada
 - **Themed window controls** — native title bar overlay matches the phosphor palette (black bg, green symbols)
 - **VectorGrid cover art** — generative procedural cover for tracks without embedded art
 - **Popout visualizer** — pop the audio visualizer out to a second display in fullscreen
+- **Settings panel** — 3-dot menu next to MAINFRAME; check for updates from inside the app
 
 ---
 
@@ -29,6 +28,7 @@ Point it at a folder of local audio files — it scans the library, reads metada
 - **Audio visualizer** — spectrum bar visualizer, fullscreen mode, pop-out to a second display
 - **Queue panel** — Up Next queue; "Play next" context-menu on any track
 - **Cover art** — embedded art shown on player bar and track list; procedural fallback
+- **Auto-updater** — check for updates from Settings; downloads and installs on restart
 
 ## Tech stack
 
@@ -38,9 +38,10 @@ Point it at a folder of local audio files — it scans the library, reads metada
 | Renderer | React 18 + TypeScript |
 | Build | electron-vite + Vite 5 |
 | Styling | Tailwind CSS |
-| Database | sql.js (SQLite in-memory, persisted to disk) |
+| Database | better-sqlite3 (SQLite, native file-backed, WAL mode) |
 | Audio | Web Audio API |
 | Metadata | music-metadata |
+| Updates | electron-updater + GitHub Releases |
 
 ## Getting started
 
@@ -56,7 +57,7 @@ On first launch click **Add folder** and point the app at a directory of music f
 
 ```bash
 npm run build
-# outputs: hub/dist/Media Player Setup 2.0.0.exe
+# outputs: hub/dist/T-Play Setup 2.0.0.exe
 ```
 
 ## Project structure
@@ -72,9 +73,24 @@ hub/
   build/          # App icon (icon.ico)
 ```
 
+## Releasing
+
+Releases are published to GitHub Releases and picked up automatically by the in-app updater.
+
+```powershell
+# One-time: set your GitHub token
+$env:GH_TOKEN = (gh auth token)
+
+# Bump version in package.json, then:
+npm run release
+```
+
+This builds the installer, generates `latest.yml`, creates a tagged GitHub release, and uploads both files. Users running the previous version will see the update available in Settings → Updates.
+
 ## Notes
 
-- Library database lives in `%APPDATA%/tb-media-player` — persists across updates
+- Library database lives in `%APPDATA%/T-Play` — persists across updates
+- Upgrading from a previous install automatically migrates data from the old `tb-media-player` folder
 - Audio files are never modified except when explicitly saving metadata changes
 - M4A (AAC) and MP3 are both fully supported
 - Window controls on Windows use Electron's native title bar overlay (black bg, phosphor green symbols)

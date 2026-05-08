@@ -184,13 +184,13 @@ function QueueRow({
   isCurrent,
   dim,
 }: {
-  track: Pick<Track, 'title' | 'artist' | 'coverDataUrl' | 'duration'>
+  track: Pick<Track, 'title' | 'artist' | 'coverUrl' | 'duration'>
   isCurrent?: boolean
   dim?: boolean
 }) {
   return (
     <div className={`flex items-center gap-2 min-w-0 flex-1 ${dim ? 'opacity-40' : ''}`}>
-      <VectorGridCover src={track.coverDataUrl} size={28} />
+      <VectorGridCover src={track.coverUrl} size={28} />
       <div className="min-w-0 flex-1">
         <p
           className={`font-term text-[12px] truncate leading-tight ${isCurrent ? 'phosphor-glow' : ''}`}

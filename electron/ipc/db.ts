@@ -1,46 +1,41 @@
-import initSqlJs, { type Database } from 'sql.js'
+import Database from 'better-sqlite3'
 import { join } from 'path'
 import { app } from 'electron'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, copyFileSync, cpSync } from 'fs'
+import { createHash } from 'crypto'
 
-let _db: Database | null = null
-let _dbPath: string = ''
+let _db: Database.Database | null = null
 
-export async function getDb(): Promise<Database> {
+export function getDb(): Database.Database {
   if (_db) return _db
 
-  // Locate the WASM file — packaged path differs from dev path
-  const wasmDir = app.isPackaged
-    ? join(process.resourcesPath, 'sql-wasm')
-    : join(app.getAppPath(), 'node_modules', 'sql.js', 'dist')
-
-  const SQL = await initSqlJs({
-    locateFile: (file: string) => join(wasmDir, file),
-  })
-
-  _dbPath = join(app.getPath('userData'), 'library.db')
-
-  if (existsSync(_dbPath)) {
-    const buf = readFileSync(_dbPath)
-    _db = new SQL.Database(buf)
-  } else {
-    _db = new SQL.Database()
+  // One-time migration: copy library + covers from legacy tb-media-player userData
+  const newUserData = app.getPath('userData')
+  const legacyRoot = join(newUserData, '..', 'tb-media-player')
+  const legacyDb = join(legacyRoot, 'library.db')
+  const newDbCheck = join(newUserData, 'library.db')
+  if (!existsSync(newDbCheck) && existsSync(legacyDb)) {
+    try {
+      copyFileSync(legacyDb, newDbCheck)
+      const legacyCovers = join(legacyRoot, 'covers')
+      if (existsSync(legacyCovers)) {
+        cpSync(legacyCovers, join(newUserData, 'covers'), { recursive: true })
+      }
+    } catch { /* non-fatal — start fresh if migration fails */ }
   }
 
+  const dbPath = join(app.getPath('userData'), 'library.db')
+  _db = new Database(dbPath)
+  _db.pragma('journal_mode = WAL')
+  _db.pragma('synchronous = NORMAL')
+  _db.pragma('foreign_keys = ON')
+
   migrate(_db)
-  persist()
   return _db
 }
 
-export function persist(): void {
-  if (!_db || !_dbPath) return
-  const data = _db.export()
-  writeFileSync(_dbPath, Buffer.from(data))
-}
-
-function migrate(db: Database): void {
-  db.run('PRAGMA foreign_keys = ON')
-  db.run(`
+function migrate(db: Database.Database): void {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS app_meta (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -95,31 +90,90 @@ function migrate(db: Database): void {
       added_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
   `)
-  persist()
+
+  try {
+    db.exec('ALTER TABLE tracks ADD COLUMN cover_path TEXT')
+  } catch {
+    // Column already exists — ignore
+  }
 }
 
-// Helper: run a SELECT and return rows as objects
+function mimeToExt(mime: string): string {
+  if (mime === 'image/jpeg') return 'jpg'
+  if (mime === 'image/png')  return 'png'
+  if (mime === 'image/gif')  return 'gif'
+  if (mime === 'image/webp') return 'webp'
+  return 'jpg'
+}
+
+export function getCoversDir(): string {
+  const dir = join(app.getPath('userData'), 'covers')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+export function saveCoverFile(data: Buffer, format: string): string {
+  const dir = getCoversDir()
+  const ext = mimeToExt(format)
+  const hash = createHash('sha1').update(data).digest('hex').slice(0, 20)
+  const filename = `${hash}.${ext}`
+  const fullPath = join(dir, filename)
+  if (!existsSync(fullPath)) {
+    writeFileSync(fullPath, data)
+  }
+  return fullPath
+}
+
+export function migrateCoversToDisk(db: Database.Database): void {
+  const alreadyDone = dbGet<{ value: string }>(
+    db, 'SELECT value FROM app_meta WHERE key = ?', ['covers_on_disk_v1']
+  )
+  if (alreadyDone) return
+
+  const rows = dbAll<{ id: number; cover_data_url: string }>(
+    db,
+    'SELECT id, cover_data_url FROM tracks WHERE cover_data_url IS NOT NULL AND cover_path IS NULL',
+    []
+  )
+
+  db.transaction(() => {
+    for (const row of rows) {
+      try {
+        const m = /^data:(image\/[\w]+);base64,(.+)$/.exec(row.cover_data_url)
+        if (!m) continue
+        const format = m[1]
+        const data = Buffer.from(m[2], 'base64')
+        const coverPath = saveCoverFile(data, format)
+        dbRun(db, 'UPDATE tracks SET cover_path = ?, cover_data_url = NULL WHERE id = ?', [coverPath, row.id])
+      } catch {
+        // If individual cover fails, continue with others
+      }
+    }
+    dbRun(db, 'UPDATE tracks SET cover_data_url = NULL WHERE cover_data_url IS NOT NULL', [])
+    dbRun(db, 'INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)', ['covers_on_disk_v1', '1'])
+  })()
+}
+
 export function dbAll<T = Record<string, unknown>>(
-  db: Database,
+  db: Database.Database,
   sql: string,
   params: (string | number | null)[] = []
 ): T[] {
-  const stmt = db.prepare(sql)
-  stmt.bind(params)
-  const rows: T[] = []
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject() as T)
-  }
-  stmt.free()
-  return rows
+  return db.prepare(sql).all(...params) as T[]
 }
 
-// Helper: run a SELECT and return first row or null
 export function dbGet<T = Record<string, unknown>>(
-  db: Database,
+  db: Database.Database,
   sql: string,
   params: (string | number | null)[] = []
 ): T | null {
-  const rows = dbAll<T>(db, sql, params)
-  return rows[0] ?? null
+  return (db.prepare(sql).get(...params) as T) ?? null
+}
+
+export function dbRun(
+  db: Database.Database,
+  sql: string,
+  params: (string | number | null)[] = []
+): void {
+  db.prepare(sql).run(...params)
 }

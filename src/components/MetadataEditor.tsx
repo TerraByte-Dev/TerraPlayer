@@ -47,7 +47,7 @@ export default function MetadataEditor() {
 
       <div className="w-full aspect-square overflow-hidden">
         <VectorGridCover
-          src={track.coverDataUrl}
+          src={track.coverUrl}
           label={`A:${String(track.id).padStart(3, '0')}`}
           size={undefined as unknown as number}
         />

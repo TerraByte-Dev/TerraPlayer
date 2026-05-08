@@ -5,6 +5,7 @@ import {
   Eraser,
   Maximize2,
   Minimize2,
+  PaintBucket,
   Pause,
   Play,
   Plus,
@@ -25,7 +26,7 @@ interface UtilityOverlayProps {
   onFullscreenChange: (fullscreen: boolean) => Promise<void>
 }
 
-type BoardTool = 'brush' | 'eraser'
+type BoardTool = 'brush' | 'eraser' | 'fill'
 type TimerTab = 'timer' | 'stopwatch' | 'clock'
 type RngMode = 'custom' | 'coin' | 'dice'
 type ClockInfo = { id: string; label: string; zone: string }
@@ -156,6 +157,65 @@ function UtilityShell({
   )
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.replace('#', ''), 16)
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+}
+
+function floodFill(canvas: HTMLCanvasElement, x: number, y: number, fillHex: string) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const { width, height } = canvas
+  const imgData = ctx.getImageData(0, 0, width, height)
+  const d = imgData.data
+
+  const px = Math.round(x)
+  const py = Math.round(y)
+  if (px < 0 || py < 0 || px >= width || py >= height) return
+
+  const idx = (py * width + px) * 4
+  const tr = d[idx], tg = d[idx + 1], tb = d[idx + 2], ta = d[idx + 3]
+
+  const [fr, fg, fb] = hexToRgb(fillHex)
+  if (tr === fr && tg === fg && tb === fb && ta === 255) return
+
+  const TOLERANCE = 12
+  function matches(i: number) {
+    return (
+      Math.abs(d[i] - tr) <= TOLERANCE &&
+      Math.abs(d[i + 1] - tg) <= TOLERANCE &&
+      Math.abs(d[i + 2] - tb) <= TOLERANCE &&
+      Math.abs(d[i + 3] - ta) <= TOLERANCE
+    )
+  }
+
+  const visited = new Uint8Array(width * height)
+  const stack: number[] = [py * width + px]
+  visited[py * width + px] = 1
+
+  while (stack.length > 0) {
+    const pos = stack.pop()!
+    const cx = pos % width
+    const cy = Math.floor(pos / width)
+    const ci = pos * 4
+    d[ci] = fr; d[ci + 1] = fg; d[ci + 2] = fb; d[ci + 3] = 255
+
+    const neighbors = [
+      cx > 0         ? pos - 1     : -1,
+      cx < width - 1 ? pos + 1     : -1,
+      cy > 0         ? pos - width : -1,
+      cy < height - 1 ? pos + width : -1,
+    ]
+    for (const n of neighbors) {
+      if (n >= 0 && !visited[n] && matches(n * 4)) {
+        visited[n] = 1
+        stack.push(n)
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0)
+}
+
 function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -223,6 +283,11 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (tool === 'fill') {
+      const point = pointFromEvent(e)
+      floodFill(canvasRef.current!, point.x, point.y, color)
+      return
+    }
     e.currentTarget.setPointerCapture(e.pointerId)
     const point = pointFromEvent(e)
     lastPointRef.current = point
@@ -268,6 +333,9 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
         </SegmentedButton>
         <SegmentedButton active={tool === 'eraser'} onClick={() => setTool('eraser')} title="Eraser">
           <Eraser size={13} />
+        </SegmentedButton>
+        <SegmentedButton active={tool === 'fill'} onClick={() => setTool('fill')} title="Fill">
+          <PaintBucket size={13} />
         </SegmentedButton>
         <div className="mx-1 h-4 w-px" style={{ background: 'rgba(0,255,136,0.15)' }} />
         <div className="flex items-center gap-1.5">
@@ -333,7 +401,8 @@ function DryEraseBoard({ fullscreen }: { fullscreen: boolean }) {
         >
           <canvas
             ref={canvasRef}
-            className="block h-full w-full cursor-crosshair touch-none"
+            className="block h-full w-full touch-none"
+            style={{ cursor: tool === 'fill' ? 'cell' : 'crosshair' }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={stopDrawing}

@@ -6,7 +6,7 @@ export interface Track {
   artist: string
   album: string
   duration: number
-  coverDataUrl: string | null
+  coverUrl: string | null
   mtime: number
 }
 
@@ -55,14 +55,14 @@ export interface QueueSnapshotTrack {
   title: string
   artist: string
   duration: number
-  coverDataUrl: string | null
+  coverUrl: string | null
 }
 
 export interface PlaybackSnapshot {
   isPlaying: boolean
   title: string
   artist: string
-  coverDataUrl: string | null
+  coverUrl: string | null
   currentTime: number
   duration: number
   volume: number
@@ -125,6 +125,16 @@ declare global {
       onPlaybackState(cb: (state: PlaybackSnapshot) => void): () => void
       sendVisualizerCommand(command: VisualizerCommand): void
       onVisualizerCommand(cb: (command: VisualizerCommand) => void): () => void
+      // Updater
+      getAppVersion(): Promise<string>
+      checkForUpdate(): Promise<{ available: boolean; devMode?: boolean }>
+      downloadUpdate(): Promise<void>
+      installUpdate(): Promise<void>
+      onUpdateAvailable(cb: (info: { version: string }) => void): () => void
+      onUpdateNotAvailable(cb: () => void): () => void
+      onUpdateProgress(cb: (info: { percent: number }) => void): () => void
+      onUpdateDownloaded(cb: () => void): () => void
+      onUpdateError(cb: (info: { message: string }) => void): () => void
     }
   }
 }

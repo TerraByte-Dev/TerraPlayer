@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { ChevronUp, ChevronDown, Play, Pause, FolderPlus, Music, X, AlertCircle, ListPlus, ListEnd, FolderOpen, Tag, ListMusic } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
@@ -9,16 +9,21 @@ import VectorGridCover from './VectorGridCover'
 
 type SortKey = 'title' | 'artist' | 'album' | 'duration' | 'playlist'
 
+const ROW_HEIGHT = 30 // py-[3px] (6px) + 24px cover = 30px per row
+const OVERSCAN = 8   // rows rendered outside viewport for smooth scrolling
+
 export default function TrackList() {
   const {
     sidebarView, visibleTracks, selectTrack, selectedTrackId,
     loading, folders, addFolder, addFolderByPath, error, lastSummary, clearError,
     openPanel, playlists, loadPlaylists,
+    tracks: storeTracks,
   } = useLibraryStore()
   const { playTrack, currentTrack, isPlaying, setPlaying, addToUpNext, playNext } = usePlayerStore()
   const { openMenu } = useContextMenuStore()
 
-  const [tracks, setTracks] = useState<Track[]>([])
+  // asyncTracks holds results for tag/playlist views (requires IPC)
+  const [asyncTracks, setAsyncTracks] = useState<Track[]>([])
   const [sortKey, setSortKey] = useState<SortKey>('artist')
   const [sortAsc, setSortAsc] = useState(true)
   const [tagViewLoading, setTagViewLoading] = useState(false)
@@ -26,51 +31,76 @@ export default function TrackList() {
   const [showReadErrors, setShowReadErrors] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  // Virtualizer state
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportH, setViewportH] = useState(600)
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) setViewportH(scrollRef.current.clientHeight)
+  }, [])
+
   useEffect(() => {
     if (folders.length === 0) {
       hub.suggestMusicFolder().then(setMusicSuggestion).catch(() => {})
     }
   }, [folders.length])
 
-  const loadTracks = useCallback(async () => {
+  const loadAsyncTracks = useCallback(async () => {
     if (sidebarView.kind === 'tag') {
       setTagViewLoading(true)
       const t = await hub.getTracksForTag(sidebarView.tagId)
       setTagViewLoading(false)
-      setTracks(t)
+      setAsyncTracks(t)
     } else if (sidebarView.kind === 'playlist') {
       setTagViewLoading(true)
       const t = await hub.getTracksForPlaylist(sidebarView.playlistId)
       setTagViewLoading(false)
-      setTracks(t)
+      setAsyncTracks(t)
     } else {
-      setTracks(visibleTracks())
+      setAsyncTracks([])
     }
-  }, [sidebarView, visibleTracks])
+  }, [sidebarView])
 
-  useEffect(() => { loadTracks() }, [loadTracks])
+  useEffect(() => { loadAsyncTracks() }, [loadAsyncTracks])
 
-  const sorted = [...tracks].sort((a, b) => {
-    if (sortKey === 'duration') {
-      const av = Number(a.duration ?? 0)
-      const bv = Number(b.duration ?? 0)
-      return sortAsc ? av - bv : bv - av
-    }
-    const av = String(a[sortKey] ?? '')
-    const bv = String(b[sortKey] ?? '')
-    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av)
-  })
+  // Sorted + filtered — memoized to avoid recomputing on every player tick
+  const filtered = useMemo(() => {
+    const base: Track[] = sidebarView.kind === 'all' ? visibleTracks() : asyncTracks
+    const sorted = [...base].sort((a, b) => {
+      if (sortKey === 'duration') {
+        const av = Number(a.duration ?? 0)
+        const bv = Number(b.duration ?? 0)
+        return sortAsc ? av - bv : bv - av
+      }
+      const av = String(a[sortKey] ?? '')
+      const bv = String(b[sortKey] ?? '')
+      return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av)
+    })
+    if (!searchQuery.trim()) return sorted
+    const q = searchQuery.toLowerCase()
+    return sorted.filter((t) =>
+      (t.title || '').toLowerCase().includes(q) ||
+      (t.artist || '').toLowerCase().includes(q) ||
+      (t.album || '').toLowerCase().includes(q)
+    )
+  }, [sidebarView, asyncTracks, storeTracks, visibleTracks, sortKey, sortAsc, searchQuery])
 
-  const filtered = searchQuery.trim()
-    ? sorted.filter((t) => {
-        const q = searchQuery.toLowerCase()
-        return (
-          (t.title || '').toLowerCase().includes(q) ||
-          (t.artist || '').toLowerCase().includes(q) ||
-          (t.album || '').toLowerCase().includes(q)
-        )
-      })
-    : sorted
+  // Virtualizer derived values — computed each render, not state
+  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const endIdx = Math.min(
+    filtered.length - 1,
+    Math.ceil((scrollTop + viewportH) / ROW_HEIGHT) + OVERSCAN
+  )
+  const visibleRows = filtered.slice(startIdx, endIdx + 1)
+  const topPad = startIdx * ROW_HEIGHT
+  const bottomPad = Math.max(0, (filtered.length - 1 - endIdx) * ROW_HEIGHT)
+
+  function handleScrollEvent(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget
+    setScrollTop(el.scrollTop)
+    if (el.clientHeight !== viewportH) setViewportH(el.clientHeight)
+  }
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortAsc((v) => !v)
@@ -99,7 +129,7 @@ export default function TrackList() {
 
   function handleRowDoubleClick(track: Track) {
     selectTrack(track.id)
-    playTrack(track, sorted)
+    playTrack(track, filtered)
   }
 
   function handleCoverClick(e: React.MouseEvent, track: Track) {
@@ -109,7 +139,7 @@ export default function TrackList() {
       setPlaying(!isPlaying)
     } else {
       selectTrack(track.id)
-      playTrack(track, sorted)
+      playTrack(track, filtered)
     }
   }
 
@@ -123,7 +153,7 @@ export default function TrackList() {
         await hub.addTrackToPlaylist(playlist.id, track.id)
         await loadPlaylists()
         if (sidebarView.kind === 'playlist' && sidebarView.playlistId === playlist.id) {
-          loadTracks()
+          loadAsyncTracks()
         }
       },
     }))
@@ -135,7 +165,7 @@ export default function TrackList() {
           onClick: async () => {
             await hub.removeTrackFromPlaylist(sidebarView.playlistId, track.id)
             await loadPlaylists()
-            loadTracks()
+            loadAsyncTracks()
           },
         }]
       : []
@@ -143,7 +173,7 @@ export default function TrackList() {
       {
         label: 'Play',
         icon: <Play size={12} />,
-        onClick: () => { selectTrack(track.id); playTrack(track, sorted) },
+        onClick: () => { selectTrack(track.id); playTrack(track, filtered) },
       },
       {
         label: 'Play next',
@@ -359,14 +389,20 @@ export default function TrackList() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      {/* Virtualized track list */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleScrollEvent}>
         {filtered.length === 0 && (
           <div className="flex items-center justify-center h-32 font-term text-[14px]"
             style={{ color: 'rgba(155,245,184,0.30)' }}>
             no tracks found
           </div>
         )}
-        {filtered.map((track, idx) => {
+
+        {/* Top spacer */}
+        {topPad > 0 && <div style={{ height: topPad }} />}
+
+        {visibleRows.map((track, relIdx) => {
+          const idx = startIdx + relIdx
           const isCurrentTrack = current?.id === track.id
           const isSelected = selectedTrackId === track.id
 
@@ -394,7 +430,7 @@ export default function TrackList() {
 
               {/* Cover */}
               <div className="relative cursor-pointer" onClick={(e) => handleCoverClick(e, track)}>
-                <VectorGridCover src={track.coverDataUrl} label={`A:${String(idx + 1).padStart(3, '0')}`} size={24} />
+                <VectorGridCover src={track.coverUrl} label={`A:${String(idx + 1).padStart(3, '0')}`} size={24} />
                 <div
                   className={`absolute inset-0 flex items-center justify-center transition-opacity ${
                     isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -441,6 +477,9 @@ export default function TrackList() {
             </div>
           )
         })}
+
+        {/* Bottom spacer */}
+        {bottomPad > 0 && <div style={{ height: bottomPad }} />}
 
         {/* Trailing prompt (All Tracks view only) */}
         {sidebarView.kind === 'all' && filtered.length > 0 && (

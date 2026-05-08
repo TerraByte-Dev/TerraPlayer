@@ -37,7 +37,7 @@ export default function PlayerBar() {
     eq, setEqPreset, setEqBand,
   } = usePlayerStore()
 
-  const { openPanel, rightPanelOpen, panelMode } = useLibraryStore()
+  const { openPanel, rightPanelOpen, panelMode, selectTrack } = useLibraryStore()
   const { openMenu } = useContextMenuStore()
 
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -83,7 +83,7 @@ export default function PlayerBar() {
   }, [volume])
 
   useEffect(() => {
-    if (popoutOpen) startPublishing()
+    if (popoutOpen) startPublishing(() => usePlayerStore.getState().isPlaying)
     else stopPublishing()
     return stopPublishing
   }, [popoutOpen])
@@ -112,14 +112,15 @@ export default function PlayerBar() {
   }, [next, prev, setPlaying, setVolume])
 
   useEffect(() => {
+    if (!popoutOpen) return // no popout consumer — skip IPC entirely
     const state = usePlayerStore.getState()
     const activeQueue = state.activeQueue()
     const queueIndex = state.queueIndex
     const toQueueTrack = (item: typeof activeQueue[number]): QueueSnapshotTrack => ({
-      id: item.id, title: item.title, artist: item.artist, duration: item.duration, coverDataUrl: item.coverDataUrl,
+      id: item.id, title: item.title, artist: item.artist, duration: item.duration, coverUrl: item.coverUrl,
     })
     window.hub.publishPlaybackState({
-      isPlaying, title: track?.title ?? '', artist: track?.artist ?? '', coverDataUrl: track?.coverDataUrl ?? null,
+      isPlaying, title: track?.title ?? '', artist: track?.artist ?? '', coverUrl: track?.coverUrl ?? null,
       currentTime, duration, volume,
       queue: {
         nowPlaying: track ? toQueueTrack(track) : null,
@@ -127,7 +128,7 @@ export default function PlayerBar() {
         comingUp: activeQueue.slice(queueIndex + 1, queueIndex + 25).map(toQueueTrack),
       },
     })
-  }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverDataUrl, currentTime, duration, volume, upNext])
+  }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverUrl, currentTime, duration, volume, upNext, popoutOpen])
 
   useEffect(() => {
     setEqGains(eq.low, eq.mid, eq.high)
@@ -249,11 +250,17 @@ export default function PlayerBar() {
         style={{ width: 240 }}
         onContextMenu={handleCoverContextMenu}
       >
-        <VectorGridCover src={track?.coverDataUrl} label={`A:${trackId}`} size={60} />
+        <VectorGridCover src={track?.coverUrl} label={`A:${trackId}`} size={60} />
         <div className="min-w-0 flex-1">
           <p
             className="font-lcd text-[14px] truncate leading-tight phosphor-glow"
-            style={{ color: '#00FF88', letterSpacing: '0.5px' }}
+            style={{ color: '#00FF88', letterSpacing: '0.5px', cursor: track ? 'pointer' : 'default' }}
+            title={track ? 'Open track properties' : undefined}
+            onClick={() => {
+              if (!track) return
+              selectTrack(track.id)
+              openPanel('metadata')
+            }}
           >
             {track?.title || 'nothing playing'}
           </p>

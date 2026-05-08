@@ -1,19 +1,22 @@
 {
-  "name": "tb-media-player",
+  "name": "t-play",
   "version": "2.0.0",
-  "description": "Offline music player",
+  "description": "Offline desktop media player",
   "main": "./out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
     "preview": "electron-vite preview",
-    "compile": "electron-vite build"
+    "compile": "electron-vite build",
+    "release": "electron-vite build && electron-builder --publish always",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/sql.js": "^1.4.9",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.20",
     "electron": "^32.0.0",
@@ -25,16 +28,17 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "electron-updater": "^6.3.9",
     "lucide-react": "^1.14.0",
     "music-metadata": "^10.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sql.js": "^1.12.0",
     "zustand": "^4.5.4"
   },
   "build": {
-    "appId": "com.tb.mediaplayer",
-    "productName": "Media Player",
+    "appId": "com.tplay.app",
+    "productName": "T-Play",
     "directories": {
       "output": "dist"
     },
@@ -51,14 +55,18 @@
       "perMachine": false
     },
     "asar": true,
+    "publish": {
+      "provider": "github",
+      "owner": "TerraByte-Dev",
+      "repo": "T-Play"
+    },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
     "extraResources": [
       {
         "from": "../tag_writer.py",
         "to": "tag_writer.py"
-      },
-      {
-        "from": "node_modules/sql.js/dist/sql-wasm.wasm",
-        "to": "sql-wasm/sql-wasm.wasm"
       }
     ]
   }

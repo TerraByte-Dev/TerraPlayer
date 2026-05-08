@@ -24,6 +24,10 @@ function contentTypeFor(filePath: string): string {
   if (ext === '.mp3') return 'audio/mpeg'
   if (ext === '.wav') return 'audio/wav'
   if (ext === '.flac') return 'audio/flac'
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
+  if (ext === '.png') return 'image/png'
+  if (ext === '.gif') return 'image/gif'
+  if (ext === '.webp') return 'image/webp'
   return 'application/octet-stream'
 }
 

@@ -7,6 +7,7 @@ import {
   Shuffle,
   Trash2,
   Plus,
+  MoreVertical,
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
@@ -22,8 +23,8 @@ const SECTION_CODES: Record<string, string> = {
   Tags: '0x03',
 }
 
-// Uptime counter
-function useUptime() {
+// Isolated uptime component — only this re-renders every second, not the whole Sidebar
+function UptimeClock() {
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => setSecs((v) => v + 1), 1000)
@@ -32,10 +33,14 @@ function useUptime() {
   const h = String(Math.floor(secs / 3600)).padStart(2, '0')
   const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0')
   const s = String(secs % 60).padStart(2, '0')
-  return `${h}:${m}:${s}`
+  return (
+    <span className="font-lcd text-[11px] tabular-nums" style={{ color: '#1f5e3a' }}>
+      {`${h}:${m}:${s}`}
+    </span>
+  )
 }
 
-export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
+export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtility: (mode: UtilityMode) => void; onOpenSettings: () => void }) {
   const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
@@ -44,7 +49,6 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
   const [showTagInput, setShowTagInput] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [showPlaylistInput, setShowPlaylistInput] = useState(false)
-  const uptime = useUptime()
 
   async function handleCreateTag() {
     if (!newTagName.trim()) return
@@ -163,8 +167,20 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
         className="flex-shrink-0 px-[14px] pt-[14px] pb-[10px]"
         style={{ background: '#000', borderBottom: '1px solid rgba(0,255,136,0.18)' }}
       >
-        <div className="font-lcd text-[18px] tracking-[2px] phosphor-glow" style={{ color: '#00FF88' }}>
-          MAINFRAME
+        <div className="flex items-center justify-between">
+          <div className="font-lcd text-[18px] tracking-[2px] phosphor-glow" style={{ color: '#00FF88' }}>
+            MAINFRAME
+          </div>
+          <button
+            onClick={onOpenSettings}
+            title="Settings"
+            className="flex items-center justify-center w-6 h-6 rounded-sm transition-opacity"
+            style={{ color: 'rgba(0,255,136,0.40)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#00FF88')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,255,136,0.40)')}
+          >
+            <MoreVertical size={14} />
+          </button>
         </div>
         <div className="font-term text-[11px] tracking-[1.5px] mt-0.5" style={{ color: '#00E5FF' }}>
           music library · v2.0
@@ -354,7 +370,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
         </div>
         <div className="flex items-center justify-between pt-1.5 mt-0.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.10)' }}>
           <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgba(155,245,184,0.30)' }}>UPTIME</span>
-          <span className="font-lcd text-[11px] tabular-nums" style={{ color: '#1f5e3a' }}>{uptime}</span>
+          <UptimeClock />
         </div>
       </div>
 
