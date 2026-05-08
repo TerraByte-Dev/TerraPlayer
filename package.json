@@ -1,6 +1,6 @@
 {
   "name": "t-play",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Offline desktop media player",
   "main": "./out/main/main.js",
   "scripts": {
@@ -9,10 +9,9 @@
     "preview": "electron-vite preview",
     "compile": "electron-vite build",
     "release": "electron-vite build && electron-builder --publish always",
-    "postinstall": "electron-rebuild -f -w better-sqlite3"
+    "postinstall": "electron-builder install-app-deps"
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
@@ -58,7 +57,8 @@
     "publish": {
       "provider": "github",
       "owner": "TerraByte-Dev",
-      "repo": "T-Play"
+      "repo": "T-Play",
+      "releaseType": "release"
     },
     "asarUnpack": [
       "node_modules/better-sqlite3/**"

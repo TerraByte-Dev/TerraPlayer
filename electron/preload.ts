@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('hub', {
   },
 
   // App utilities
+  uninstallApp: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke('app:uninstall'),
   revealInFolder: (path: string) => ipcRenderer.invoke('app:revealInFolder', path),
   saveImage: (dataUrl: string, defaultName: string) =>
     ipcRenderer.invoke('app:saveImage', dataUrl, defaultName),

@@ -106,6 +106,7 @@ declare global {
       addTrackToPlaylist(playlistId: number, trackId: number): Promise<void>
       removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void>
       // App utilities
+      uninstallApp(): Promise<{ ok: boolean; reason?: string }>
       revealInFolder(path: string): Promise<void>
       saveImage(dataUrl: string, defaultName: string): Promise<string | null>
       minimizeWindow(): Promise<void>

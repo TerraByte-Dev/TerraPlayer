@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog, screen } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import { statSync, writeFileSync } from 'fs'
+import { spawn } from 'child_process'
 import { registerHubProtocol, handleHubProtocol } from './ipc/stream'
 import {
   scanLibrary,
@@ -202,6 +203,17 @@ app.whenReady().then(() => {
   })
 
   // App utilities
+  ipcMain.handle('app:uninstall', () => {
+    if (!app.isPackaged) return { ok: false, reason: 'dev-mode' }
+    const uninstaller = join(dirname(app.getPath('exe')), 'Uninstall T-Play.exe')
+    try {
+      spawn(uninstaller, [], { detached: true, stdio: 'ignore' }).unref()
+    } catch (e) {
+      return { ok: false, reason: (e as Error).message }
+    }
+    setTimeout(() => app.quit(), 250)
+    return { ok: true }
+  })
   ipcMain.handle('app:revealInFolder', (_, path: string) => shell.showItemInFolder(path))
   ipcMain.handle('app:saveImage', async (event, dataUrl: string, defaultName: string) => {
     const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl)
