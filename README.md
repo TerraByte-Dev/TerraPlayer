@@ -1,4 +1,4 @@
-# T-Play
+# T-Player
 
 An offline desktop music player with a y2k / phosphor-terminal aesthetic. Built with Electron, React, and TypeScript.
 
