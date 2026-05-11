@@ -205,7 +205,7 @@ app.whenReady().then(() => {
   // App utilities
   ipcMain.handle('app:uninstall', () => {
     if (!app.isPackaged) return { ok: false, reason: 'dev-mode' }
-    const uninstaller = join(dirname(app.getPath('exe')), 'Uninstall T-Play.exe')
+    const uninstaller = join(dirname(app.getPath('exe')), 'Uninstall TerraPlayer.exe')
     try {
       spawn(uninstaller, [], { detached: true, stdio: 'ignore' }).unref()
     } catch (e) {
