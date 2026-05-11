@@ -221,12 +221,12 @@ function UpdatesPane({
               border: '1px solid rgba(255,85,85,0.35)',
             }}
           >
-            UNINSTALL T-PLAY
+            UNINSTALL TERRAPLAYER
           </button>
         ) : (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-term text-[11px]" style={{ color: '#ff6b6b' }}>
-              this will remove T-Play. continue?
+              this will remove TerraPlayer. continue?
             </span>
             <button
               className="px-3 h-7 font-term text-[10px] tracking-[1px]"

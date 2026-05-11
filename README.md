@@ -1,4 +1,4 @@
-# T-Player
+# TerraPlayer
 
 An offline desktop music player with a y2k / phosphor-terminal aesthetic. Built with Electron, React, and TypeScript.
 
@@ -57,7 +57,7 @@ On first launch click **Add folder** and point the app at a directory of music f
 
 ```bash
 npm run build
-# outputs: hub/dist/T-Play Setup 2.0.0.exe
+# outputs: hub/dist/TerraPlayer Setup 2.0.0.exe
 ```
 
 ## Project structure
@@ -89,7 +89,7 @@ This builds the installer, generates `latest.yml`, creates a tagged GitHub relea
 
 ## Notes
 
-- Library database lives in `%APPDATA%/T-Play` — persists across updates
+- Library database lives in `%APPDATA%/TerraPlayer` — persists across updates
 - Upgrading from a previous install automatically migrates data from the old `tb-media-player` folder
 - Audio files are never modified except when explicitly saving metadata changes
 - M4A (AAC) and MP3 are both fully supported

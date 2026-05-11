@@ -9,11 +9,25 @@ let _db: Database.Database | null = null
 export function getDb(): Database.Database {
   if (_db) return _db
 
-  // One-time migration: copy library + covers from legacy tb-media-player userData
   const newUserData = app.getPath('userData')
+  const newDbCheck = join(newUserData, 'library.db')
+
+  // One-time migration: copy library + covers from T-Play userData (rename → TerraPlayer)
+  const tPlayRoot = join(newUserData, '..', 'T-Play')
+  const tPlayDb = join(tPlayRoot, 'library.db')
+  if (!existsSync(newDbCheck) && existsSync(tPlayDb)) {
+    try {
+      copyFileSync(tPlayDb, newDbCheck)
+      const tPlayCovers = join(tPlayRoot, 'covers')
+      if (existsSync(tPlayCovers)) {
+        cpSync(tPlayCovers, join(newUserData, 'covers'), { recursive: true })
+      }
+    } catch { /* non-fatal — start fresh if migration fails */ }
+  }
+
+  // One-time migration: copy library + covers from legacy tb-media-player userData
   const legacyRoot = join(newUserData, '..', 'tb-media-player')
   const legacyDb = join(legacyRoot, 'library.db')
-  const newDbCheck = join(newUserData, 'library.db')
   if (!existsSync(newDbCheck) && existsSync(legacyDb)) {
     try {
       copyFileSync(legacyDb, newDbCheck)

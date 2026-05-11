@@ -1,5 +1,5 @@
 {
-  "name": "t-play",
+  "name": "terra-player",
   "version": "2.0.1",
   "description": "Offline desktop media player",
   "main": "./out/main/main.js",
@@ -36,8 +36,8 @@
     "zustand": "^4.5.4"
   },
   "build": {
-    "appId": "com.tplay.app",
-    "productName": "T-Play",
+    "appId": "com.terrabyte.terraplayer",
+    "productName": "TerraPlayer",
     "directories": {
       "output": "dist"
     },
@@ -57,7 +57,7 @@
     "publish": {
       "provider": "github",
       "owner": "TerraByte-Dev",
-      "repo": "T-Play",
+      "repo": "TerraPlayer",
       "releaseType": "release"
     },
     "asarUnpack": [
@@ -65,7 +65,7 @@
     ],
     "extraResources": [
       {
-        "from": "../tag_writer.py",
+        "from": "tag_writer.py",
         "to": "tag_writer.py"
       }
     ]
