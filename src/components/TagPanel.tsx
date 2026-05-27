@@ -13,8 +13,12 @@ export default function TagPanel() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    // Clear immediately so a slow fetch can't briefly show the previous song's tags.
+    setTrackTags([])
     if (!track) return
-    hub.getTrackTags(track.id).then(setTrackTags)
+    let cancelled = false
+    hub.getTrackTags(track.id).then((t) => { if (!cancelled) setTrackTags(t) })
+    return () => { cancelled = true }
   }, [track?.id])
 
   if (!track) return null

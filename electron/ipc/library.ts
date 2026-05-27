@@ -1,7 +1,7 @@
 import { readdirSync, statSync, type Dirent } from 'fs'
 import { join, basename, extname } from 'path'
 import type Database from 'better-sqlite3'
-import { getDb, dbAll, dbGet, dbRun, saveCoverFile, migrateCoversToDisk } from './db'
+import { getDb, dbAll, dbGet, dbRun, saveCoverFile, migrateCoversToDisk, fingerprint } from './db'
 import { readMeta } from './metadata'
 
 type Db = Database.Database
@@ -158,8 +158,8 @@ async function walkDir(
     } else if (AUDIO_EXTS.has(extname(entry.name).toLowerCase())) {
       stats.scanned++
 
-      let mtime = 0
-      try { mtime = Math.floor(statSync(fullPath).mtimeMs) } catch { continue }
+      let mtime = 0, size = 0
+      try { const st = statSync(fullPath); mtime = Math.floor(st.mtimeMs); size = st.size } catch { continue }
 
       const rel = fullPath.slice(root.length).replace(/^[/\\]/, '')
       const parts = rel.split(/[/\\]/)
@@ -181,30 +181,62 @@ async function walkDir(
         }
       } catch { /* use filename fallback */ }
 
-      dbRun(
-        db,
-        `INSERT INTO tracks (path, playlist, title, artist, album, duration, cover_path, mtime)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(path) DO UPDATE SET
-           title      = excluded.title,
-           artist     = excluded.artist,
-           album      = excluded.album,
-           duration   = excluded.duration,
-           cover_path = COALESCE(excluded.cover_path, tracks.cover_path),
-           mtime      = excluded.mtime`,
-        [fullPath, playlist, title, artist, album, duration, coverPath, mtime]
-      )
+      const uid = fingerprint(size, duration, artist, title, album)
 
-      if (!existing) {
-        const track = dbGet<{ id: number }>(db, 'SELECT id FROM tracks WHERE path = ?', [fullPath])
-        if (track) {
-          const playlistId = ensurePlaylist(db, playlist)
-          dbRun(
-            db,
-            'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)',
-            [playlistId, track.id, Math.floor(Date.now() / 1000)]
-          )
+      try {
+        // Re-link a moved/renamed file to its existing row (by content uid) so its
+        // tags and playlist membership follow the song instead of being orphaned.
+        if (!existing) {
+          const byUid = dbGet<{ id: number; path: string }>(db, 'SELECT id, path FROM tracks WHERE uid = ?', [uid])
+          if (byUid && byUid.path !== fullPath) {
+            let oldExists = true
+            try { statSync(byUid.path) } catch { oldExists = false }
+            if (!oldExists) {
+              // The original file is gone — repoint the existing row at the new path.
+              // id is preserved, so track_tags / playlist_tracks stay attached.
+              dbRun(
+                db,
+                `UPDATE tracks SET path=?, playlist=?, title=?, artist=?, album=?,
+                   duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE id=?`,
+                [fullPath, playlist, title, artist, album, duration, coverPath, mtime, byUid.id]
+              )
+            }
+            // else: a byte-identical file already exists — uid is UNIQUE, so we keep
+            // the existing row and skip adding a duplicate (content-fingerprint tradeoff).
+            continue
+          }
         }
+
+        dbRun(
+          db,
+          `INSERT INTO tracks (uid, path, playlist, title, artist, album, duration, cover_path, mtime)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(path) DO UPDATE SET
+             uid        = excluded.uid,
+             title      = excluded.title,
+             artist     = excluded.artist,
+             album      = excluded.album,
+             duration   = excluded.duration,
+             cover_path = COALESCE(excluded.cover_path, tracks.cover_path),
+             mtime      = excluded.mtime`,
+          [uid, fullPath, playlist, title, artist, album, duration, coverPath, mtime]
+        )
+
+        if (!existing) {
+          const track = dbGet<{ id: number }>(db, 'SELECT id FROM tracks WHERE path = ?', [fullPath])
+          if (track) {
+            const playlistId = ensurePlaylist(db, playlist)
+            dbRun(
+              db,
+              'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)',
+              [playlistId, track.id, Math.floor(Date.now() / 1000)]
+            )
+          }
+        }
+      } catch (e) {
+        // Don't let one problematic file (e.g. a uid collision from edited metadata)
+        // roll back the whole scan.
+        if (stats.errors.length < 5) stats.errors.push(`${fullPath}: ${(e as Error).message}`)
       }
     }
   }
@@ -255,8 +287,8 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
 
 export async function refreshTrack(filePath: string): Promise<TrackRow | null> {
   const db = getDb()
-  let mtime = 0
-  try { mtime = Math.floor(statSync(filePath).mtimeMs) } catch { return null }
+  let mtime = 0, size = 0
+  try { const st = statSync(filePath); mtime = Math.floor(st.mtimeMs); size = st.size } catch { return null }
 
   const raw = await readMeta(filePath)
   let coverPath: string | null = null
@@ -264,11 +296,24 @@ export async function refreshTrack(filePath: string): Promise<TrackRow | null> {
     try { coverPath = saveCoverFile(raw.coverBuf.data, raw.coverBuf.format) } catch { /* noop */ }
   }
 
-  dbRun(
-    db,
-    'UPDATE tracks SET title=?, artist=?, album=?, duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE path=?',
-    [raw.title, raw.artist, raw.album, raw.duration, coverPath, mtime, filePath]
-  )
+  // Recompute the content uid; only adopt it when it won't collide with a
+  // different track (UNIQUE) — the row id stays put either way, so tags are safe.
+  const uid = fingerprint(size, raw.duration, raw.artist, raw.title, raw.album)
+  const clash = dbGet<{ path: string }>(db, 'SELECT path FROM tracks WHERE uid = ? AND path <> ?', [uid, filePath])
+
+  if (clash) {
+    dbRun(
+      db,
+      'UPDATE tracks SET title=?, artist=?, album=?, duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE path=?',
+      [raw.title, raw.artist, raw.album, raw.duration, coverPath, mtime, filePath]
+    )
+  } else {
+    dbRun(
+      db,
+      'UPDATE tracks SET uid=?, title=?, artist=?, album=?, duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE path=?',
+      [uid, raw.title, raw.artist, raw.album, raw.duration, coverPath, mtime, filePath]
+    )
+  }
 
   const row = dbGet(db, 'SELECT id, path, playlist, title, artist, album, duration, cover_path, mtime FROM tracks WHERE path = ?', [filePath])
   return row ? rowToTrack(row as Record<string, unknown>) : null
