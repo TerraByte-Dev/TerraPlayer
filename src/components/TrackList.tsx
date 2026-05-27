@@ -62,7 +62,9 @@ export default function TrackList() {
     }
   }, [sidebarView])
 
-  useEffect(() => { loadAsyncTracks() }, [loadAsyncTracks])
+  // Re-fetch tag/playlist views when the library is rescanned (storeTracks changes)
+  // so they never display stale tracks after a scan re-links or removes songs.
+  useEffect(() => { loadAsyncTracks() }, [loadAsyncTracks, storeTracks])
 
   // Sorted + filtered — memoized to avoid recomputing on every player tick
   const filtered = useMemo(() => {
