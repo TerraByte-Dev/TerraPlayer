@@ -62,7 +62,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         hub.listFolders(),
         hub.getDriveStats(),
       ])
-      set({ playlists, tracks, tags, folders, loading: false, lastSummary: summary, driveBytes: totalBytes })
+      // Drop a stale selection if its track no longer exists, so tag edits can't
+      // land on a different song that may have inherited a reused row.
+      const { selectedTrackId } = get()
+      const stillExists = selectedTrackId != null && tracks.some((t) => t.id === selectedTrackId)
+      set({
+        playlists, tracks, tags, folders, loading: false, lastSummary: summary, driveBytes: totalBytes,
+        selectedTrackId: stillExists ? selectedTrackId : null,
+      })
     } catch (e) {
       set({ loading: false, error: String(e) })
     }
