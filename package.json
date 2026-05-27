@@ -1,6 +1,6 @@
 {
   "name": "terra-player",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Offline desktop media player",
   "main": "./out/main/main.js",
   "scripts": {
