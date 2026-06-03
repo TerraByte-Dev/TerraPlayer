@@ -112,8 +112,8 @@ export default function TrackList() {
   const SortIcon = ({ k }: { k: SortKey }) =>
     sortKey === k
       ? sortAsc
-        ? <ChevronUp size={10} style={{ color: '#00FF88' }} />
-        : <ChevronDown size={10} style={{ color: '#00FF88' }} />
+        ? <ChevronUp size={10} style={{ color: 'var(--accent)' }} />
+        : <ChevronDown size={10} style={{ color: 'var(--accent)' }} />
       : null
 
   const current = currentTrack()
@@ -206,7 +206,7 @@ export default function TrackList() {
   if (loading || tagViewLoading) {
     return (
       <div className="flex-1 flex items-center justify-center font-term text-[14px]"
-        style={{ color: 'rgba(155,245,184,0.55)' }}>
+        style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
         scanning...
       </div>
     )
@@ -217,13 +217,13 @@ export default function TrackList() {
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center track-scan">
         <div
           className="w-14 h-14 flex items-center justify-center"
-          style={{ border: '1px solid rgba(0,255,136,0.25)', background: 'rgba(0,255,136,0.04)' }}
+          style={{ border: '1px solid rgb(var(--accent-rgb) / 0.25)', background: 'rgb(var(--accent-rgb) / 0.04)' }}
         >
-          <Music size={22} style={{ color: 'rgba(0,255,136,0.40)' }} />
+          <Music size={22} style={{ color: 'rgb(var(--accent-rgb) / 0.40)' }} />
         </div>
         <div>
-          <p className="font-term text-[14px]" style={{ color: '#9bf5b8' }}>no music folder</p>
-          <p className="font-term text-[13px] mt-1" style={{ color: 'rgba(155,245,184,0.55)' }}>
+          <p className="font-term text-[14px]" style={{ color: 'var(--ink)' }}>no music folder</p>
+          <p className="font-term text-[13px] mt-1" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
             add a folder to get started
           </p>
         </div>
@@ -231,7 +231,7 @@ export default function TrackList() {
           <button
             onClick={addFolder}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 font-term text-[14px] tracking-[1px] transition-colors"
-            style={{ border: '1px solid #00FF88', color: '#00FF88', background: 'rgba(0,255,136,0.08)' }}
+            style={{ border: '1px solid var(--accent)', color: 'var(--accent)', background: 'rgb(var(--accent-rgb) / 0.08)' }}
           >
             <FolderPlus size={14} />
             choose folder...
@@ -242,9 +242,9 @@ export default function TrackList() {
               className="w-full flex items-center justify-center gap-2 px-4 py-2 font-term text-[14px] transition-colors"
               title={musicSuggestion.path}
               style={{
-                border: '1px solid rgba(0,255,136,0.25)',
-                color: 'rgba(155,245,184,0.55)',
-                background: 'rgba(0,255,136,0.03)',
+                border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+                color: 'rgb(var(--ink-rgb) / 0.55)',
+                background: 'rgb(var(--accent-rgb) / 0.03)',
               }}
             >
               <Music size={14} />
@@ -295,7 +295,7 @@ export default function TrackList() {
 
       {lastSummary && lastSummary.errors.length > 0 && (
         <div className="px-4 py-2 text-[11px]"
-          style={{ borderBottom: '1px solid rgba(0,255,136,0.06)', color: 'rgba(155,245,184,0.40)' }}>
+          style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.06)', color: 'rgb(var(--ink-rgb) / 0.40)' }}>
           <button
             onClick={() => setShowReadErrors((v) => !v)}
             className="font-term hover:opacity-80 transition-opacity"
@@ -306,7 +306,7 @@ export default function TrackList() {
           {showReadErrors && (
             <ul className="mt-1 space-y-0.5 pl-2">
               {lastSummary.errors.map((e, i) => (
-                <li key={i} className="font-term truncate" style={{ color: 'rgba(155,245,184,0.25)' }} title={e}>{e}</li>
+                <li key={i} className="font-term truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }} title={e}>{e}</li>
               ))}
             </ul>
           )}
@@ -316,16 +316,16 @@ export default function TrackList() {
       {/* View header */}
       <div
         className="px-[18px] py-[12px] flex items-end justify-between"
-        style={{ borderBottom: '1px solid rgba(0,255,136,0.18)' }}
+        style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)' }}
       >
         <div className="min-w-0">
-          <div className="font-term text-[11px]" style={{ color: '#00E5FF' }}>
+          <div className="font-term text-[11px]" style={{ color: 'var(--accent2)' }}>
             library /
           </div>
-          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none" style={{ color: '#00FF88' }}>
+          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none" style={{ color: 'var(--accent)' }}>
             {viewTitle}
           </div>
-          <div className="font-term text-[11px] mt-1" style={{ color: '#1f5e3a' }}>
+          <div className="font-term text-[11px] mt-1" style={{ color: 'var(--accent-deep)' }}>
             · {filtered.length} entries · sorted={sortKey} {sortAsc ? 'asc' : 'desc'}
           </div>
         </div>
@@ -335,21 +335,21 @@ export default function TrackList() {
           className="flex items-center px-[10px] py-[4px] ml-4 flex-shrink-0"
           style={{
             background: '#000',
-            border: '1px solid #00FF88',
-            boxShadow: '0 0 8px rgba(0,255,136,0.20), inset 0 0 8px rgba(0,255,136,0.05)',
+            border: '1px solid var(--accent)',
+            boxShadow: '0 0 8px rgb(var(--accent-rgb) / 0.20), inset 0 0 8px rgb(var(--accent-rgb) / 0.05)',
           }}
         >
-          <span className="font-term text-[14px] mr-1" style={{ color: '#00E5FF' }}>?</span>
-          <span className="font-term text-[14px] mr-1" style={{ color: 'rgba(155,245,184,0.30)' }}>grep</span>
+          <span className="font-term text-[14px] mr-1" style={{ color: 'var(--accent2)' }}>?</span>
+          <span className="font-term text-[14px] mr-1" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>grep</span>
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="font-term text-[14px] bg-transparent outline-none w-28"
-            style={{ color: '#00FF88' }}
+            style={{ color: 'var(--accent)' }}
             placeholder=""
           />
           {!searchQuery && (
-            <span className="font-term text-[14px] term-caret" style={{ color: '#00FF88' }}>█</span>
+            <span className="font-term text-[14px] term-caret" style={{ color: 'var(--accent)' }}>█</span>
           )}
         </div>
       </div>
@@ -359,18 +359,18 @@ export default function TrackList() {
         className="grid px-[10px] py-[4px] select-none flex-shrink-0"
         style={{
           gridTemplateColumns: '40px 36px 1fr 1fr 1fr 110px 60px',
-          background: 'rgba(0,255,136,0.05)',
-          borderBottom: '1px solid rgba(0,255,136,0.18)',
+          background: 'rgb(var(--accent-rgb) / 0.05)',
+          borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)',
         }}
       >
-        <span className="font-mono text-[9px] tracking-[1.5px] uppercase" style={{ color: '#00E5FF' }}>id</span>
+        <span className="font-mono text-[9px] tracking-[1.5px] uppercase" style={{ color: 'var(--accent2)' }}>id</span>
         <span />
         {(['title', 'artist', 'album'] as SortKey[]).map((k) => (
           <button
             key={k}
             onClick={() => handleSort(k)}
             className="flex items-center gap-1 font-mono text-[9px] tracking-[1.5px] uppercase text-left transition-opacity hover:opacity-80"
-            style={{ color: '#00E5FF' }}
+            style={{ color: 'var(--accent2)' }}
           >
             {k} <SortIcon k={k} />
           </button>
@@ -378,14 +378,14 @@ export default function TrackList() {
         <button
           onClick={() => handleSort('playlist')}
           className="flex items-center gap-1 font-mono text-[9px] tracking-[1.5px] uppercase text-left"
-          style={{ color: '#00E5FF' }}
+          style={{ color: 'var(--accent2)' }}
         >
           path <SortIcon k="playlist" />
         </button>
         <button
           onClick={() => handleSort('duration')}
           className="flex items-center justify-end gap-1 font-mono text-[9px] tracking-[1.5px] uppercase"
-          style={{ color: '#00E5FF' }}
+          style={{ color: 'var(--accent2)' }}
         >
           <SortIcon k="duration" /> dur
         </button>
@@ -395,7 +395,7 @@ export default function TrackList() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleScrollEvent}>
         {filtered.length === 0 && (
           <div className="flex items-center justify-center h-32 font-term text-[14px]"
-            style={{ color: 'rgba(155,245,184,0.30)' }}>
+            style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
             no tracks found
           </div>
         )}
@@ -417,16 +417,16 @@ export default function TrackList() {
               className="grid px-[10px] py-[3px] items-center cursor-pointer select-none transition-colors group"
               style={{
                 gridTemplateColumns: '40px 36px 1fr 1fr 1fr 110px 60px',
-                borderLeft: isSelected || isCurrentTrack ? '2px solid #00FF88' : '2px solid transparent',
+                borderLeft: isSelected || isCurrentTrack ? '2px solid var(--accent)' : '2px solid transparent',
                 background: isSelected
-                  ? 'rgba(0,255,136,0.15)'
+                  ? 'rgb(var(--accent-rgb) / 0.15)'
                   : isCurrentTrack
-                  ? 'rgba(0,255,136,0.08)'
+                  ? 'rgb(var(--accent-rgb) / 0.08)'
                   : undefined,
               }}
             >
               {/* ID / play indicator */}
-              <span className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+              <span className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
                 {isCurrentTrack ? '▶' : String(idx + 1).padStart(4, '0')}
               </span>
 
@@ -449,30 +449,30 @@ export default function TrackList() {
               {/* Title */}
               <span
                 className={`font-term text-[14px] truncate px-2 ${isCurrentTrack ? 'phosphor-glow' : ''}`}
-                style={{ color: isCurrentTrack ? '#00FF88' : '#9bf5b8' }}
+                style={{ color: isCurrentTrack ? 'var(--accent)' : 'var(--ink)' }}
               >
                 {isCurrentTrack ? `▶ ${track.title || '—'}` : (track.title || '—')}
               </span>
 
               {/* Artist */}
-              <span className="font-term text-[14px] truncate" style={{ color: 'rgba(155,245,184,0.55)' }}>
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
                 {track.artist || '—'}
               </span>
 
               {/* Album */}
-              <span className="font-term text-[14px] truncate" style={{ color: 'rgba(155,245,184,0.55)' }}>
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
                 {track.album || '—'}
               </span>
 
               {/* Path */}
-              <span className="font-term text-[12px] truncate" style={{ color: 'rgba(155,245,184,0.30)' }}>
+              <span className="font-term text-[12px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
                 ./{track.playlist || ''}
               </span>
 
               {/* Duration */}
               <span
                 className="font-term text-[12px] text-right tabular-nums"
-                style={{ color: isCurrentTrack ? '#00FF88' : 'rgba(155,245,184,0.55)' }}
+                style={{ color: isCurrentTrack ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)' }}
               >
                 {fmtDuration(track.duration)}
               </span>
@@ -486,11 +486,11 @@ export default function TrackList() {
         {/* Trailing prompt (All Tracks view only) */}
         {sidebarView.kind === 'all' && filtered.length > 0 && (
           <div className="px-[10px] py-[8px] font-term text-[13px] select-none">
-            <span style={{ color: '#00E5FF' }}>tracks@mainframe</span>
-            <span style={{ color: '#9bf5b8' }}>:</span>
+            <span style={{ color: 'var(--accent2)' }}>tracks@mainframe</span>
+            <span style={{ color: 'var(--ink)' }}>:</span>
             <span style={{ color: '#FFB000' }}>~/library</span>
-            <span style={{ color: '#9bf5b8' }}>$ </span>
-            <span className="term-caret" style={{ color: '#00FF88' }}>█</span>
+            <span style={{ color: 'var(--ink)' }}>$ </span>
+            <span className="term-caret" style={{ color: 'var(--accent)' }}>█</span>
           </div>
         )}
       </div>

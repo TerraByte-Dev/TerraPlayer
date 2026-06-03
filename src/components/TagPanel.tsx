@@ -49,7 +49,7 @@ export default function TagPanel() {
 
   return (
     <div className="p-4 space-y-3">
-      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>TAGS</p>
+      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>TAGS</p>
 
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => {
@@ -61,9 +61,9 @@ export default function TagPanel() {
               disabled={saving}
               className={`px-2.5 py-1 font-term text-[12px] transition-colors ${active ? 'phosphor-glow' : ''}`}
               style={{
-                background: active ? 'rgba(0,255,136,0.15)' : 'transparent',
-                border: active ? '1px solid rgba(0,255,136,0.55)' : '1px solid rgba(0,255,136,0.20)',
-                color: active ? '#00FF88' : 'rgba(155,245,184,0.55)',
+                background: active ? 'rgb(var(--accent-rgb) / 0.15)' : 'transparent',
+                border: active ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.20)',
+                color: active ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
                 borderRadius: 0,
               }}
             >
@@ -72,7 +72,7 @@ export default function TagPanel() {
           )
         })}
         {tags.length === 0 && (
-          <p className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>no tags defined</p>
+          <p className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>no tags defined</p>
         )}
       </div>
 
@@ -85,12 +85,12 @@ export default function TagPanel() {
           className="flex-1 font-term text-[12px] px-2.5 py-1.5 outline-none transition-colors placeholder:opacity-30"
           style={{
             background: '#000',
-            border: '1px solid rgba(0,255,136,0.25)',
-            color: '#9bf5b8',
+            border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+            color: 'var(--ink)',
             borderRadius: 0,
           }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
-          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
+          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.55)')}
+          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.25)')}
         />
         <button
           onClick={handleCreate}

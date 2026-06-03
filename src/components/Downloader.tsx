@@ -30,12 +30,12 @@ import type { Confidence, PreflightCheck } from '@/lib/ipc'
 
 const COOKIE_BROWSERS = ['firefox', 'chrome', 'edge', 'brave', 'chromium', 'opera', 'vivaldi']
 
-const GREEN = '#00FF88'
-const CYAN = '#00E5FF'
+const GREEN = 'var(--accent)'
+const CYAN = 'var(--accent2)'
 const AMBER = '#FFB000'
 const RED = '#FF3030'
-const INK_DIM = 'rgba(155,245,184,0.55)'
-const INK_FAINT = 'rgba(155,245,184,0.30)'
+const INK_DIM = 'rgb(var(--ink-rgb) / 0.55)'
+const INK_FAINT = 'rgb(var(--ink-rgb) / 0.30)'
 
 function confColor(c: Confidence): string {
   switch (c) {
@@ -124,15 +124,15 @@ export default function Downloader({ onClose }: { onClose: () => void }) {
         style={{
           width: 'min(960px, calc(100vw - 32px))',
           height: 'min(680px, calc(100vh - 40px))',
-          background: '#020503',
-          border: '1px solid rgba(0,255,136,0.25)',
-          boxShadow: '0 0 48px rgba(0,255,136,0.10)',
+          background: 'var(--bg-1)',
+          border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+          boxShadow: '0 0 48px rgb(var(--accent-rgb) / 0.10)',
         }}
       >
         {/* Header */}
         <div
           className="flex-shrink-0 h-10 flex items-center justify-between px-4"
-          style={{ borderBottom: '1px solid rgba(0,255,136,0.15)', background: '#000' }}
+          style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.15)', background: '#000' }}
         >
           <div className="flex items-center gap-2">
             <span
@@ -210,7 +210,7 @@ function PreflightBanner() {
   return (
     <div
       className="flex-shrink-0"
-      style={{ borderBottom: '1px solid rgba(0,255,136,0.10)', background: '#01130a' }}
+      style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.10)', background: '#01130a' }}
     >
       {/* summary row */}
       <div className="px-4 py-2 flex items-center gap-2">
@@ -314,7 +314,7 @@ function AuthControls() {
       : `browser: ${auth?.browser ?? 'firefox'}`
 
   return (
-    <div className="flex flex-col gap-1 pt-1 mt-0.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.10)' }}>
+    <div className="flex flex-col gap-1 pt-1 mt-0.5" style={{ borderTop: '1px dashed rgb(var(--accent-rgb) / 0.10)' }}>
       <div className="flex items-center gap-2 flex-wrap">
         <Cookie size={12} style={{ color: CYAN }} />
         <span className="font-term text-[10px] tracking-[1px]" style={{ color: INK_FAINT }}>
@@ -358,7 +358,7 @@ function AuthControls() {
             style={{
               background: '#000',
               color: method === 'browser' ? GREEN : INK_DIM,
-              border: `1px solid ${method === 'browser' ? 'rgba(0,255,136,0.4)' : 'rgba(0,255,136,0.2)'}`,
+              border: `1px solid ${method === 'browser' ? 'rgb(var(--accent-rgb) / 0.4)' : 'rgb(var(--accent-rgb) / 0.2)'}`,
             }}
           >
             {browsers.map((b) => (
@@ -373,7 +373,7 @@ function AuthControls() {
           className="metal-key px-2 h-6 font-term text-[10px]"
           onClick={s.importCookies}
           title="Load a cookies.txt you exported"
-          style={method === 'file' ? { color: GREEN, borderColor: 'rgba(0,255,136,0.4)' } : undefined}
+          style={method === 'file' ? { color: GREEN, borderColor: 'rgb(var(--accent-rgb) / 0.4)' } : undefined}
         >
           cookies.txt…
         </button>
@@ -404,7 +404,7 @@ function AuthInfo() {
   return (
     <div
       className="flex flex-col gap-1 px-3 py-2 mt-1"
-      style={{ border: '1px solid rgba(0,229,255,0.25)', background: 'rgba(0,20,28,0.5)' }}
+      style={{ border: '1px solid rgb(var(--accent2-rgb) / 0.25)', background: 'rgba(0,20,28,0.5)' }}
     >
       <p className="font-term text-[11px]" style={{ color: INK_DIM }}>
         YouTube has no “download login,” so the app authenticates with your YouTube cookies. Pick any
@@ -428,15 +428,15 @@ function InstallLog() {
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
   }, [installLog.length])
   return (
-    <div className="mt-1" style={{ border: '1px solid rgba(0,229,255,0.25)', background: '#000' }}>
+    <div className="mt-1" style={{ border: '1px solid rgb(var(--accent2-rgb) / 0.25)', background: '#000' }}>
       <div
         className="px-2 py-1 font-term text-[10px] tracking-[1px] flex items-center gap-1"
-        style={{ color: CYAN, borderBottom: '1px solid rgba(0,229,255,0.15)' }}
+        style={{ color: CYAN, borderBottom: '1px solid rgb(var(--accent2-rgb) / 0.15)' }}
       >
         <Terminal size={11} /> installing: {installingTools.join(' · ')}
         <Loader size={11} className="animate-spin" style={{ marginLeft: 'auto' }} />
       </div>
-      <div ref={ref} className="px-2 py-1 font-mono text-[10px]" style={{ maxHeight: 120, overflowY: 'auto', color: 'rgba(155,245,184,0.7)' }}>
+      <div ref={ref} className="px-2 py-1 font-mono text-[10px]" style={{ maxHeight: 120, overflowY: 'auto', color: 'rgb(var(--ink-rgb) / 0.7)' }}>
         {installLog.length === 0 ? (
           <span style={{ color: INK_FAINT }}>starting…</span>
         ) : (
@@ -509,7 +509,7 @@ function InputPane({ onDrop }: { onDrop: (e: React.DragEvent) => void }) {
       {csvName ? (
         <div
           className="flex items-center gap-2 px-3 py-4 mb-3"
-          style={{ border: '1px dashed rgba(0,229,255,0.4)', background: 'rgba(0,229,255,0.05)' }}
+          style={{ border: '1px dashed rgb(var(--accent2-rgb) / 0.4)', background: 'rgb(var(--accent2-rgb) / 0.05)' }}
         >
           <FileText size={16} style={{ color: CYAN }} />
           <span className="font-term text-[13px]" style={{ color: CYAN }}>
@@ -536,7 +536,7 @@ function InputPane({ onDrop }: { onDrop: (e: React.DragEvent) => void }) {
           className="flex-1 w-full font-term text-[15px] leading-[1.5] px-3 py-2 outline-none resize-none"
           style={{
             background: '#000',
-            border: '1px solid rgba(0,255,136,0.30)',
+            border: '1px solid rgb(var(--accent-rgb) / 0.30)',
             color: GREEN,
             minHeight: 260,
             boxShadow: 'inset 0 0 24px rgba(0,0,0,0.7)',
@@ -592,7 +592,7 @@ function PreviewPane() {
       {/* column header */}
       <div
         className="grid items-center gap-2 px-2 py-1.5 font-term text-[10px] tracking-[1.5px]"
-        style={{ gridTemplateColumns: '24px 1fr 150px 56px 200px', color: INK_FAINT, borderBottom: '1px solid rgba(0,255,136,0.12)' }}
+        style={{ gridTemplateColumns: '24px 1fr 150px 56px 200px', color: INK_FAINT, borderBottom: '1px solid rgb(var(--accent-rgb) / 0.12)' }}
       >
         <span></span>
         <span>QUERY → CHOSEN VERSION</span>
@@ -671,7 +671,7 @@ function StageLabel({ row }: { row: PreviewRow }) {
         <span className="font-term text-[11px] text-right" style={{ color: CYAN }}>
           {Math.round(row.pct ?? 0)}%
         </span>
-        <div style={{ height: 3, background: 'rgba(0,255,136,0.12)' }}>
+        <div style={{ height: 3, background: 'rgb(var(--accent-rgb) / 0.12)' }}>
           <div
             style={{
               height: 3,
@@ -700,7 +700,7 @@ function RowView({ row, downloading }: { row: PreviewRow; downloading: boolean }
   return (
     <div
       className="border-b"
-      style={{ borderColor: 'rgba(0,255,136,0.07)', opacity: !downloading && !row.accepted && !failed ? 0.55 : 1 }}
+      style={{ borderColor: 'rgb(var(--accent-rgb) / 0.07)', opacity: !downloading && !row.accepted && !failed ? 0.55 : 1 }}
     >
       <div
         className="grid items-center gap-2 px-2 py-2"
@@ -719,8 +719,8 @@ function RowView({ row, downloading }: { row: PreviewRow; downloading: boolean }
               style={{
                 width: 15,
                 height: 15,
-                border: `1px solid ${row.accepted ? GREEN : 'rgba(155,245,184,0.35)'}`,
-                background: row.accepted ? 'rgba(0,255,136,0.18)' : 'transparent',
+                border: `1px solid ${row.accepted ? GREEN : 'rgb(var(--ink-rgb) / 0.35)'}`,
+                background: row.accepted ? 'rgb(var(--accent-rgb) / 0.18)' : 'transparent',
                 cursor: !resolved || failed ? 'not-allowed' : 'pointer',
               }}
             >
@@ -850,7 +850,7 @@ function RowButton({
       onClick={onClick}
       style={
         active
-          ? { color: CYAN, borderColor: 'rgba(0,229,255,0.5)' }
+          ? { color: CYAN, borderColor: 'rgb(var(--accent2-rgb) / 0.5)' }
           : danger
           ? { color: 'rgba(255,120,120,0.8)' }
           : undefined
@@ -866,9 +866,9 @@ function SwapMenu({ row }: { row: PreviewRow }) {
   return (
     <div
       className="mx-2 mb-2 ml-9"
-      style={{ border: '1px solid rgba(0,229,255,0.25)', background: 'rgba(0,20,28,0.6)' }}
+      style={{ border: '1px solid rgb(var(--accent2-rgb) / 0.25)', background: 'rgba(0,20,28,0.6)' }}
     >
-      <div className="px-2 py-1 font-term text-[10px] tracking-[1.5px]" style={{ color: CYAN, borderBottom: '1px solid rgba(0,229,255,0.15)' }}>
+      <div className="px-2 py-1 font-term text-[10px] tracking-[1.5px]" style={{ color: CYAN, borderBottom: '1px solid rgb(var(--accent2-rgb) / 0.15)' }}>
         ALTERNATE VERSIONS — click to use
       </div>
       {row.candidatesLoading && (
@@ -888,9 +888,9 @@ function SwapMenu({ row }: { row: PreviewRow }) {
             key={`${c.source}-${c.id}`}
             onClick={() => st.swapTo(row.i, c)}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors"
-            style={{ background: selected ? 'rgba(0,255,136,0.08)' : 'transparent' }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,229,255,0.07)')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = selected ? 'rgba(0,255,136,0.08)' : 'transparent')}
+            style={{ background: selected ? 'rgb(var(--accent-rgb) / 0.08)' : 'transparent' }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgb(var(--accent2-rgb) / 0.07)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = selected ? 'rgb(var(--accent-rgb) / 0.08)' : 'transparent')}
           >
             <ConfidenceBadge c={c.confidence} explicit={c.explicit} />
             <span className="flex-1 font-term text-[13px] truncate" style={{ color: '#cfeede' }}>
@@ -928,7 +928,7 @@ function Footer({
   return (
     <div
       className="flex-shrink-0 px-4 py-3 flex items-center gap-3"
-      style={{ borderTop: '1px solid rgba(0,255,136,0.15)', background: '#000' }}
+      style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.15)', background: '#000' }}
     >
       {s.phase === 'preview' && (
         <>
@@ -1030,7 +1030,7 @@ function Stat({ label, value, color }: { label: string; value: number; color: st
 }
 
 const ghostBtn: React.CSSProperties = {
-  color: 'rgba(155,245,184,0.6)',
+  color: 'rgb(var(--ink-rgb) / 0.6)',
   background: 'transparent',
-  border: '1px solid rgba(0,255,136,0.2)',
+  border: '1px solid rgb(var(--accent-rgb) / 0.2)',
 }

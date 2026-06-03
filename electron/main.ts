@@ -45,7 +45,7 @@ function createWindow(): void {
     titleBarOverlay: {
       color: '#000000',
       symbolColor: '#00FF88',
-      height: 24,
+      height: 30,
     },
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
@@ -258,6 +258,11 @@ app.whenReady().then(() => {
     return { ok: true }
   })
   ipcMain.handle('app:revealInFolder', (_, path: string) => shell.showItemInFolder(path))
+  // Open an external URL in the user's default browser. Guarded to http(s) only so a compromised
+  // renderer can't launch arbitrary protocols/handlers.
+  ipcMain.handle('app:openExternal', (_, url: string) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) shell.openExternal(url)
+  })
   ipcMain.handle('app:saveImage', async (event, dataUrl: string, defaultName: string) => {
     const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl)
     if (!match) throw new Error('Only PNG image data can be saved.')
