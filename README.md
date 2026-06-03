@@ -28,7 +28,24 @@ Point it at a folder of local audio files — it scans the library, reads metada
 - **Audio visualizer** — spectrum bar visualizer, fullscreen mode, pop-out to a second display
 - **Queue panel** — Up Next queue; "Play next" context-menu on any track
 - **Cover art** — embedded art shown on player bar and track list; procedural fallback
+- **Add Music** — download songs straight into your library, preferring the explicit / original master over clean or radio edits (Settings → ADD MUSIC)
 - **Auto-updater** — check for updates from Settings; downloads and installs on restart
+
+## Add Music (downloader)
+
+Open from **Settings (gear) → ADD MUSIC → Open Music Downloader**. Paste an
+`Artist - Track` list (or a YouTube URL, or a Spotify `.csv`), **preview** the
+chosen version with a colour-coded confidence flag, fix anything per row
+(swap / pin / edit / remove), then **download** with live progress — the
+library reindexes automatically so new tracks appear right away.
+
+- **Preflight banner** checks your environment (yt-dlp, ffmpeg, Deno, ytmusicapi)
+  with a one-click **"Fix it for me"** installer, plus a real YouTube sign-in probe.
+- **YouTube sign-in** offers three probe-verified sources — in-app login, browser
+  cookies, or a `cookies.txt` import. No password is stored; nothing leaves your machine.
+
+It's a UI over the Media project's `download_music.py` backend (run in `--json`
+mode). Full details in [`DOWNLOADER.md`](DOWNLOADER.md).
 
 ## Tech stack
 
