@@ -15,6 +15,26 @@ import { useContextMenuStore } from '@/store/contextMenu'
 import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
+import logoUrl from '@/assets/brand/terrabyte-globe.png'
+
+// The TerraByte globe ships as a monochrome shape on transparent; masking it with the theme accent recolors
+// it to match every theme for free (the alpha channel is the mask).
+const LOGO_STYLE: React.CSSProperties = {
+  display: 'inline-block',
+  width: 22,
+  height: 22,
+  flexShrink: 0,
+  backgroundColor: 'var(--accent)',
+  WebkitMaskImage: `url(${logoUrl})`,
+  maskImage: `url(${logoUrl})`,
+  WebkitMaskSize: 'contain',
+  maskSize: 'contain',
+  WebkitMaskRepeat: 'no-repeat',
+  maskRepeat: 'no-repeat',
+  WebkitMaskPosition: 'center',
+  maskPosition: 'center',
+  filter: 'drop-shadow(0 0 4px rgb(var(--accent-rgb) / 0.5))',
+}
 
 // Section hex codes for display
 const SECTION_CODES: Record<string, string> = {
@@ -159,17 +179,18 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
 
   return (
     <aside
-      className="flex-shrink-0 flex flex-col overflow-y-auto"
+      className="flex-shrink-0 flex flex-col overflow-hidden"
       style={{ width: 210, borderRight: '1px solid rgb(var(--accent-rgb) / 0.18)', background: 'var(--bg-1)' }}
     >
-      {/* Header block */}
+      {/* Header block — fixed */}
       <div
         className="flex-shrink-0 px-[14px] pt-[14px] pb-[10px]"
         style={{ background: '#000', borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)' }}
       >
-        <div className="flex items-center justify-between">
-          <div className="font-lcd text-[18px] tracking-[2px] phosphor-glow" style={{ color: 'var(--accent)' }}>
-            MAINFRAME
+        <div className="flex items-center gap-2">
+          <span aria-hidden style={LOGO_STYLE} />
+          <div className="flex-1 font-lcd text-[17px] tracking-[1.5px] phosphor-glow truncate" style={{ color: 'var(--accent)' }}>
+            TerraPlayer
           </div>
           <button
             onClick={onOpenSettings}
@@ -182,10 +203,7 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
             <MoreVertical size={14} />
           </button>
         </div>
-        <div className="font-term text-[11px] tracking-[1.5px] mt-0.5" style={{ color: 'var(--accent2)' }}>
-          music library · v2.0
-        </div>
-        <div className="flex items-center gap-1.5 mt-1">
+        <div className="flex items-center gap-1.5 mt-1.5">
           <span
             style={{
               display: 'inline-block',
@@ -202,6 +220,8 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
         </div>
       </div>
 
+      {/* Scrolling region — library / playlists / tags (the only part that scrolls) */}
+      <div className="flex-1 overflow-y-auto min-h-0">
       {/* Library */}
       <SectionLabel label="LIBRARY" code={SECTION_CODES.Music} />
       <NavItem
@@ -333,8 +353,10 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
         </p>
       )}
 
-      <div className="flex-1" />
+      </div>
 
+      {/* Fixed bottom — tools, MEDIA.DRIVE, reindex */}
+      <div className="flex-shrink-0">
       {/* Utility dock */}
       <UtilityDock onOpen={onOpenUtility} />
 
@@ -390,6 +412,7 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
         >
           {loading ? '> scanning...' : '> reindex'}
         </button>
+      </div>
       </div>
     </aside>
   )
