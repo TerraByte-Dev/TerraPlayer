@@ -23,7 +23,7 @@ export default function TitleBar() {
   return (
     <div
       className="drag-region relative z-[1] flex-shrink-0 flex items-center px-3 select-none"
-      style={{ height: 24, background: '#000', borderBottom: '1px solid rgba(0,255,136,0.18)' }}
+      style={{ height: 24, background: '#000', borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)' }}
     >
       {/* Rotating diamond LED */}
       <span
@@ -32,9 +32,9 @@ export default function TitleBar() {
           display: 'inline-block',
           width: 6,
           height: 6,
-          background: '#00FF88',
+          background: 'var(--accent)',
           transform: 'rotate(45deg)',
-          boxShadow: '0 0 6px #00FF88',
+          boxShadow: '0 0 6px var(--accent)',
           animation: 'term-blink 2s steps(2) infinite',
         }}
       />
@@ -42,15 +42,15 @@ export default function TitleBar() {
       {/* Logotype */}
       <span
         className="font-term text-[12px] tracking-[1.5px] phosphor-glow"
-        style={{ color: '#00FF88' }}
+        style={{ color: 'var(--accent)' }}
       >
         MAINFRAME//PLAY
       </span>
 
-      <span className="mx-2 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>—</span>
+      <span className="mx-2 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>—</span>
 
       {/* Live clock */}
-      <span className="font-term text-[12px] tracking-[1px]" style={{ color: '#00E5FF' }}>
+      <span className="font-term text-[12px] tracking-[1px]" style={{ color: 'var(--accent2)' }}>
         {clock}
       </span>
 
@@ -60,7 +60,7 @@ export default function TitleBar() {
       {!isWindows && (
         <div className="flex items-center gap-3 no-drag">
           <span className="font-term text-[11px]" style={{ color: '#FFB000' }}>● TX</span>
-          <span className="font-term text-[11px]" style={{ color: 'rgba(155,245,184,0.30)' }}>cpu 38% · 320k</span>
+          <span className="font-term text-[11px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>cpu 38% · 320k</span>
           <div className="flex items-center gap-[3px]">
             <button
               onClick={() => window.hub.minimizeWindow()}
@@ -68,12 +68,12 @@ export default function TitleBar() {
               className="flex items-center justify-center transition-colors"
               style={{
                 width: 18, height: 18,
-                background: 'rgba(0,255,136,0.06)',
-                border: '1px solid rgba(0,255,136,0.25)',
-                color: 'rgba(155,245,184,0.65)',
+                background: 'rgb(var(--accent-rgb) / 0.06)',
+                border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+                color: 'rgb(var(--ink-rgb) / 0.65)',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#00FF88'; e.currentTarget.style.background = 'rgba(0,255,136,0.14)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(155,245,184,0.65)'; e.currentTarget.style.background = 'rgba(0,255,136,0.06)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'rgb(var(--accent-rgb) / 0.14)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgb(var(--ink-rgb) / 0.65)'; e.currentTarget.style.background = 'rgb(var(--accent-rgb) / 0.06)' }}
             >
               <Minus size={9} />
             </button>
@@ -83,12 +83,12 @@ export default function TitleBar() {
               className="flex items-center justify-center transition-colors"
               style={{
                 width: 18, height: 18,
-                background: 'rgba(0,255,136,0.06)',
-                border: '1px solid rgba(0,255,136,0.25)',
-                color: 'rgba(155,245,184,0.65)',
+                background: 'rgb(var(--accent-rgb) / 0.06)',
+                border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+                color: 'rgb(var(--ink-rgb) / 0.65)',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = '#00FF88'; e.currentTarget.style.background = 'rgba(0,255,136,0.14)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(155,245,184,0.65)'; e.currentTarget.style.background = 'rgba(0,255,136,0.06)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.background = 'rgb(var(--accent-rgb) / 0.14)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'rgb(var(--ink-rgb) / 0.65)'; e.currentTarget.style.background = 'rgb(var(--accent-rgb) / 0.06)' }}
             >
               <Square size={9} />
             </button>

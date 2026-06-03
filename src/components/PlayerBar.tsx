@@ -10,16 +10,17 @@ import { usePlayerStore } from '@/store/player'
 import { useLibraryStore } from '@/store/library'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { trackUrl, fmtDuration } from '@/lib/ipc'
-import { connectAudioElement, resumeContext, setEqGains, startPublishing, stopPublishing } from '@/lib/audio'
+import { connectAudioElement, resumeContext, setEqGains, setPreampDb, setMono, startPublishing, stopPublishing } from '@/lib/audio'
+import { useSettingsStore } from '@/store/settings'
 import Visualizer from './Visualizer'
 import VectorGridCover from './VectorGridCover'
 import type { DisplayInfo, QueueSnapshotTrack } from '@/lib/ipc'
 
 const POPOVER_STYLE: React.CSSProperties = {
   background: 'rgba(2,5,3,0.97)',
-  border: '1px solid rgba(0,255,136,0.30)',
+  border: '1px solid rgb(var(--accent-rgb) / 0.30)',
   borderRadius: 0,
-  boxShadow: '0 0 14px rgba(0,255,136,0.15)',
+  boxShadow: '0 0 14px rgb(var(--accent-rgb) / 0.15)',
 }
 
 export default function PlayerBar() {
@@ -134,6 +135,12 @@ export default function PlayerBar() {
     setEqGains(eq.low, eq.mid, eq.high)
   }, [eq.low, eq.mid, eq.high])
 
+  // Apply persisted pre-amp + mono prefs to the Web Audio graph (initial + on change).
+  const preampDb = useSettingsStore((s) => s.preampDb)
+  const mono = useSettingsStore((s) => s.mono)
+  useEffect(() => { setPreampDb(preampDb) }, [preampDb])
+  useEffect(() => { setMono(mono) }, [mono])
+
   function seekTo(t: number) {
     const liveDuration = usePlayerStore.getState().duration || audioRef.current?.duration || duration || 0
     const bounded = Math.max(0, Math.min(liveDuration, t))
@@ -221,18 +228,13 @@ export default function PlayerBar() {
       className="relative flex items-center px-[14px] gap-[14px] select-none"
       style={{
         height: 80,
-        background: 'linear-gradient(180deg, #060a07 0%, #020503 100%)',
-        borderTop: '1px solid rgba(0,255,136,0.30)',
-        boxShadow: 'inset 0 1px 0 rgba(155,245,184,0.05), 0 -8px 24px rgba(0,0,0,0.6), 0 -1px 0 rgba(0,255,136,0.55)',
+        background: 'linear-gradient(180deg, #060a07 0%, var(--bg-1) 100%)',
+        borderTop: '1px solid rgb(var(--accent-rgb) / 0.30)',
+        boxShadow: 'inset 0 1px 0 rgb(var(--ink-rgb) / 0.05), 0 -8px 24px rgba(0,0,0,0.6), 0 -1px 0 rgb(var(--accent-rgb) / 0.55)',
       }}
     >
-      {/* Scanline overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'repeating-linear-gradient(180deg, rgba(0,255,136,0.03) 0 1px, transparent 1px 3px)',
-        }}
-      />
+      {/* Scanline overlay (hidden when the CRT effect is toggled off) */}
+      <div className="pb-scanline absolute inset-0 pointer-events-none" />
 
 
       <audio
@@ -254,7 +256,7 @@ export default function PlayerBar() {
         <div className="min-w-0 flex-1">
           <p
             className="font-lcd text-[14px] truncate leading-tight phosphor-glow"
-            style={{ color: '#00FF88', letterSpacing: '0.5px', cursor: track ? 'pointer' : 'default' }}
+            style={{ color: 'var(--accent)', letterSpacing: '0.5px', cursor: track ? 'pointer' : 'default' }}
             title={track ? 'Open track properties' : undefined}
             onClick={() => {
               if (!track) return
@@ -264,10 +266,10 @@ export default function PlayerBar() {
           >
             {track?.title || 'nothing playing'}
           </p>
-          <p className="font-term text-[11px] truncate mt-0.5" style={{ color: 'rgba(155,245,184,0.55)', letterSpacing: '0.5px' }}>
+          <p className="font-term text-[11px] truncate mt-0.5" style={{ color: 'rgb(var(--ink-rgb) / 0.55)', letterSpacing: '0.5px' }}>
             {track?.artist || ''}
           </p>
-          <p className="font-term text-[11px] truncate mt-0.5 uppercase" style={{ color: 'rgba(155,245,184,0.30)', letterSpacing: '1px' }}>
+          <p className="font-term text-[11px] truncate mt-0.5 uppercase" style={{ color: 'rgb(var(--ink-rgb) / 0.30)', letterSpacing: '1px' }}>
             {track?.album ? `[${track.album}]` : ''}
           </p>
         </div>
@@ -314,7 +316,7 @@ export default function PlayerBar() {
       <div className="lcd-panel flex-1 min-w-0 relative z-[1]" style={{ padding: '6px 10px' }}>
         {/* Row 1: time + progress + duration */}
         <div className="flex items-center gap-3">
-          <span className="font-lcd text-[16px] flex-shrink-0" style={{ color: '#00FF88', letterSpacing: 1, textShadow: '0 0 6px rgba(0,255,136,0.88)' }}>
+          <span className="font-lcd text-[16px] flex-shrink-0" style={{ color: 'var(--accent)', letterSpacing: 1, textShadow: '0 0 6px rgb(var(--accent-rgb) / 0.88)' }}>
             {fmtDuration(currentTime)}
           </span>
 
@@ -326,11 +328,11 @@ export default function PlayerBar() {
             onPointerMove={(e) => { if (e.buttons === 1) handleSeekPointer(e) }}
           >
             {/* Track */}
-            <div className="absolute" style={{ left: 0, right: 0, top: 8, height: 2, background: 'rgba(0,255,136,0.10)', borderRadius: 1 }} />
+            <div className="absolute" style={{ left: 0, right: 0, top: 8, height: 2, background: 'rgb(var(--accent-rgb) / 0.10)', borderRadius: 1 }} />
             {/* Fill */}
             <div
               className="absolute"
-              style={{ left: 0, top: 8, height: 2, width: `${progressPct}%`, background: '#00FF88', boxShadow: '0 0 8px #00FF88', borderRadius: 1 }}
+              style={{ left: 0, top: 8, height: 2, width: `${progressPct}%`, background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)', borderRadius: 1 }}
             />
             {/* Tick marks */}
             {Array.from({ length: 21 }, (_, i) => (
@@ -342,7 +344,7 @@ export default function PlayerBar() {
                   top: 4,
                   width: 1,
                   height: i % 5 === 0 ? 4 : 2,
-                  background: 'rgba(0,255,136,0.30)',
+                  background: 'rgb(var(--accent-rgb) / 0.30)',
                 }}
               />
             ))}
@@ -354,27 +356,27 @@ export default function PlayerBar() {
                 top: 4,
                 width: 2,
                 height: 10,
-                background: '#00FF88',
-                boxShadow: '0 0 6px #00FF88',
+                background: 'var(--accent)',
+                boxShadow: '0 0 6px var(--accent)',
                 transform: 'translateX(-1px)',
               }}
             />
           </div>
 
-          <span className="font-lcd text-[16px] flex-shrink-0" style={{ color: '#1f5e3a', letterSpacing: 1 }}>
+          <span className="font-lcd text-[16px] flex-shrink-0" style={{ color: 'var(--accent-deep)', letterSpacing: 1 }}>
             {fmtDuration(duration)}
           </span>
         </div>
 
         {/* Row 2: spectrum + bitrate */}
         <div className="flex items-center gap-3 mt-1">
-          <span className="font-mono text-[9px] uppercase tracking-[1.5px] flex-shrink-0" style={{ color: '#1f5e3a' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[1.5px] flex-shrink-0" style={{ color: 'var(--accent-deep)' }}>
             SPECTRUM
           </span>
           <div className="flex-1 min-w-0">
             <Visualizer height={18} />
           </div>
-          <span className="font-mono text-[9px] uppercase tracking-[1px] flex-shrink-0 ml-auto" style={{ color: '#1f5e3a' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[1px] flex-shrink-0 ml-auto" style={{ color: 'var(--accent-deep)' }}>
             320 KBPS · 44.1 KHZ · STEREO
           </span>
         </div>
@@ -394,7 +396,7 @@ export default function PlayerBar() {
           </button>
           {showEnhance && (
             <div className="absolute bottom-10 right-0 z-20 w-52 px-3 py-2.5 shadow-xl" style={POPOVER_STYLE}>
-              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: '#00E5FF' }}>ENHANCE</p>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>ENHANCE</p>
               <div className="grid grid-cols-2 gap-1 mb-3">
                 {([['off', 'Flat'], ['polish', 'YT Polish'], ['bass', 'Bass Lift'], ['voice', 'Voice']] as const).map(([preset, label]) => (
                   <button
@@ -402,9 +404,9 @@ export default function PlayerBar() {
                     onClick={() => setEqPreset(preset)}
                     className="font-term text-[13px] px-2 py-1 transition-colors"
                     style={{
-                      border: eq.preset === preset ? '1px solid rgba(0,255,136,0.55)' : '1px solid rgba(0,255,136,0.15)',
-                      color: eq.preset === preset ? '#00FF88' : 'rgba(155,245,184,0.55)',
-                      background: eq.preset === preset ? 'rgba(0,255,136,0.12)' : 'transparent',
+                      border: eq.preset === preset ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.15)',
+                      color: eq.preset === preset ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
+                      background: eq.preset === preset ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
                     }}
                   >
                     {label}
@@ -413,13 +415,13 @@ export default function PlayerBar() {
               </div>
               {(['low', 'mid', 'high'] as const).map((band) => (
                 <label key={band} className="grid grid-cols-[34px_1fr_28px] items-center gap-2 mb-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgba(155,245,184,0.50)' }}>{band}</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgb(var(--ink-rgb) / 0.50)' }}>{band}</span>
                   <input
                     type="range" min={-8} max={8} step={0.5} value={eq[band]}
                     onChange={(e) => setEqBand(band, Number(e.target.value))}
                     className="w-full"
                   />
-                  <span className="text-right font-mono text-[9px] tabular-nums" style={{ color: '#9bf5b8' }}>
+                  <span className="text-right font-mono text-[9px] tabular-nums" style={{ color: 'var(--ink)' }}>
                     {eq[band] > 0 ? '+' : ''}{eq[band]}
                   </span>
                 </label>
@@ -439,7 +441,7 @@ export default function PlayerBar() {
           {upNext.length > 0 && (
             <span
               className="absolute -top-1 -right-1 w-3 h-3 font-mono text-[7px] font-bold flex items-center justify-center leading-none"
-              style={{ background: '#00FF88', color: '#000' }}
+              style={{ background: 'var(--accent)', color: '#000' }}
             >
               {upNext.length > 9 ? '9+' : upNext.length}
             </span>
@@ -468,22 +470,22 @@ export default function PlayerBar() {
           </button>
           {showDisplayPicker && displays.length > 1 && (
             <div className="absolute bottom-10 right-0 z-20 px-3 py-2.5 shadow-xl min-w-[170px]" style={POPOVER_STYLE}>
-              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: '#00E5FF' }}>CHOOSE DISPLAY</p>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>CHOOSE DISPLAY</p>
               {displays.map((d) => (
                 <button
                   key={d.id}
                   onClick={() => handlePickDisplay(d.id)}
                   className="w-full text-left font-term text-[13px] py-1.5 px-1.5 flex items-center gap-2 transition-colors"
-                  style={{ color: 'rgba(155,245,184,0.65)' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#00FF88')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(155,245,184,0.65)')}
+                  style={{ color: 'rgb(var(--ink-rgb) / 0.65)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'rgb(var(--ink-rgb) / 0.65)')}
                 >
                   <span
                     className="w-1.5 h-1.5 flex-shrink-0"
-                    style={{ background: d.primary ? '#7CFF6B' : '#00E5FF' }}
+                    style={{ background: d.primary ? '#7CFF6B' : 'var(--accent2)' }}
                   />
                   <span className="truncate flex-1">{d.label || `Display ${d.id}`}</span>
-                  {d.primary && <span className="font-mono text-[9px]" style={{ color: 'rgba(155,245,184,0.30)' }}>main</span>}
+                  {d.primary && <span className="font-mono text-[9px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>main</span>}
                 </button>
               ))}
             </div>
@@ -491,13 +493,13 @@ export default function PlayerBar() {
         </div>
 
         {/* Divider */}
-        <div className="flex-shrink-0 mx-1" style={{ width: 1, height: 20, background: 'rgba(155,245,184,0.10)' }} />
+        <div className="flex-shrink-0 mx-1" style={{ width: 1, height: 20, background: 'rgb(var(--ink-rgb) / 0.10)' }} />
 
         {/* Volume */}
-        <Volume2 size={12} style={{ color: 'rgba(155,245,184,0.55)', flexShrink: 0 }} />
+        <Volume2 size={12} style={{ color: 'rgb(var(--ink-rgb) / 0.55)', flexShrink: 0 }} />
         <div
           className="relative flex-shrink-0"
-          style={{ width: 70, height: 4, background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(0,255,136,0.20)', cursor: 'pointer' }}
+          style={{ width: 70, height: 4, background: 'rgba(0,0,0,0.5)', border: '1px solid rgb(var(--accent-rgb) / 0.20)', cursor: 'pointer' }}
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect()
             setVolume(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)))
@@ -509,7 +511,7 @@ export default function PlayerBar() {
         >
           {/* Fill */}
           <div
-            style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${volume * 100}%`, background: '#00FF88', boxShadow: '0 0 6px #00FF88' }}
+            style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${volume * 100}%`, background: 'var(--accent)', boxShadow: '0 0 6px var(--accent)' }}
           />
           {/* Knob */}
           <div
@@ -519,13 +521,13 @@ export default function PlayerBar() {
               top: '50%',
               width: 6,
               height: 8,
-              background: '#9bf5b8',
+              background: 'var(--ink)',
               border: '1px solid rgba(0,0,0,0.5)',
               transform: 'translate(-3px, -50%)',
             }}
           />
         </div>
-        {volume === 0 && <VolumeX size={12} style={{ color: 'rgba(155,245,184,0.55)', flexShrink: 0, marginLeft: -4 }} />}
+        {volume === 0 && <VolumeX size={12} style={{ color: 'rgb(var(--ink-rgb) / 0.55)', flexShrink: 0, marginLeft: -4 }} />}
       </div>
     </div>
   )

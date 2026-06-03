@@ -12,7 +12,7 @@ const TOOLS: Array<{ mode: UtilityMode; title: string; icon: React.ReactNode }> 
 export default function UtilityDock({ onOpen }: { onOpen: (mode: UtilityMode) => void }) {
   return (
     <div className="px-3 pb-2">
-      <div className="grid grid-cols-3 gap-1.5 p-1" style={{ border: '1px solid rgba(0,255,136,0.12)', background: 'rgba(0,0,0,0.25)' }}>
+      <div className="grid grid-cols-3 gap-1.5 p-1" style={{ border: '1px solid rgb(var(--accent-rgb) / 0.12)', background: 'rgba(0,0,0,0.25)' }}>
         {TOOLS.map((tool) => (
           <button
             key={tool.mode}
