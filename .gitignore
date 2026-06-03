@@ -12,6 +12,9 @@ build/*.png
 .DS_Store
 Thumbs.db
 
+# Per-machine downloader paths (script + output dir). See downloader.local.example.json
+downloader.local.json
+
 # Claude Code
 CLAUDE.md
 .claude/

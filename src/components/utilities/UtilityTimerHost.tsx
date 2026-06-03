@@ -86,7 +86,7 @@ export default function UtilityTimerHost({ onOpenTimer }: { onOpenTimer: () => v
         className={`fixed bottom-[92px] left-60 z-20 flex h-7 items-center gap-2 px-3 font-term text-[12px] tabular-nums shadow-lg transition-colors ${
           ringing ? 'metal-key is-primary' : 'metal-key'
         }`}
-        style={ringing ? undefined : { color: 'rgba(155,245,184,0.65)' }}
+        style={ringing ? undefined : { color: 'rgb(var(--ink-rgb) / 0.65)' }}
       >
         <AlarmClock size={12} />
         {label}

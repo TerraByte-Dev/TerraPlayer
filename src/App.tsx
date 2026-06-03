@@ -12,6 +12,7 @@ import QueuePanel from './components/QueuePanel'
 import UtilityOverlay from './components/utilities/UtilityOverlay'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
+import Downloader from './components/Downloader'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
@@ -24,6 +25,7 @@ export default function App() {
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [downloaderOpen, setDownloaderOpen] = useState(false)
 
   useEffect(() => {
     load()
@@ -103,20 +105,20 @@ export default function App() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <TitleBar />
+      <TitleBar onOpenSettings={() => setSettingsOpen(true)} />
 
       {/* Drag overlay */}
       {dragActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed pointer-events-none"
-          style={{ borderColor: 'rgba(0,255,136,0.40)' }}>
-          <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: '#00FF88' }}>
+          style={{ borderColor: 'rgb(var(--accent-rgb) / 0.40)' }}>
+          <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: 'var(--accent)' }}>
             [ DROP FOLDER TO INDEX ]
           </p>
         </div>
       )}
 
       <div className="relative z-[1] flex flex-1 overflow-hidden">
-        <Sidebar onOpenUtility={handleOpenUtility} onOpenSettings={() => setSettingsOpen(true)} />
+        <Sidebar onOpenUtility={handleOpenUtility} />
 
         <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#000' }}>
           <TrackList />
@@ -124,9 +126,9 @@ export default function App() {
 
         {showMetadataPanel && (
           <aside className="w-60 flex-shrink-0 flex flex-col overflow-y-auto border-l"
-            style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.18)' }}>
+            style={{ background: 'var(--bg-1)', borderColor: 'rgb(var(--accent-rgb) / 0.18)' }}>
             <div className="sticky top-0 z-10 h-9 flex items-center justify-end px-3 border-b"
-              style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.10)' }}>
+              style={{ background: 'var(--bg-1)', borderColor: 'rgb(var(--accent-rgb) / 0.10)' }}>
               <button
                 onClick={toggleRightPanel}
                 title="Close panel"
@@ -136,7 +138,7 @@ export default function App() {
               </button>
             </div>
             <MetadataEditor />
-            <div className="mx-4" style={{ borderTop: '1px solid rgba(0,255,136,0.08)' }} />
+            <div className="mx-4" style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.08)' }} />
             <TagPanel />
           </aside>
         )}
@@ -172,7 +174,17 @@ export default function App() {
         />
       )}
 
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          onOpenDownloader={() => {
+            setSettingsOpen(false)
+            setDownloaderOpen(true)
+          }}
+        />
+      )}
+
+      {downloaderOpen && <Downloader onClose={() => setDownloaderOpen(false)} />}
 
       <UtilityTimerHost onOpenTimer={() => handleOpenUtility('timer')} />
 

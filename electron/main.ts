@@ -24,6 +24,9 @@ import {
   getDriveStats,
 } from './ipc/library'
 import { writeTags } from './ipc/metadata'
+import * as downloader from './ipc/downloader'
+import * as ytauth from './ipc/ytauth'
+import type { DownloadRow } from './ipc/downloader-core'
 import { autoUpdater } from 'electron-updater'
 
 registerHubProtocol()
@@ -42,7 +45,7 @@ function createWindow(): void {
     titleBarOverlay: {
       color: '#000000',
       symbolColor: '#00FF88',
-      height: 24,
+      height: 30,
     },
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
@@ -122,6 +125,46 @@ app.whenReady().then(() => {
     return { path, exists }
   })
   ipcMain.handle('lib:getDriveStats', () => getDriveStats())
+
+  // Music downloader (wraps download_music.py --json)
+  ipcMain.handle('dl:preflight', (_, opts?: downloader.CookieOpts & { noAuthProbe?: boolean }) =>
+    downloader.preflight(opts)
+  )
+  ipcMain.handle('dl:install', (event, tools: string[], cookieOpts?: downloader.CookieOpts) =>
+    downloader.installTools(event.sender, tools, cookieOpts)
+  )
+  ipcMain.handle('dl:resolve', (_, payload: downloader.ResolvePayload) =>
+    downloader.resolve(payload)
+  )
+  ipcMain.handle('dl:candidates', (_, query: string) => downloader.candidates(query))
+  ipcMain.handle('dl:download', (event, rows: DownloadRow[], outDir: string, cookieOpts?: downloader.CookieOpts) =>
+    downloader.download(event.sender, rows, outDir, cookieOpts)
+  )
+  ipcMain.handle('dl:cancel', () => downloader.cancelDownload())
+  ipcMain.handle('dl:resolveOutDir', (_, preferred?: string) =>
+    downloader.resolveOutputDir(preferred)
+  )
+  ipcMain.handle('dl:readText', (_, path: string) => downloader.readTextFile(path))
+
+  // YouTube auth (in-app login / browser / cookies.txt — see ytauth.ts)
+  ipcMain.handle('ytauth:status', () => ytauth.status())
+  ipcMain.handle('ytauth:connect', (event) =>
+    ytauth.connect(BrowserWindow.fromWebContents(event.sender) ?? mainWindow)
+  )
+  ipcMain.handle('ytauth:disconnect', () => ytauth.disconnect())
+  ipcMain.handle('ytauth:setBrowser', (_, browser: string) => ytauth.setBrowser(browser))
+  ipcMain.handle('ytauth:detectBrowsers', () => ytauth.detectBrowsers())
+  ipcMain.handle('ytauth:import', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    const opts = {
+      title: 'Select a cookies.txt (Netscape format)',
+      filters: [{ name: 'Cookies', extensions: ['txt'] }],
+      properties: ['openFile' as const],
+    }
+    const result = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts))
+    if (result.canceled || !result.filePaths[0]) return ytauth.status()
+    return ytauth.importFile(result.filePaths[0])
+  })
 
   // Metadata / tags
   ipcMain.handle('meta:writeTags', (_, path: string, tags: Record<string, string | number>) =>
@@ -215,16 +258,24 @@ app.whenReady().then(() => {
     return { ok: true }
   })
   ipcMain.handle('app:revealInFolder', (_, path: string) => shell.showItemInFolder(path))
+  // Open an external URL in the user's default browser. Guarded to http(s) only so a compromised
+  // renderer can't launch arbitrary protocols/handlers.
+  ipcMain.handle('app:openExternal', (_, url: string) => {
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) shell.openExternal(url)
+  })
   ipcMain.handle('app:saveImage', async (event, dataUrl: string, defaultName: string) => {
     const match = /^data:image\/png;base64,(.+)$/.exec(dataUrl)
     if (!match) throw new Error('Only PNG image data can be saved.')
 
-    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow ?? undefined
-    const result = await dialog.showSaveDialog(win, {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? mainWindow
+    const saveOpts = {
       title: 'Save board',
       defaultPath: defaultName || 'board.png',
       filters: [{ name: 'PNG Image', extensions: ['png'] }],
-    })
+    }
+    const result = await (win
+      ? dialog.showSaveDialog(win, saveOpts)
+      : dialog.showSaveDialog(saveOpts))
     if (result.canceled || !result.filePath) return null
 
     const filePath = result.filePath.toLowerCase().endsWith('.png')

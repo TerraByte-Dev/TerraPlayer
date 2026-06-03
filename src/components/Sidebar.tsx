@@ -7,7 +7,6 @@ import {
   Shuffle,
   Trash2,
   Plus,
-  MoreVertical,
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
@@ -15,13 +14,6 @@ import { useContextMenuStore } from '@/store/contextMenu'
 import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
-
-// Section hex codes for display
-const SECTION_CODES: Record<string, string> = {
-  Music: '0x01',
-  Playlists: '0x02',
-  Tags: '0x03',
-}
 
 // Isolated uptime component — only this re-renders every second, not the whole Sidebar
 function UptimeClock() {
@@ -34,13 +26,13 @@ function UptimeClock() {
   const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0')
   const s = String(secs % 60).padStart(2, '0')
   return (
-    <span className="font-lcd text-[11px] tabular-nums" style={{ color: '#1f5e3a' }}>
+    <span className="font-lcd text-[11px] tabular-nums" style={{ color: 'var(--accent-deep)' }}>
       {`${h}:${m}:${s}`}
     </span>
   )
 }
 
-export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtility: (mode: UtilityMode) => void; onOpenSettings: () => void }) {
+export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
   const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
@@ -159,51 +151,13 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
 
   return (
     <aside
-      className="flex-shrink-0 flex flex-col overflow-y-auto"
-      style={{ width: 210, borderRight: '1px solid rgba(0,255,136,0.18)', background: '#020503' }}
+      className="flex-shrink-0 flex flex-col overflow-hidden"
+      style={{ width: 210, borderRight: '1px solid rgb(var(--accent-rgb) / 0.18)', background: 'var(--bg-1)' }}
     >
-      {/* Header block */}
-      <div
-        className="flex-shrink-0 px-[14px] pt-[14px] pb-[10px]"
-        style={{ background: '#000', borderBottom: '1px solid rgba(0,255,136,0.18)' }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="font-lcd text-[18px] tracking-[2px] phosphor-glow" style={{ color: '#00FF88' }}>
-            MAINFRAME
-          </div>
-          <button
-            onClick={onOpenSettings}
-            title="Settings"
-            className="flex items-center justify-center w-6 h-6 rounded-sm transition-opacity"
-            style={{ color: 'rgba(0,255,136,0.40)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#00FF88')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,255,136,0.40)')}
-          >
-            <MoreVertical size={14} />
-          </button>
-        </div>
-        <div className="font-term text-[11px] tracking-[1.5px] mt-0.5" style={{ color: '#00E5FF' }}>
-          music library · v2.0
-        </div>
-        <div className="flex items-center gap-1.5 mt-1">
-          <span
-            style={{
-              display: 'inline-block',
-              width: 5,
-              height: 5,
-              background: '#00FF88',
-              transform: 'rotate(45deg)',
-              boxShadow: '0 0 5px #00FF88',
-            }}
-          />
-          <span className="font-term text-[11px]" style={{ color: '#1f5e3a' }}>
-            link.ok · {totalCount} tracks
-          </span>
-        </div>
-      </div>
-
+      {/* Scrolling region — library / playlists / tags (the only part that scrolls) */}
+      <div className="flex-1 overflow-y-auto min-h-0">
       {/* Library */}
-      <SectionLabel label="LIBRARY" code={SECTION_CODES.Music} />
+      <SectionLabel label="LIBRARY" />
       <NavItem
         label="all tracks"
         active={isActive('all')}
@@ -215,17 +169,7 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
       {/* Playlists */}
       <SectionLabel
         label="PLAYLISTS"
-        code={SECTION_CODES.Playlists}
-        action={
-          <button
-            style={{ color: 'rgba(155,245,184,0.40)' }}
-            className="font-term text-[11px] hover:text-phosphor transition-colors"
-            onClick={() => setShowPlaylistInput((v) => !v)}
-            title="New playlist"
-          >
-            +
-          </button>
-        }
+        action={<AddButton title="New playlist" active={showPlaylistInput} onClick={() => setShowPlaylistInput((v) => !v)} />}
       />
       {showPlaylistInput && (
         <div className="px-[10px] pb-2 flex gap-1">
@@ -238,8 +182,8 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
             className="flex-1 font-term text-[13px] px-2 py-0.5 outline-none"
             style={{
               background: '#000',
-              border: '1px solid rgba(0,255,136,0.35)',
-              color: '#00FF88',
+              border: '1px solid rgb(var(--accent-rgb) / 0.35)',
+              color: 'var(--accent)',
               borderRadius: 0,
             }}
           />
@@ -247,9 +191,9 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
             onClick={handleCreatePlaylist}
             className="font-term text-[12px] px-2 transition-colors"
             style={{
-              background: 'rgba(0,255,136,0.10)',
-              border: '1px solid rgba(0,255,136,0.35)',
-              color: '#00FF88',
+              background: 'rgb(var(--accent-rgb) / 0.10)',
+              border: '1px solid rgb(var(--accent-rgb) / 0.35)',
+              color: 'var(--accent)',
             }}
           >
             Add
@@ -268,7 +212,7 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
         />
       ))}
       {playlists.length === 0 && !showPlaylistInput && (
-        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           no playlists
         </p>
       )}
@@ -276,17 +220,7 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
       {/* Tags */}
       <SectionLabel
         label="TAGS"
-        code={SECTION_CODES.Tags}
-        action={
-          <button
-            style={{ color: 'rgba(155,245,184,0.40)' }}
-            className="font-term text-[11px] hover:text-phosphor transition-colors"
-            onClick={() => setShowTagInput((v) => !v)}
-            title="New tag"
-          >
-            #
-          </button>
-        }
+        action={<AddButton title="New tag" active={showTagInput} onClick={() => setShowTagInput((v) => !v)} />}
       />
       {showTagInput && (
         <div className="px-[10px] pb-2 flex gap-1">
@@ -299,8 +233,8 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
             className="flex-1 font-term text-[13px] px-2 py-0.5 outline-none"
             style={{
               background: '#000',
-              border: '1px solid rgba(0,255,136,0.35)',
-              color: '#00FF88',
+              border: '1px solid rgb(var(--accent-rgb) / 0.35)',
+              color: 'var(--accent)',
               borderRadius: 0,
             }}
           />
@@ -308,9 +242,9 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
             onClick={handleCreateTag}
             className="font-term text-[12px] px-2 transition-colors"
             style={{
-              background: 'rgba(0,255,136,0.10)',
-              border: '1px solid rgba(0,255,136,0.35)',
-              color: '#00FF88',
+              background: 'rgb(var(--accent-rgb) / 0.10)',
+              border: '1px solid rgb(var(--accent-rgb) / 0.35)',
+              color: 'var(--accent)',
             }}
           >
             Add
@@ -328,36 +262,38 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
         />
       ))}
       {tags.length === 0 && !showTagInput && (
-        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+        <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           no tags
         </p>
       )}
 
-      <div className="flex-1" />
+      </div>
 
+      {/* Fixed bottom — tools, MEDIA.DRIVE, reindex */}
+      <div className="flex-shrink-0">
       {/* Utility dock */}
       <UtilityDock onOpen={onOpenUtility} />
 
       {/* Status footer */}
       <div
         className="px-[10px] py-[8px]"
-        style={{ borderTop: '1px solid rgba(0,255,136,0.18)', background: '#000' }}
+        style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.18)', background: '#000' }}
       >
-        <div className="flex items-center justify-between mb-2 pb-1.5" style={{ borderBottom: '1px solid rgba(0,255,136,0.12)' }}>
-          <span className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>MEDIA.DRIVE</span>
-          <span style={{ display: 'inline-block', width: 5, height: 5, background: '#00FF88', boxShadow: '0 0 5px #00FF88' }} />
+        <div className="flex items-center justify-between mb-2 pb-1.5" style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.12)' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>MEDIA.DRIVE</span>
+          <span style={{ display: 'inline-block', width: 5, height: 5, background: 'var(--accent)', boxShadow: '0 0 5px var(--accent)' }} />
         </div>
 
         {/* Songs */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>SONGS</span>
-          <span className="font-mono text-[9px] tabular-nums" style={{ color: '#00FF88' }}>{totalCount}</span>
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgb(var(--ink-rgb) / 0.40)', width: 36 }}>SONGS</span>
+          <span className="font-mono text-[9px] tabular-nums" style={{ color: 'var(--accent)' }}>{totalCount}</span>
         </div>
 
         {/* Space */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>SPACE</span>
-          <div className="flex-1 relative" style={{ height: 4, background: 'rgba(0,255,136,0.06)', border: '1px solid rgba(0,255,136,0.12)' }}>
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgb(var(--ink-rgb) / 0.40)', width: 36 }}>SPACE</span>
+          <div className="flex-1 relative" style={{ height: 4, background: 'rgb(var(--accent-rgb) / 0.06)', border: '1px solid rgb(var(--accent-rgb) / 0.12)' }}>
             <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${spaceRatio * 100}%`, background: '#FFB000', boxShadow: '0 0 4px #FFB000' }} />
           </div>
           <span className="font-mono text-[9px] flex-shrink-0 text-right tabular-nums" style={{ color: '#FFB000', width: 32 }}>{spaceGB}G</span>
@@ -365,11 +301,11 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
 
         {/* Length */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgba(155,245,184,0.40)', width: 36 }}>LENGTH</span>
-          <span className="font-mono text-[9px] tabular-nums" style={{ color: '#00E5FF' }}>{lengthDisplay}</span>
+          <span className="font-mono text-[9px] flex-shrink-0" style={{ color: 'rgb(var(--ink-rgb) / 0.40)', width: 36 }}>LENGTH</span>
+          <span className="font-mono text-[9px] tabular-nums" style={{ color: 'var(--accent2)' }}>{lengthDisplay}</span>
         </div>
-        <div className="flex items-center justify-between pt-1.5 mt-0.5" style={{ borderTop: '1px dashed rgba(0,255,136,0.10)' }}>
-          <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgba(155,245,184,0.30)' }}>UPTIME</span>
+        <div className="flex items-center justify-between pt-1.5 mt-0.5" style={{ borderTop: '1px dashed rgb(var(--accent-rgb) / 0.10)' }}>
+          <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>UPTIME</span>
           <UptimeClock />
         </div>
       </div>
@@ -382,14 +318,15 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
           className="w-full font-term text-[13px] tracking-[1.5px] uppercase py-[6px] transition-colors disabled:opacity-40"
           style={{
             background: 'transparent',
-            border: '1px solid #00FF88',
-            color: '#00FF88',
-            textShadow: '0 0 4px #00FF88',
+            border: '1px solid var(--accent)',
+            color: 'var(--accent)',
+            textShadow: '0 0 4px var(--accent)',
             borderRadius: 0,
           }}
         >
           {loading ? '> scanning...' : '> reindex'}
         </button>
+      </div>
       </div>
     </aside>
   )
@@ -397,29 +334,42 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
 
 function SectionLabel({
   label,
-  code,
   action,
 }: {
   label: string
-  code?: string
   action?: React.ReactNode
 }) {
   return (
     <div
       className="flex items-center px-[14px] pt-[12px] pb-[6px]"
-      style={{ borderTop: '1px dashed rgba(0,255,136,0.08)' }}
+      style={{ borderTop: '1px dashed rgb(var(--accent-rgb) / 0.08)' }}
     >
-      <span className="font-term text-[12px] tracking-[1.5px]" style={{ color: '#00E5FF' }}>
+      <span className="font-term text-[12px] tracking-[1.5px]" style={{ color: 'var(--accent2)' }}>
         ▼ {label}
       </span>
       <div className="flex-1" />
-      {code && (
-        <span className="font-mono text-[9px] mr-1" style={{ color: 'rgba(155,245,184,0.30)' }}>
-          {code}
-        </span>
-      )}
       {action}
     </div>
+  )
+}
+
+// A clearly-visible "add" button for the Playlists / Tags section headers (the old faint +/# glyphs were
+// easy to miss). The Plus rotates to an × while its inline input is open.
+function AddButton({ onClick, title, active }: { onClick: () => void; title: string; active?: boolean }) {
+  const idle = 'rgb(var(--accent-rgb) / 0.10)'
+  const on = 'rgb(var(--accent-rgb) / 0.22)'
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className="flex items-center justify-center transition-colors"
+      style={{ width: 18, height: 18, border: '1px solid rgb(var(--accent-rgb) / 0.45)', background: active ? on : idle, color: 'var(--accent)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = on)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = active ? on : idle)}
+    >
+      <Plus size={12} style={{ transform: active ? 'rotate(45deg)' : 'none', transition: 'transform 120ms' }} />
+    </button>
   )
 }
 
@@ -446,11 +396,11 @@ function NavItem({
       style={
         active
           ? {
-              color: '#00FF88',
-              background: 'linear-gradient(90deg, rgba(0,255,136,0.15), transparent)',
-              textShadow: '0 0 6px #00FF88',
+              color: 'var(--accent)',
+              background: 'linear-gradient(90deg, rgb(var(--accent-rgb) / 0.15), transparent)',
+              textShadow: '0 0 6px var(--accent)',
             }
-          : { color: 'rgba(155,245,184,0.55)' }
+          : { color: 'rgb(var(--ink-rgb) / 0.55)' }
       }
     >
       <span className="font-term text-[14px] w-3 flex-shrink-0 select-none">
@@ -459,7 +409,7 @@ function NavItem({
       <span className="flex-shrink-0" style={{ opacity: active ? 1 : 0.4 }}>{icon}</span>
       <span className="flex-1 font-term text-[14px] truncate">{label}</span>
       {count !== undefined && (
-        <span className="font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+        <span className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           {String(count).padStart(4, '0')}
         </span>
       )}

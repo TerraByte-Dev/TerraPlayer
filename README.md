@@ -24,11 +24,46 @@ Point it at a folder of local audio files — it scans the library, reads metada
 - **Playlists & tags** — create playlists and custom tags, assign tracks, filter by either
 - **Metadata editor** — edit title, artist, album, year; writes back to the file via IPC
 - **Playback** — play/pause, skip, shuffle, repeat (off / all / one), seek, volume
-- **EQ / audio enhancement** — bass lift, voice, YT-polish presets + manual low/mid/high bands
+- **Themes** — 12 phosphor recolors (Mainframe, Matrix, Ice, Synthwave, Ultraviolet, Amber…) that recolor the whole app instantly; scanline + reduced-motion toggles ([SETTINGS.md](SETTINGS.md))
+- **Full settings panel** — Appearance, Audio, Playback, Library, Updates, About; every preference persists across restarts
+- **EQ / audio enhancement** — bass lift, voice, YT-polish presets + manual low/mid/high bands, a pre-amp, and a mono downmix — all wired to the Web Audio graph
 - **Audio visualizer** — spectrum bar visualizer, fullscreen mode, pop-out to a second display
 - **Queue panel** — Up Next queue; "Play next" context-menu on any track
+- **Tools** — a built-in tray of utilities & games: whiteboard, timer/stopwatch/world-clock, calculator, metronome, scratchpad, RNG, plus 2048 / Snake / Minesweeper / Tic-Tac-Toe ([TOOLS.md](TOOLS.md))
 - **Cover art** — embedded art shown on player bar and track list; procedural fallback
+- **Add Music** — download songs straight into your library, preferring the explicit / original master over clean or radio edits (Settings → ADD MUSIC)
+- **Settings backup** — export/import all preferences (incl. theme) as a portable JSON file
 - **Auto-updater** — check for updates from Settings; downloads and installs on restart
+
+## Add Music (downloader)
+
+Open from **Settings (gear) → ADD MUSIC → Open Music Downloader**. Paste an
+`Artist - Track` list (or a YouTube URL, or a Spotify `.csv`), **preview** the
+chosen version with a colour-coded confidence flag, fix anything per row
+(swap / pin / edit / remove), then **download** with live progress — the
+library reindexes automatically so new tracks appear right away.
+
+- **Preflight banner** checks your environment (yt-dlp, ffmpeg, Deno, ytmusicapi)
+  with a one-click **"Fix it for me"** installer, plus a real YouTube sign-in probe.
+- **YouTube sign-in** offers three probe-verified sources — in-app login, browser
+  cookies, or a `cookies.txt` import. No password is stored; nothing leaves your machine.
+
+It's a UI over the Media project's `download_music.py` backend (run in `--json`
+mode). Full details in [`DOWNLOADER.md`](DOWNLOADER.md).
+
+## Themes & settings
+
+Open **Settings (gear)** for a full control surface. **Appearance** offers 12 themes that
+recolor the entire interface instantly — phosphor recolors (Mainframe green, Matrix lime,
+Amber, Tangerine, Crimson), cool tones (Ice, Aqua, Slate), and neon duotones (Synthwave,
+Vapor, Ultraviolet, Gold) — plus scanline and reduced-motion toggles. **Audio** surfaces a
+3-band EQ with presets, a pre-amp, and a mono downmix, all wired live to the Web Audio
+graph. **Playback** remembers your volume and shuffle/repeat modes; **Library** manages
+your scanned folders and shows live stats; **About** carries your whole setup between
+machines via export/import.
+
+The UI chrome is fully CSS-variable driven, so a theme is just a bundle of token overrides.
+Architecture + how to add a theme: [SETTINGS.md](SETTINGS.md).
 
 ## Tech stack
 
