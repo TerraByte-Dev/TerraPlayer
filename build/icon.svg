@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TerraPlayer">
+  <rect width="512" height="512" rx="114" fill="#000000"/>
+  <g fill="#00E5A0">
+    <path d="M220 144 L378 114 L378 158 L220 188 Z"/>
+    <rect x="220" y="158" width="22" height="188" rx="11"/>
+    <rect x="356" y="128" width="22" height="188" rx="11"/>
+    <ellipse cx="186" cy="334" rx="50" ry="37" transform="rotate(-20 186 334)"/>
+    <ellipse cx="322" cy="304" rx="50" ry="37" transform="rotate(-20 322 304)"/>
+  </g>
+</svg>
