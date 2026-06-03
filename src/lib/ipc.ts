@@ -193,6 +193,7 @@ declare global {
       // App utilities
       uninstallApp(): Promise<{ ok: boolean; reason?: string }>
       revealInFolder(path: string): Promise<void>
+      openExternal(url: string): Promise<void>
       saveImage(dataUrl: string, defaultName: string): Promise<string | null>
       minimizeWindow(): Promise<void>
       maximizeWindow(): Promise<void>
@@ -269,6 +270,7 @@ export const hub = {
     window.hub.removeTrackFromPlaylist(playlistId, trackId),
   saveImage: (dataUrl: string, defaultName: string) =>
     window.hub.saveImage(dataUrl, defaultName),
+  openExternal: (url: string) => window.hub.openExternal(url),
   // Music downloader
   downloaderPreflight: (opts?: CookieOpts & { noAuthProbe?: boolean }) =>
     window.hub.downloaderPreflight(opts),

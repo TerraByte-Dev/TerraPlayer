@@ -21,7 +21,7 @@ export default function MetadataEditor() {
 
   if (!track) {
     return (
-      <div className="p-5 font-term text-[13px]" style={{ color: 'rgba(155,245,184,0.30)' }}>
+      <div className="p-5 font-term text-[13px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
         select a track to edit metadata
       </div>
     )
@@ -43,7 +43,7 @@ export default function MetadataEditor() {
 
   return (
     <div className="p-4 space-y-4">
-      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>METADATA</p>
+      <p className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>METADATA</p>
 
       <div className="w-full aspect-square overflow-hidden">
         <VectorGridCover
@@ -58,7 +58,7 @@ export default function MetadataEditor() {
           <div key={field}>
             <label
               className="block font-mono text-[9px] uppercase tracking-[1.5px] mb-1"
-              style={{ color: 'rgba(155,245,184,0.40)' }}
+              style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}
             >
               {field}
             </label>
@@ -68,12 +68,12 @@ export default function MetadataEditor() {
               className="w-full font-term text-[13px] px-3 py-1.5 outline-none transition-colors"
               style={{
                 background: '#000',
-                border: '1px solid rgba(0,255,136,0.25)',
-                color: '#9bf5b8',
+                border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+                color: 'var(--ink)',
                 borderRadius: 0,
               }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
-              onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
+              onFocus={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.55)')}
+              onBlur={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.25)')}
             />
           </div>
         ))}
@@ -81,7 +81,7 @@ export default function MetadataEditor() {
         <div>
           <label
             className="block font-mono text-[9px] uppercase tracking-[1.5px] mb-1"
-            style={{ color: 'rgba(155,245,184,0.40)' }}
+            style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}
           >
             YEAR
           </label>
@@ -94,12 +94,12 @@ export default function MetadataEditor() {
             className="w-full font-term text-[13px] px-3 py-1.5 outline-none transition-colors"
             style={{
               background: '#000',
-              border: '1px solid rgba(0,255,136,0.25)',
-              color: '#9bf5b8',
+              border: '1px solid rgb(var(--accent-rgb) / 0.25)',
+              color: 'var(--ink)',
               borderRadius: 0,
             }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.55)')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,255,136,0.25)')}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.55)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgb(var(--accent-rgb) / 0.25)')}
           />
         </div>
       </div>
@@ -110,7 +110,7 @@ export default function MetadataEditor() {
         className={`metal-key w-full py-2 font-term text-[13px] tracking-[1px] justify-center transition-colors disabled:opacity-40 ${
           saved ? '' : 'is-primary'
         }`}
-        style={saved ? { color: '#00E5FF', borderColor: 'rgba(0,229,255,0.55)', background: 'rgba(0,229,255,0.10)' } : undefined}
+        style={saved ? { color: 'var(--accent2)', borderColor: 'rgb(var(--accent2-rgb) / 0.55)', background: 'rgb(var(--accent2-rgb) / 0.10)' } : undefined}
       >
         {saving && <Loader2 size={12} className="animate-spin mr-1" />}
         {saved && <Check size={12} className="mr-1" />}

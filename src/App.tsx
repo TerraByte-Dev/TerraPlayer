@@ -110,8 +110,8 @@ export default function App() {
       {/* Drag overlay */}
       {dragActive && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed pointer-events-none"
-          style={{ borderColor: 'rgba(0,255,136,0.40)' }}>
-          <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: '#00FF88' }}>
+          style={{ borderColor: 'rgb(var(--accent-rgb) / 0.40)' }}>
+          <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: 'var(--accent)' }}>
             [ DROP FOLDER TO INDEX ]
           </p>
         </div>
@@ -126,9 +126,9 @@ export default function App() {
 
         {showMetadataPanel && (
           <aside className="w-60 flex-shrink-0 flex flex-col overflow-y-auto border-l"
-            style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.18)' }}>
+            style={{ background: 'var(--bg-1)', borderColor: 'rgb(var(--accent-rgb) / 0.18)' }}>
             <div className="sticky top-0 z-10 h-9 flex items-center justify-end px-3 border-b"
-              style={{ background: '#020503', borderColor: 'rgba(0,255,136,0.10)' }}>
+              style={{ background: 'var(--bg-1)', borderColor: 'rgb(var(--accent-rgb) / 0.10)' }}>
               <button
                 onClick={toggleRightPanel}
                 title="Close panel"
@@ -138,7 +138,7 @@ export default function App() {
               </button>
             </div>
             <MetadataEditor />
-            <div className="mx-4" style={{ borderTop: '1px solid rgba(0,255,136,0.08)' }} />
+            <div className="mx-4" style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.08)' }} />
             <TagPanel />
           </aside>
         )}

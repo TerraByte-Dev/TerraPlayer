@@ -47,18 +47,18 @@ export default function QueuePanel() {
   return (
     <aside
       className="w-64 flex-shrink-0 flex flex-col overflow-hidden"
-      style={{ borderLeft: '1px solid rgba(0,255,136,0.18)', background: '#020503' }}
+      style={{ borderLeft: '1px solid rgb(var(--accent-rgb) / 0.18)', background: 'var(--bg-1)' }}
     >
       <div
         className="px-4 py-3 flex items-center justify-between flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(0,255,136,0.10)' }}
+        style={{ borderBottom: '1px solid rgb(var(--accent-rgb) / 0.10)' }}
       >
-        <h3 className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: '#00E5FF' }}>QUEUE</h3>
+        <h3 className="font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>QUEUE</h3>
         {upNext.length > 0 && (
           <button
             onClick={clearUpNext}
             className="font-term text-[11px] transition-opacity hover:opacity-70"
-            style={{ color: 'rgba(155,245,184,0.30)' }}
+            style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}
           >
             clear
           </button>
@@ -68,7 +68,7 @@ export default function QueuePanel() {
       <div className="flex-1 overflow-y-auto">
         {current && (
           <div className="px-3 pt-3 pb-2">
-            <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: '#00E5FF' }}>
+            <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: 'var(--accent2)' }}>
               NOW PLAYING
             </p>
             <QueueRow track={current} isCurrent />
@@ -76,7 +76,7 @@ export default function QueuePanel() {
         )}
 
         <div className="px-3 pt-1 pb-2">
-          <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: '#00E5FF' }}>
+          <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: 'var(--accent2)' }}>
             UP NEXT
           </p>
           {upNext.length > 0 ? (
@@ -90,16 +90,16 @@ export default function QueuePanel() {
                 onDragEnd={handleDragEnd}
                 className="flex items-center gap-1.5 py-1 pl-0.5 pr-1 transition-colors"
                 style={{
-                  background: dragOver === dropKey('upNext', i) ? 'rgba(0,255,136,0.08)' : undefined,
-                  borderLeft: dragOver === dropKey('upNext', i) ? '2px solid #00FF88' : '2px solid transparent',
+                  background: dragOver === dropKey('upNext', i) ? 'rgb(var(--accent-rgb) / 0.08)' : undefined,
+                  borderLeft: dragOver === dropKey('upNext', i) ? '2px solid var(--accent)' : '2px solid transparent',
                 }}
               >
-                <GripVertical size={11} className="flex-shrink-0 cursor-grab" style={{ color: 'rgba(155,245,184,0.20)' }} />
+                <GripVertical size={11} className="flex-shrink-0 cursor-grab" style={{ color: 'rgb(var(--ink-rgb) / 0.20)' }} />
                 <QueueRow track={track} />
                 <button
                   onClick={() => removeFromUpNext(i)}
                   className="flex-shrink-0 transition-opacity hover:opacity-70"
-                  style={{ color: 'rgba(155,245,184,0.20)' }}
+                  style={{ color: 'rgb(var(--ink-rgb) / 0.20)' }}
                 >
                   <X size={11} />
                 </button>
@@ -112,12 +112,12 @@ export default function QueuePanel() {
               className="px-2 py-3 text-center font-term text-[12px] transition-colors"
               style={{
                 border: dragOver === dropKey('upNext', 0)
-                  ? '1px dashed rgba(0,255,136,0.55)'
-                  : '1px dashed rgba(0,255,136,0.15)',
+                  ? '1px dashed rgb(var(--accent-rgb) / 0.55)'
+                  : '1px dashed rgb(var(--accent-rgb) / 0.15)',
                 color: dragOver === dropKey('upNext', 0)
-                  ? 'rgba(0,255,136,0.70)'
-                  : 'rgba(155,245,184,0.25)',
-                background: dragOver === dropKey('upNext', 0) ? 'rgba(0,255,136,0.06)' : undefined,
+                  ? 'rgb(var(--accent-rgb) / 0.70)'
+                  : 'rgb(var(--ink-rgb) / 0.25)',
+                background: dragOver === dropKey('upNext', 0) ? 'rgb(var(--accent-rgb) / 0.06)' : undefined,
               }}
             >
               drop here to play next
@@ -127,7 +127,7 @@ export default function QueuePanel() {
 
         {(remaining.length > 0 || upNext.length > 0) && (
           <div className="px-3 pt-1 pb-3">
-            <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: '#00E5FF' }}>
+            <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: 'var(--accent2)' }}>
               COMING UP
             </p>
             {remaining.map((track, i) => (
@@ -140,11 +140,11 @@ export default function QueuePanel() {
                 onDragEnd={handleDragEnd}
                 className="flex items-center gap-1.5 py-1 pl-0.5 pr-1 transition-colors"
                 style={{
-                  background: dragOver === dropKey('comingUp', i) ? 'rgba(0,255,136,0.08)' : undefined,
-                  borderLeft: dragOver === dropKey('comingUp', i) ? '2px solid #00FF88' : '2px solid transparent',
+                  background: dragOver === dropKey('comingUp', i) ? 'rgb(var(--accent-rgb) / 0.08)' : undefined,
+                  borderLeft: dragOver === dropKey('comingUp', i) ? '2px solid var(--accent)' : '2px solid transparent',
                 }}
               >
-                <GripVertical size={11} className="flex-shrink-0 cursor-grab" style={{ color: 'rgba(155,245,184,0.20)' }} />
+                <GripVertical size={11} className="flex-shrink-0 cursor-grab" style={{ color: 'rgb(var(--ink-rgb) / 0.20)' }} />
                 <QueueRow track={track} dim />
               </div>
             ))}
@@ -155,12 +155,12 @@ export default function QueuePanel() {
                 className="px-2 py-3 text-center font-term text-[12px] transition-colors"
                 style={{
                   border: dragOver === dropKey('comingUp', 0)
-                    ? '1px dashed rgba(0,229,255,0.55)'
-                    : '1px dashed rgba(0,255,136,0.15)',
+                    ? '1px dashed rgb(var(--accent2-rgb) / 0.55)'
+                    : '1px dashed rgb(var(--accent-rgb) / 0.15)',
                   color: dragOver === dropKey('comingUp', 0)
-                    ? 'rgba(0,229,255,0.70)'
-                    : 'rgba(155,245,184,0.25)',
-                  background: dragOver === dropKey('comingUp', 0) ? 'rgba(0,229,255,0.06)' : undefined,
+                    ? 'rgb(var(--accent2-rgb) / 0.70)'
+                    : 'rgb(var(--ink-rgb) / 0.25)',
+                  background: dragOver === dropKey('comingUp', 0) ? 'rgb(var(--accent2-rgb) / 0.06)' : undefined,
                 }}
               >
                 drop here for later
@@ -170,7 +170,7 @@ export default function QueuePanel() {
         )}
 
         {upNext.length === 0 && remaining.length === 0 && !current && (
-          <div className="flex items-center justify-center h-32 font-term text-[12px]" style={{ color: 'rgba(155,245,184,0.25)' }}>
+          <div className="flex items-center justify-center h-32 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }}>
             queue is empty
           </div>
         )}
@@ -194,15 +194,15 @@ function QueueRow({
       <div className="min-w-0 flex-1">
         <p
           className={`font-term text-[12px] truncate leading-tight ${isCurrent ? 'phosphor-glow' : ''}`}
-          style={{ color: isCurrent ? '#00FF88' : 'rgba(155,245,184,0.75)' }}
+          style={{ color: isCurrent ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.75)' }}
         >
           {isCurrent ? '▶ ' : ''}{track.title || '—'}
         </p>
-        <p className="font-term text-[11px] truncate" style={{ color: 'rgba(155,245,184,0.40)' }}>
+        <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}>
           {track.artist || '—'}
         </p>
       </div>
-      <span className="font-term text-[11px] flex-shrink-0 tabular-nums" style={{ color: 'rgba(155,245,184,0.25)' }}>
+      <span className="font-term text-[11px] flex-shrink-0 tabular-nums" style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }}>
         {fmtDuration(track.duration)}
       </span>
     </div>

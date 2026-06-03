@@ -48,9 +48,9 @@ export default function ContextMenu() {
         width: menuW,
         maxHeight: position.maxHeight || window.innerHeight - viewportPad * 2,
         background: '#000',
-        border: '1px solid #00FF88',
+        border: '1px solid var(--accent)',
         borderRadius: 0,
-        boxShadow: '0 0 12px rgba(0,255,136,0.30)',
+        boxShadow: '0 0 12px rgb(var(--accent-rgb) / 0.30)',
         visibility: position.maxHeight ? 'visible' : 'hidden',
       }}
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation() }}
@@ -61,7 +61,7 @@ export default function ContextMenu() {
             <div
               key={i}
               className="my-1 h-px mx-2"
-              style={{ background: 'rgba(0,255,136,0.08)', borderTop: '1px dashed rgba(0,255,136,0.08)' }}
+              style={{ background: 'rgb(var(--accent-rgb) / 0.08)', borderTop: '1px dashed rgb(var(--accent-rgb) / 0.08)' }}
             />
           )
         }
@@ -75,20 +75,20 @@ export default function ContextMenu() {
             className="w-full flex items-center gap-2.5 px-3 py-1.5 font-term text-[13px] text-left transition-colors"
             style={{
               color: item.disabled
-                ? 'rgba(155,245,184,0.25)'
+                ? 'rgb(var(--ink-rgb) / 0.25)'
                 : item.danger
                 ? '#FF3030'
-                : '#9bf5b8',
+                : 'var(--ink)',
               cursor: item.disabled ? 'default' : 'pointer',
             }}
             onMouseEnter={(e) => {
               if (item.disabled) return
-              e.currentTarget.style.background = 'rgba(0,255,136,0.10)'
-              e.currentTarget.style.color = item.danger ? '#ff6060' : '#00FF88'
+              e.currentTarget.style.background = 'rgb(var(--accent-rgb) / 0.10)'
+              e.currentTarget.style.color = item.danger ? '#ff6060' : 'var(--accent)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = ''
-              e.currentTarget.style.color = item.disabled ? 'rgba(155,245,184,0.25)' : item.danger ? '#FF3030' : '#9bf5b8'
+              e.currentTarget.style.color = item.disabled ? 'rgb(var(--ink-rgb) / 0.25)' : item.danger ? '#FF3030' : 'var(--ink)'
             }}
           >
             {item.icon && (

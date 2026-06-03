@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   THEME TOKENS — the whole UI chrome resolves these. A theme (src/lib/theme.ts) is a
+   block of overrides under html[data-theme="…"]; the derived `rgb(var(--…-rgb) / α)`
+   colors recolor for free because they resolve lazily on this same <html> element.
+   Backgrounds stay a constant deep dark across themes (neon-on-black); only the
+   accent / secondary / ink / dim-accent recolor.
+═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --accent:       #00FF88;   --accent-rgb:  0 255 136;
+  --accent2:      #00E5FF;   --accent2-rgb: 0 229 255;
+  --ink:          #9bf5b8;   --ink-rgb:     155 245 184;
+  --accent-deep:  #1f5e3a;   /* dim accent — duration readout, spectrum labels */
+  --bg-0:         #000000;   /* the void */
+  --bg-1:         #020503;   /* raised panels (side panel, popovers) */
+  --bg-lcd:       #020a05;   /* LCD readout surface */
+}
+
+html[data-theme="matrix"]      { --accent:#39FF14; --accent-rgb:57 255 20;   --accent2:#ADFF2F; --accent2-rgb:173 255 47;  --ink:#9DFF8F; --ink-rgb:157 255 143; --accent-deep:#1f6e22; }
+html[data-theme="ice"]         { --accent:#6FE6FF; --accent-rgb:111 230 255; --accent2:#A8F2FF; --accent2-rgb:168 242 255; --ink:#BFEFFF; --ink-rgb:191 239 255; --accent-deep:#2a6b80; }
+html[data-theme="aqua"]        { --accent:#1EE8C4; --accent-rgb:30 232 196;  --accent2:#78F5DC; --accent2-rgb:120 245 220; --ink:#9DEFDF; --ink-rgb:157 239 223; --accent-deep:#1d6e60; }
+html[data-theme="ultraviolet"] { --accent:#A06BFF; --accent-rgb:160 107 255; --accent2:#C9B0FF; --accent2-rgb:201 176 255; --ink:#D7C7FF; --ink-rgb:215 199 255; --accent-deep:#4a3a7a; }
+html[data-theme="synthwave"]   { --accent:#FF3AC8; --accent-rgb:255 58 200;  --accent2:#00E5FF; --accent2-rgb:0 229 255;   --ink:#93E6FF; --ink-rgb:147 230 255; --accent-deep:#7a2a66; }
+html[data-theme="vapor"]       { --accent:#FF8AD8; --accent-rgb:255 138 216; --accent2:#00E5FF; --accent2-rgb:0 229 255;   --ink:#93E6FF; --ink-rgb:147 230 255; --accent-deep:#7a4a70; }
+html[data-theme="crimson"]     { --accent:#FF2E4D; --accent-rgb:255 46 77;   --accent2:#FF94A2; --accent2-rgb:255 148 162; --ink:#FFB3BD; --ink-rgb:255 179 189; --accent-deep:#7a1020; }
+html[data-theme="tangerine"]   { --accent:#FF7A18; --accent-rgb:255 122 24;  --accent2:#FFC089; --accent2-rgb:255 192 137; --ink:#FFD2A8; --ink-rgb:255 210 168; --accent-deep:#7a3a08; }
+html[data-theme="amber"]       { --accent:#FFB000; --accent-rgb:255 176 0;   --accent2:#FFD074; --accent2-rgb:255 208 116; --ink:#FFD79E; --ink-rgb:255 215 158; --accent-deep:#6e4a00; }
+html[data-theme="gold"]        { --accent:#E8C46A; --accent-rgb:232 196 106; --accent2:#F5E0A0; --accent2-rgb:245 224 160; --ink:#EADFB6; --ink-rgb:234 223 182; --accent-deep:#6e5a28; }
+html[data-theme="slate"]       { --accent:#7FA8D9; --accent-rgb:127 168 217; --accent2:#A5C5E8; --accent2-rgb:165 197 232; --ink:#C3D0DE; --ink-rgb:195 208 222; --accent-deep:#3a4a5e; }
+
 * {
   box-sizing: border-box;
 }
@@ -9,8 +39,8 @@
 body {
   margin: 0;
   padding: 0;
-  background: #000000;
-  color: #9bf5b8;
+  background: var(--bg-0);
+  color: var(--ink);
   font-family: 'VT323', monospace;
   font-feature-settings: normal;
   overflow: hidden;
@@ -41,7 +71,7 @@ body {
     background: repeating-linear-gradient(
       180deg,
       transparent 0 2px,
-      rgba(0,255,136,0.025) 2px 3px
+      rgb(var(--accent-rgb) / 0.025) 2px 3px
     );
     mix-blend-mode: screen;
     z-index: 50;
@@ -57,12 +87,17 @@ body {
     z-index: 49;
   }
 
+  /* PlayerBar scanline overlay — class so the CRT toggle can hide it too */
+  .pb-scanline {
+    background: repeating-linear-gradient(180deg, rgb(var(--accent-rgb) / 0.03) 0 1px, transparent 1px 3px);
+  }
+
   /* Vector grid — sidebar */
   .term-grid {
     background:
-      repeating-linear-gradient(0deg, transparent 0 1px, rgba(0,255,136,0.20) 1px 1.2px, transparent 1.2px 24px),
-      repeating-linear-gradient(90deg, transparent 0 1px, rgba(0,255,136,0.20) 1px 1.2px, transparent 1.2px 24px),
-      #020503;
+      repeating-linear-gradient(0deg, transparent 0 1px, rgb(var(--accent-rgb) / 0.20) 1px 1.2px, transparent 1.2px 24px),
+      repeating-linear-gradient(90deg, transparent 0 1px, rgb(var(--accent-rgb) / 0.20) 1px 1.2px, transparent 1.2px 24px),
+      var(--bg-1);
     background-size: 24px 24px;
   }
 
@@ -71,8 +106,8 @@ body {
     background: repeating-linear-gradient(
       180deg,
       transparent 0 2px,
-      rgba(0,255,136,0.025) 2px 3px
-    ), #000;
+      rgb(var(--accent-rgb) / 0.025) 2px 3px
+    ), var(--bg-0);
   }
 
   /* Brushed-metal key */
@@ -81,43 +116,43 @@ body {
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    color: #9bf5b8;
+    color: var(--ink);
     background: linear-gradient(180deg, #16201b 0%, #060a07 100%);
-    border: 1px solid rgba(155,245,184,0.10);
+    border: 1px solid rgb(var(--ink-rgb) / 0.10);
     box-shadow:
-      inset 0 1px 0 rgba(155,245,184,0.06),
+      inset 0 1px 0 rgb(var(--ink-rgb) / 0.06),
       inset 0 -1px 0 rgba(0,0,0,0.5),
       0 1px 0 rgba(0,0,0,0.5);
     cursor: pointer;
     transition: color 120ms, border-color 120ms, background 120ms, box-shadow 120ms;
   }
   .metal-key:hover {
-    color: #00FF88;
-    border-color: rgba(0,255,136,0.35);
+    color: var(--accent);
+    border-color: rgb(var(--accent-rgb) / 0.35);
   }
   .metal-key.is-primary {
-    color: #00FF88;
-    background: linear-gradient(180deg, rgba(0,255,136,0.22) 0%, rgba(0,255,136,0.04) 100%);
-    border-color: rgba(0,255,136,0.55);
+    color: var(--accent);
+    background: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.22) 0%, rgb(var(--accent-rgb) / 0.04) 100%);
+    border-color: rgb(var(--accent-rgb) / 0.55);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.18),
-      0 0 12px rgba(0,255,136,0.35),
+      0 0 12px rgb(var(--accent-rgb) / 0.35),
       0 1px 0 rgba(0,0,0,0.6);
   }
 
   /* LCD panel surface */
   .lcd-panel {
     background:
-      repeating-linear-gradient(0deg, rgba(0,255,136,0.04) 0 1px, transparent 1px 2px),
-      radial-gradient(ellipse at top, rgba(0,255,136,0.10) 0%, transparent 60%),
-      #020a05;
-    border: 1px solid rgba(0,255,136,0.20);
+      repeating-linear-gradient(0deg, rgb(var(--accent-rgb) / 0.04) 0 1px, transparent 1px 2px),
+      radial-gradient(ellipse at top, rgb(var(--accent-rgb) / 0.10) 0%, transparent 60%),
+      var(--bg-lcd);
+    border: 1px solid rgb(var(--accent-rgb) / 0.20);
     border-radius: 4px;
     box-shadow:
-      0 0 14px rgba(0,255,136,0.18),
+      0 0 14px rgb(var(--accent-rgb) / 0.18),
       inset 0 0 28px rgba(0,0,0,0.7),
-      inset 0 0 0 1px rgba(0,255,136,0.18);
-    color: #00FF88;
+      inset 0 0 0 1px rgb(var(--accent-rgb) / 0.18);
+    color: var(--accent);
     font-family: "Share Tech Mono", "VT323", monospace;
     position: relative;
     overflow: hidden;
@@ -125,7 +160,7 @@ body {
 
   /* Phosphor text glow — active items only */
   .phosphor-glow {
-    text-shadow: 0 0 6px #00FF88, 0 0 12px rgba(0,255,136,0.5);
+    text-shadow: 0 0 6px var(--accent), 0 0 12px rgb(var(--accent-rgb) / 0.5);
   }
 
   /* Terminal cursor blink */
@@ -134,15 +169,30 @@ body {
 
 }
 
+/* ── App-wide display toggles (src/lib/theme.ts) ──────────────────────────────────
+   crt-off: drop the scanline/vignette/PlayerBar-scanline overlays for a flat, max-
+   readability surface. reduce-motion: kill blink/pulse/transition flourishes. */
+html.crt-off .crt-scanlines::after,
+html.crt-off .crt-vignette::before,
+html.crt-off .pb-scanline { display: none; }
+
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0s !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0,255,136,0.15);
+  background: rgb(var(--accent-rgb) / 0.15);
   border-radius: 0;
-  box-shadow: 0 0 4px rgba(0,255,136,0.25);
+  box-shadow: 0 0 4px rgb(var(--accent-rgb) / 0.25);
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,255,136,0.35); }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--accent-rgb) / 0.35); }
 
 /* Range input */
 input[type='range'] {
@@ -153,20 +203,20 @@ input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 8px;
   height: 12px;
-  background: #9bf5b8;
+  background: var(--ink);
   border: 1px solid rgba(0,0,0,0.5);
   border-radius: 0;
-  box-shadow: 0 0 6px rgba(0,255,136,0.6);
+  box-shadow: 0 0 6px rgb(var(--accent-rgb) / 0.6);
   margin-top: -5px;
   cursor: pointer;
 }
 input[type='range']::-webkit-slider-runnable-track {
   height: 2px;
-  background: rgba(0,255,136,0.15);
+  background: rgb(var(--accent-rgb) / 0.15);
   border: none;
   border-radius: 0;
 }
 
 ::selection {
-  background: rgba(0,255,136,0.25);
+  background: rgb(var(--accent-rgb) / 0.25);
 }
