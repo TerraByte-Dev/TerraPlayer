@@ -29,6 +29,41 @@ contextBridge.exposeInMainWorld('hub', {
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:removeTrack', playlistId, trackId),
 
+  // Music downloader
+  downloaderPreflight: (opts?: { cookiesFromBrowser?: string; cookiesFile?: string; noAuthProbe?: boolean }) =>
+    ipcRenderer.invoke('dl:preflight', opts),
+  downloaderInstall: (tools: string[], cookieOpts?: { cookiesFromBrowser?: string; cookiesFile?: string }) =>
+    ipcRenderer.invoke('dl:install', tools, cookieOpts),
+  // YouTube auth
+  ytauthStatus: () => ipcRenderer.invoke('ytauth:status'),
+  ytauthConnect: () => ipcRenderer.invoke('ytauth:connect'),
+  ytauthDisconnect: () => ipcRenderer.invoke('ytauth:disconnect'),
+  ytauthSetBrowser: (browser: string) => ipcRenderer.invoke('ytauth:setBrowser', browser),
+  ytauthDetectBrowsers: () => ipcRenderer.invoke('ytauth:detectBrowsers'),
+  ytauthImport: () => ipcRenderer.invoke('ytauth:import'),
+  downloaderResolve: (payload: { lines?: string[]; csvPath?: string }) =>
+    ipcRenderer.invoke('dl:resolve', payload),
+  downloaderCandidates: (query: string) => ipcRenderer.invoke('dl:candidates', query),
+  downloaderDownload: (
+    rows: { stem: string; id: string }[],
+    outDir: string,
+    cookieOpts?: { cookiesFromBrowser?: string; cookiesFile?: string }
+  ) => ipcRenderer.invoke('dl:download', rows, outDir, cookieOpts),
+  downloaderCancel: () => ipcRenderer.invoke('dl:cancel'),
+  downloaderResolveOutDir: (preferred?: string) =>
+    ipcRenderer.invoke('dl:resolveOutDir', preferred),
+  downloaderReadText: (path: string) => ipcRenderer.invoke('dl:readText', path),
+  onDownloaderEvent: (cb: (e: Record<string, unknown>) => void) => {
+    const handler = (_: IpcRendererEvent, e: Record<string, unknown>) => cb(e)
+    ipcRenderer.on('dl:event', handler)
+    return () => ipcRenderer.off('dl:event', handler)
+  },
+  onDownloaderInstallEvent: (cb: (e: Record<string, unknown>) => void) => {
+    const handler = (_: IpcRendererEvent, e: Record<string, unknown>) => cb(e)
+    ipcRenderer.on('dl:install-event', handler)
+    return () => ipcRenderer.off('dl:install-event', handler)
+  },
+
   // Displays
   listDisplays: () => ipcRenderer.invoke('displays:list'),
 
@@ -52,6 +87,7 @@ contextBridge.exposeInMainWorld('hub', {
   // App utilities
   uninstallApp: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke('app:uninstall'),
   revealInFolder: (path: string) => ipcRenderer.invoke('app:revealInFolder', path),
+  openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
   saveImage: (dataUrl: string, defaultName: string) =>
     ipcRenderer.invoke('app:saveImage', dataUrl, defaultName),
   minimizeWindow: () => ipcRenderer.invoke('win:minimize'),

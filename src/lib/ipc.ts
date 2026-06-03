@@ -73,6 +73,91 @@ export interface PlaybackSnapshot {
   }
 }
 
+// --- Music downloader -------------------------------------------------------
+
+export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'PINNED'
+
+export interface PreflightCheck {
+  id: string
+  ok: boolean
+  severity: 'ok' | 'warn' | 'error'
+  label: string
+  detail: string
+  fix?: { kind: 'pip' | 'winget' | 'manual' | 'login'; tool?: string; command?: string }
+}
+
+export interface DownloaderPreflight {
+  ok: boolean
+  problems: string[]
+  checks: PreflightCheck[]
+}
+
+export interface CookieOpts {
+  cookiesFromBrowser?: string
+  cookiesFile?: string
+}
+
+export interface AuthStatus {
+  method: 'in-app' | 'browser' | 'file'
+  browser?: string
+  file?: string
+  connected: boolean
+}
+
+export interface ConnectResult {
+  ok: boolean
+  detail: string
+  status: AuthStatus
+}
+
+/** Streamed while "Fix it for me" installs tools. */
+export type InstallEvent =
+  | { tool: string; status: 'start'; command: string }
+  | { tool: string; line: string }
+  | { tool: string; status: 'finished'; code: number }
+  | { status: 'complete' }
+
+/** One previewed song row (from a --json --dry-run resolve). */
+export interface ResolvedRow {
+  i: number
+  query: string
+  id: string | null
+  title: string | null
+  channel: string | null
+  album: string | null
+  duration: number | null
+  confidence: Confidence
+  source: string
+  explicit: boolean | null
+  stem: string | null
+  status: string // 'preview' | 'skipped' | 'failed'
+  reason?: string
+}
+
+/** One alternate version for the "swap version" picker. */
+export interface DownloaderCandidate {
+  source: string
+  id: string
+  artist: string
+  title: string
+  album: string | null
+  duration: number | null
+  explicit: boolean | null
+  confidence: Confidence
+}
+
+/** NDJSON events streamed during a download. */
+export type DownloaderEvent =
+  | { event: 'preflight'; ok: boolean; problems: string[] }
+  | { event: 'resolved'; i: number; id: string; stem: string; confidence: Confidence; [k: string]: unknown }
+  | { event: 'candidates'; query: string; candidates: DownloaderCandidate[] }
+  | { event: 'stage'; i: number; id: string; stage: string }
+  | { event: 'progress'; i: number; id: string; pct: number }
+  | { event: 'done'; i: number; status: string; stem: string; path: string | null; query?: string; reason?: string; confidence?: Confidence }
+  | { event: 'summary'; new: number; skipped: number; failed: number; low_confidence: string[] }
+  | { event: 'closed'; code: number | null }
+  | { event: 'fatal'; message: string }
+
 export type VisualizerCommand =
   | { type: 'prev' }
   | { type: 'toggle' }
@@ -108,11 +193,29 @@ declare global {
       // App utilities
       uninstallApp(): Promise<{ ok: boolean; reason?: string }>
       revealInFolder(path: string): Promise<void>
+      openExternal(url: string): Promise<void>
       saveImage(dataUrl: string, defaultName: string): Promise<string | null>
       minimizeWindow(): Promise<void>
       maximizeWindow(): Promise<void>
       closeWindow(): Promise<void>
       isWindows: boolean
+      // Music downloader
+      downloaderPreflight(opts?: CookieOpts & { noAuthProbe?: boolean }): Promise<DownloaderPreflight>
+      downloaderInstall(tools: string[], cookieOpts?: CookieOpts): Promise<DownloaderPreflight>
+      ytauthStatus(): Promise<AuthStatus>
+      ytauthConnect(): Promise<ConnectResult>
+      ytauthDisconnect(): Promise<AuthStatus>
+      ytauthSetBrowser(browser: string): Promise<AuthStatus>
+      ytauthDetectBrowsers(): Promise<string[]>
+      ytauthImport(): Promise<AuthStatus>
+      downloaderResolve(payload: { lines?: string[]; csvPath?: string }): Promise<{ rows: ResolvedRow[]; problems: string[]; error?: string }>
+      downloaderCandidates(query: string): Promise<DownloaderCandidate[]>
+      downloaderDownload(rows: { stem: string; id: string }[], outDir: string, cookieOpts?: CookieOpts): Promise<{ summary: { new: number; skipped: number; failed: number; low_confidence: string[] } | null; error?: string }>
+      downloaderCancel(): Promise<{ cancelled: boolean }>
+      downloaderResolveOutDir(preferred?: string): Promise<string>
+      downloaderReadText(path: string): Promise<string>
+      onDownloaderEvent(cb: (e: DownloaderEvent) => void): () => void
+      onDownloaderInstallEvent(cb: (e: InstallEvent) => void): () => void
       // Visualizer / display
       listDisplays(): Promise<DisplayInfo[]>
       openVisualizerPopout(displayId: number): Promise<void>
@@ -167,6 +270,28 @@ export const hub = {
     window.hub.removeTrackFromPlaylist(playlistId, trackId),
   saveImage: (dataUrl: string, defaultName: string) =>
     window.hub.saveImage(dataUrl, defaultName),
+  openExternal: (url: string) => window.hub.openExternal(url),
+  // Music downloader
+  downloaderPreflight: (opts?: CookieOpts & { noAuthProbe?: boolean }) =>
+    window.hub.downloaderPreflight(opts),
+  downloaderInstall: (tools: string[], cookieOpts?: CookieOpts) =>
+    window.hub.downloaderInstall(tools, cookieOpts),
+  ytauthStatus: () => window.hub.ytauthStatus(),
+  ytauthConnect: () => window.hub.ytauthConnect(),
+  ytauthDisconnect: () => window.hub.ytauthDisconnect(),
+  ytauthSetBrowser: (browser: string) => window.hub.ytauthSetBrowser(browser),
+  ytauthDetectBrowsers: () => window.hub.ytauthDetectBrowsers(),
+  ytauthImport: () => window.hub.ytauthImport(),
+  downloaderResolve: (payload: { lines?: string[]; csvPath?: string }) =>
+    window.hub.downloaderResolve(payload),
+  downloaderCandidates: (query: string) => window.hub.downloaderCandidates(query),
+  downloaderDownload: (rows: { stem: string; id: string }[], outDir: string, cookieOpts?: CookieOpts) =>
+    window.hub.downloaderDownload(rows, outDir, cookieOpts),
+  downloaderCancel: () => window.hub.downloaderCancel(),
+  downloaderResolveOutDir: (preferred?: string) => window.hub.downloaderResolveOutDir(preferred),
+  downloaderReadText: (path: string) => window.hub.downloaderReadText(path),
+  onDownloaderEvent: (cb: (e: DownloaderEvent) => void) => window.hub.onDownloaderEvent(cb),
+  onDownloaderInstallEvent: (cb: (e: InstallEvent) => void) => window.hub.onDownloaderInstallEvent(cb),
 }
 
 export function trackUrl(path: string): string {

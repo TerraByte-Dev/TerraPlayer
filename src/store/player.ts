@@ -1,15 +1,10 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Track } from '@/lib/ipc'
+import { eqPresetGains, clampEqBand, type AudioPreset, type EqSettings } from '@/lib/audio-math'
 
 export type RepeatMode = 'off' | 'all' | 'one'
-export type AudioPreset = 'off' | 'polish' | 'bass' | 'voice'
-
-export interface EqSettings {
-  preset: AudioPreset
-  low: number
-  mid: number
-  high: number
-}
+export type { AudioPreset, EqSettings } from '@/lib/audio-math'
 
 interface PlayerState {
   queue: Track[]
@@ -73,7 +68,7 @@ function moveItem<T>(items: T[], from: number, to: number): T[] {
   return next
 }
 
-export const usePlayerStore = create<PlayerState>((set, get) => ({
+export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   queue: [],
   shuffledQueue: [],
   queueIndex: 0,
@@ -175,17 +170,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setCurrentTime: (t) => set({ currentTime: t }),
   setDuration: (d) => set({ duration: d }),
   setVizFullscreen: (v) => set({ vizFullscreen: v }),
-  setEqPreset: (preset) => {
-    const presets: Record<AudioPreset, EqSettings> = {
-      off: { preset: 'off', low: 0, mid: 0, high: 0 },
-      polish: { preset: 'polish', low: 1.5, mid: -0.75, high: 2.5 },
-      bass: { preset: 'bass', low: 4, mid: 0, high: 1 },
-      voice: { preset: 'voice', low: -1.5, mid: 2.5, high: 1.5 },
-    }
-    set({ eq: presets[preset] })
-  },
+  setEqPreset: (preset) => set({ eq: eqPresetGains(preset) }),
   setEqBand: (band, value) =>
-    set((s) => ({ eq: { ...s.eq, preset: 'off', [band]: Math.max(-8, Math.min(8, value)) } })),
+    set((s) => ({ eq: { ...s.eq, preset: 'off', [band]: clampEqBand(value) } })),
 
   addToUpNext: (track) => set((s) => ({ upNext: [...s.upNext, track] })),
   playNext: (track) => set((s) => ({ upNext: [track, ...s.upNext] })),
@@ -232,4 +219,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return { [queueKey]: activeQueue, upNext }
     }),
   clearUpNext: () => set({ upNext: [] }),
+}), {
+  name: 'tplay-player',
+  // Persist only durable preferences — never the transient session (queue, current track, play state).
+  // This is what lets volume, the EQ, and the shuffle/repeat modes survive a restart.
+  partialize: (s) => ({ volume: s.volume, eq: s.eq, shuffle: s.shuffle, repeat: s.repeat }),
 }))
