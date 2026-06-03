@@ -15,13 +15,6 @@ import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
 
-// Section hex codes for display
-const SECTION_CODES: Record<string, string> = {
-  Music: '0x01',
-  Playlists: '0x02',
-  Tags: '0x03',
-}
-
 // Isolated uptime component — only this re-renders every second, not the whole Sidebar
 function UptimeClock() {
   const [secs, setSecs] = useState(0)
@@ -164,7 +157,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       {/* Scrolling region — library / playlists / tags (the only part that scrolls) */}
       <div className="flex-1 overflow-y-auto min-h-0">
       {/* Library */}
-      <SectionLabel label="LIBRARY" code={SECTION_CODES.Music} />
+      <SectionLabel label="LIBRARY" />
       <NavItem
         label="all tracks"
         active={isActive('all')}
@@ -176,17 +169,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       {/* Playlists */}
       <SectionLabel
         label="PLAYLISTS"
-        code={SECTION_CODES.Playlists}
-        action={
-          <button
-            style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}
-            className="font-term text-[11px] hover:text-phosphor transition-colors"
-            onClick={() => setShowPlaylistInput((v) => !v)}
-            title="New playlist"
-          >
-            +
-          </button>
-        }
+        action={<AddButton title="New playlist" active={showPlaylistInput} onClick={() => setShowPlaylistInput((v) => !v)} />}
       />
       {showPlaylistInput && (
         <div className="px-[10px] pb-2 flex gap-1">
@@ -237,17 +220,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       {/* Tags */}
       <SectionLabel
         label="TAGS"
-        code={SECTION_CODES.Tags}
-        action={
-          <button
-            style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}
-            className="font-term text-[11px] hover:text-phosphor transition-colors"
-            onClick={() => setShowTagInput((v) => !v)}
-            title="New tag"
-          >
-            #
-          </button>
-        }
+        action={<AddButton title="New tag" active={showTagInput} onClick={() => setShowTagInput((v) => !v)} />}
       />
       {showTagInput && (
         <div className="px-[10px] pb-2 flex gap-1">
@@ -361,11 +334,9 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
 
 function SectionLabel({
   label,
-  code,
   action,
 }: {
   label: string
-  code?: string
   action?: React.ReactNode
 }) {
   return (
@@ -377,13 +348,28 @@ function SectionLabel({
         ▼ {label}
       </span>
       <div className="flex-1" />
-      {code && (
-        <span className="font-mono text-[9px] mr-1" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
-          {code}
-        </span>
-      )}
       {action}
     </div>
+  )
+}
+
+// A clearly-visible "add" button for the Playlists / Tags section headers (the old faint +/# glyphs were
+// easy to miss). The Plus rotates to an × while its inline input is open.
+function AddButton({ onClick, title, active }: { onClick: () => void; title: string; active?: boolean }) {
+  const idle = 'rgb(var(--accent-rgb) / 0.10)'
+  const on = 'rgb(var(--accent-rgb) / 0.22)'
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className="flex items-center justify-center transition-colors"
+      style={{ width: 18, height: 18, border: '1px solid rgb(var(--accent-rgb) / 0.45)', background: active ? on : idle, color: 'var(--accent)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = on)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = active ? on : idle)}
+    >
+      <Plus size={12} style={{ transform: active ? 'rotate(45deg)' : 'none', transition: 'transform 120ms' }} />
+    </button>
   )
 }
 
