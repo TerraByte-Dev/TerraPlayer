@@ -7,7 +7,6 @@ import {
   Shuffle,
   Trash2,
   Plus,
-  MoreVertical,
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
@@ -15,26 +14,6 @@ import { useContextMenuStore } from '@/store/contextMenu'
 import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
-import logoUrl from '@/assets/brand/terrabyte-globe.png'
-
-// The TerraByte globe ships as a monochrome shape on transparent; masking it with the theme accent recolors
-// it to match every theme for free (the alpha channel is the mask).
-const LOGO_STYLE: React.CSSProperties = {
-  display: 'inline-block',
-  width: 22,
-  height: 22,
-  flexShrink: 0,
-  backgroundColor: 'var(--accent)',
-  WebkitMaskImage: `url(${logoUrl})`,
-  maskImage: `url(${logoUrl})`,
-  WebkitMaskSize: 'contain',
-  maskSize: 'contain',
-  WebkitMaskRepeat: 'no-repeat',
-  maskRepeat: 'no-repeat',
-  WebkitMaskPosition: 'center',
-  maskPosition: 'center',
-  filter: 'drop-shadow(0 0 4px rgb(var(--accent-rgb) / 0.5))',
-}
 
 // Section hex codes for display
 const SECTION_CODES: Record<string, string> = {
@@ -60,7 +39,7 @@ function UptimeClock() {
   )
 }
 
-export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtility: (mode: UtilityMode) => void; onOpenSettings: () => void }) {
+export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
   const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
@@ -182,44 +161,6 @@ export default function Sidebar({ onOpenUtility, onOpenSettings }: { onOpenUtili
       className="flex-shrink-0 flex flex-col overflow-hidden"
       style={{ width: 210, borderRight: '1px solid rgb(var(--accent-rgb) / 0.18)', background: 'var(--bg-1)' }}
     >
-      {/* Header block — fixed */}
-      <div
-        className="flex-shrink-0 px-[14px] pt-[14px] pb-[10px]"
-        style={{ background: '#000', borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)' }}
-      >
-        <div className="flex items-center gap-2">
-          <span aria-hidden style={LOGO_STYLE} />
-          <div className="flex-1 font-lcd text-[17px] tracking-[1.5px] phosphor-glow truncate" style={{ color: 'var(--accent)' }}>
-            TerraPlayer
-          </div>
-          <button
-            onClick={onOpenSettings}
-            title="Settings"
-            className="flex items-center justify-center w-6 h-6 rounded-sm transition-opacity"
-            style={{ color: 'rgb(var(--accent-rgb) / 0.40)', background: 'transparent', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgb(var(--accent-rgb) / 0.40)')}
-          >
-            <MoreVertical size={14} />
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <span
-            style={{
-              display: 'inline-block',
-              width: 5,
-              height: 5,
-              background: 'var(--accent)',
-              transform: 'rotate(45deg)',
-              boxShadow: '0 0 5px var(--accent)',
-            }}
-          />
-          <span className="font-term text-[11px]" style={{ color: 'var(--accent-deep)' }}>
-            link.ok · {totalCount} tracks
-          </span>
-        </div>
-      </div>
-
       {/* Scrolling region — library / playlists / tags (the only part that scrolls) */}
       <div className="flex-1 overflow-y-auto min-h-0">
       {/* Library */}
