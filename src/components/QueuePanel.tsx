@@ -3,6 +3,7 @@ import { X, GripVertical, Music } from 'lucide-react'
 import { usePlayerStore } from '@/store/player'
 import { fmtDuration } from '@/lib/ipc'
 import type { Track } from '@/lib/ipc'
+import { windowComingUp, COMING_UP_WINDOW } from '@/lib/queue'
 import VectorGridCover from './VectorGridCover'
 
 type QueueSection = 'upNext' | 'comingUp'
@@ -15,10 +16,15 @@ export default function QueuePanel() {
 
   const dragItem = useRef<{ section: QueueSection; index: number } | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  // Render only a bounded window of "Coming Up" — the queue can be the whole
+  // library, and rendering every row spikes memory. Resets to the default each
+  // time the panel mounts (open/close); "show more" expands it on demand.
+  const [limit, setLimit] = useState(COMING_UP_WINDOW)
 
   const current = currentTrack()
   const aq = activeQueue()
   const remaining = aq.slice(queueIndex + 1)
+  const { shown: shownRemaining, hidden: hiddenCount } = windowComingUp(remaining, limit)
 
   function dropKey(section: QueueSection, index: number) {
     return `${section}-${index}`
@@ -130,7 +136,7 @@ export default function QueuePanel() {
             <p className="font-mono text-[9px] uppercase tracking-[2px] mb-2" style={{ color: 'var(--accent2)' }}>
               COMING UP
             </p>
-            {remaining.map((track, i) => (
+            {shownRemaining.map((track, i) => (
               <div
                 key={`next-${track.id}-${i}`}
                 draggable
@@ -148,6 +154,20 @@ export default function QueuePanel() {
                 <QueueRow track={track} dim />
               </div>
             ))}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setLimit((l) => l + COMING_UP_WINDOW)}
+                className="w-full mt-1 py-1.5 font-term text-[11px] tracking-[0.5px] transition-opacity hover:opacity-80"
+                style={{
+                  color: 'rgb(var(--accent-rgb) / 0.65)',
+                  border: '1px dashed rgb(var(--accent-rgb) / 0.20)',
+                }}
+                title={`${remaining.length} tracks queued — showing ${shownRemaining.length}`}
+              >
+                show {Math.min(hiddenCount, COMING_UP_WINDOW)} more
+                <span style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}> · {hiddenCount} hidden</span>
+              </button>
+            )}
             {remaining.length === 0 && (
               <div
                 onDragOver={(e) => handleDragOver(e, 'comingUp', 0)}
@@ -179,7 +199,9 @@ export default function QueuePanel() {
   )
 }
 
-function QueueRow({
+// Memoised: dragging toggles the panel's dragOver state on every pointer move,
+// which would otherwise re-render (and re-rasterise the SVG cover of) every row.
+const QueueRow = React.memo(function QueueRow({
   track,
   isCurrent,
   dim,
@@ -207,4 +229,4 @@ function QueueRow({
       </span>
     </div>
   )
-}
+})
