@@ -29,6 +29,7 @@ Point it at a folder of local audio files — it scans the library, reads metada
 - **EQ / audio enhancement** — bass lift, voice, YT-polish presets + manual low/mid/high bands, a pre-amp, and a mono downmix — all wired to the Web Audio graph
 - **Audio visualizer** — spectrum bar visualizer, fullscreen mode, pop-out to a second display
 - **Queue panel** — Up Next queue; "Play next" context-menu on any track
+- **Tools** — a built-in tray of utilities & games: whiteboard, timer/stopwatch/world-clock, calculator, metronome, scratchpad, RNG, plus 2048 / Snake / Minesweeper / Tic-Tac-Toe ([TOOLS.md](TOOLS.md))
 - **Cover art** — embedded art shown on player bar and track list; procedural fallback
 - **Add Music** — download songs straight into your library, preferring the explicit / original master over clean or radio edits (Settings → ADD MUSIC)
 - **Settings backup** — export/import all preferences (incl. theme) as a portable JSON file
