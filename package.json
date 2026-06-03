@@ -1,7 +1,8 @@
 {
   "name": "terra-player",
-  "version": "2.0.2",
+  "version": "2.1.5",
   "description": "Offline desktop media player",
+  "author": "TerraByte Solutions LLC",
   "main": "./out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
