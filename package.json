@@ -1,14 +1,15 @@
 {
   "name": "terra-player",
-  "version": "2.0.2",
+  "version": "2.1.5",
   "description": "Offline desktop media player",
+  "author": "TerraByte Solutions LLC",
   "main": "./out/main/main.js",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build && electron-builder",
     "preview": "electron-vite preview",
     "compile": "electron-vite build",
-    "test": "node --no-warnings --experimental-strip-types --test electron/ipc/__tests__/*.test.mjs",
+    "test": "node --no-warnings --experimental-strip-types --test electron/ipc/__tests__/*.test.mjs src/lib/__tests__/*.test.mjs src/lib/tools/__tests__/*.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "release": "electron-vite build && electron-builder --publish always",
     "postinstall": "electron-builder install-app-deps"
