@@ -1,0 +1,7 @@
+{
+  "//": "Copy to downloader.local.json (gitignored) to point T-Play's downloader at a per-machine path. All keys optional; sensible defaults are used when omitted.",
+  "script": "C:/Users/you/Media/Tools/MusicDownloader/download_music.py",
+  "out": "C:/Users/you/Media/Music",
+  "python": "python",
+  "cookiesFromBrowser": "firefox"
+}

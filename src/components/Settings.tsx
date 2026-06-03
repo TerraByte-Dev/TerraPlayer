@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Download } from 'lucide-react'
 
 type UpdateStatus =
   | 'idle'
@@ -11,16 +11,17 @@ type UpdateStatus =
   | 'error'
   | 'dev-mode'
 
-type Section = 'updates' | 'audio' | 'library' | 'about'
+type Section = 'music' | 'updates' | 'audio' | 'library' | 'about'
 
 const NAV: { id: Section; label: string; enabled: boolean }[] = [
+  { id: 'music',   label: 'ADD MUSIC', enabled: true  },
   { id: 'updates',  label: 'UPDATES',  enabled: true  },
   { id: 'audio',   label: 'AUDIO',    enabled: false },
   { id: 'library', label: 'LIBRARY',  enabled: false },
   { id: 'about',   label: 'ABOUT',    enabled: false },
 ]
 
-export default function Settings({ onClose }: { onClose: () => void }) {
+export default function Settings({ onClose, onOpenDownloader }: { onClose: () => void; onOpenDownloader: () => void }) {
   const [section, setSection] = useState<Section>('updates')
   const [version, setVersion] = useState('')
   const [status, setStatus] = useState<UpdateStatus>('idle')
@@ -120,6 +121,30 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
           {/* Content pane */}
           <div className="flex-1 overflow-y-auto p-6">
+            {section === 'music' && (
+              <div className="flex flex-col gap-5">
+                <div>
+                  <div className="font-term text-[10px] tracking-[2px] mb-1" style={{ color: 'rgba(0,255,136,0.35)' }}>
+                    ADD MUSIC
+                  </div>
+                  <p className="font-term text-[13px] leading-[1.5]" style={{ color: 'rgba(155,245,184,0.7)' }}>
+                    Download songs straight into your library. Paste an{' '}
+                    <span style={{ color: '#00FF88' }}>Artist - Track</span> list (or a YouTube URL), preview the
+                    chosen version with a confidence flag, then grab the explicit / original master — not a clean
+                    or radio edit.
+                  </p>
+                </div>
+                <button
+                  className="metal-key is-primary px-4 h-9 font-term text-[11px] tracking-[1.5px] self-start flex items-center gap-2"
+                  onClick={onOpenDownloader}
+                >
+                  <Download size={14} /> OPEN MUSIC DOWNLOADER
+                </button>
+                <p className="font-term text-[11px]" style={{ color: 'rgba(155,245,184,0.3)' }}>
+                  First run? The downloader checks your environment and can install what's missing.
+                </p>
+              </div>
+            )}
             {section === 'updates' && (
               <UpdatesPane
                 version={version}
