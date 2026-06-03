@@ -105,7 +105,7 @@ export default function App() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <TitleBar />
+      <TitleBar onOpenSettings={() => setSettingsOpen(true)} />
 
       {/* Drag overlay */}
       {dragActive && (
@@ -118,7 +118,7 @@ export default function App() {
       )}
 
       <div className="relative z-[1] flex flex-1 overflow-hidden">
-        <Sidebar onOpenUtility={handleOpenUtility} onOpenSettings={() => setSettingsOpen(true)} />
+        <Sidebar onOpenUtility={handleOpenUtility} />
 
         <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#000' }}>
           <TrackList />
