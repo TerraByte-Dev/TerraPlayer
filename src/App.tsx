@@ -12,6 +12,7 @@ import QueuePanel from './components/QueuePanel'
 import UtilityOverlay from './components/utilities/UtilityOverlay'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
+import Downloader from './components/Downloader'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
@@ -24,6 +25,7 @@ export default function App() {
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [downloaderOpen, setDownloaderOpen] = useState(false)
 
   useEffect(() => {
     load()
@@ -172,7 +174,17 @@ export default function App() {
         />
       )}
 
-      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          onOpenDownloader={() => {
+            setSettingsOpen(false)
+            setDownloaderOpen(true)
+          }}
+        />
+      )}
+
+      {downloaderOpen && <Downloader onClose={() => setDownloaderOpen(false)} />}
 
       <UtilityTimerHost onOpenTimer={() => handleOpenUtility('timer')} />
 
