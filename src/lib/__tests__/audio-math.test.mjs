@@ -3,8 +3,27 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   dbToGain, clamp, clampEqBand, clampPreamp, eqPresetGains, EQ_PRESETS,
-  EQ_BAND_MIN, EQ_BAND_MAX, PREAMP_MIN, PREAMP_MAX,
+  EQ_BAND_MIN, EQ_BAND_MAX, PREAMP_MIN, PREAMP_MAX, spectrumStats,
 } from '../audio-math.ts'
+
+// Reference = the EXACT pre-optimization expression from FullscreenVisualizer's
+// draw loop (reduce + Array.from(slice) + Math.max spread). spectrumStats must
+// reproduce it byte-for-byte; this guards the hot-loop rewrite against drift.
+function refStats(data) {
+  const arr = Array.from(data)
+  const avg = arr.reduce((a, b) => a + b, 0) / arr.length / 255
+  const bass = Array.from(data.slice(0, 8)).reduce((a, b) => a + b, 0) / (8 * 255)
+  const trebleStart = Math.min(96, arr.length - 1)
+  const treble = Array.from(data.slice(trebleStart)).reduce((a, b) => a + b, 0) / ((arr.length - trebleStart) * 255)
+  const peak = Math.max(...arr) / 255
+  return { avg, bass, treble, peak }
+}
+
+function buf(n, fn) {
+  const a = new Uint8Array(n)
+  for (let i = 0; i < n; i++) a[i] = fn(i)
+  return a
+}
 
 test('dbToGain: 0 dB is unity, ±6 dB ≈ ×2 / ÷2', () => {
   assert.equal(dbToGain(0), 1)
@@ -50,5 +69,37 @@ test('EQ_PRESETS: every preset is fully formed and within band range', () => {
     for (const band of ['low', 'mid', 'high']) {
       assert.ok(p[band] >= EQ_BAND_MIN && p[band] <= EQ_BAND_MAX, `${name}.${band} out of range`)
     }
+  }
+})
+
+test('spectrumStats: matches the original reduce/slice/spread formula exactly', () => {
+  // The real shape (128 bins = fftSize 256), plus widths around the bass(8)/treble(96) boundaries.
+  const cases = [
+    buf(128, (i) => (i * 37 + 13) % 256),        // realistic full spectrum
+    buf(128, () => 0),                            // silence
+    buf(128, () => 255),                          // full scale
+    buf(128, (i) => (i < 8 ? 200 : 5)),           // bass-heavy
+    buf(128, (i) => (i >= 96 ? 180 : 2)),         // treble-heavy
+    buf(96, (i) => (i * 11) % 256),               // n === trebleStart boundary
+    buf(8, (i) => i * 30),                         // exactly the bass window
+    buf(1, () => 123),                             // single bin
+  ]
+  for (const data of cases) {
+    const got = spectrumStats(data)
+    const want = refStats(data)
+    for (const k of ['avg', 'bass', 'treble', 'peak']) {
+      assert.ok(Math.abs(got[k] - want[k]) < 1e-12, `${k}: got ${got[k]} want ${want[k]} (n=${data.length})`)
+    }
+  }
+})
+
+test('spectrumStats: empty input is all zeros (no NaN/Infinity), never hit in practice', () => {
+  assert.deepEqual(spectrumStats(new Uint8Array(0)), { avg: 0, bass: 0, treble: 0, peak: 0 })
+})
+
+test('spectrumStats: values stay normalized to 0–1', () => {
+  const s = spectrumStats(buf(128, (i) => (i * 53) % 256))
+  for (const k of ['avg', 'bass', 'treble', 'peak']) {
+    assert.ok(s[k] >= 0 && s[k] <= 1, `${k} out of 0–1: ${s[k]}`)
   }
 })

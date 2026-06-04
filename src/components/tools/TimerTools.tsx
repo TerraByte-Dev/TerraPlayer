@@ -32,14 +32,30 @@ export default function TimerTools({ fullscreen }: ToolProps) {
 
 function CountdownTimer({ fullscreen }: { fullscreen: boolean }) {
   const tracks = useLibraryStore((s) => s.tracks)
-  const { minutes, seconds, running, ringing, alarmAction, alarmPath, setDurationInput, setAlarmAction, setAlarmPath, start, pause, reset, dismiss, remaining } = useUtilityTimerStore()
+  // Narrow selectors so the per-second countdown tick (the store's `now`) does
+  // not re-render this whole panel — most importantly the alarm-song <select>,
+  // which can carry up to 250 <option>s. The live value is isolated in the
+  // <TimerReadout> child below.
+  const minutes = useUtilityTimerStore((s) => s.minutes)
+  const seconds = useUtilityTimerStore((s) => s.seconds)
+  const running = useUtilityTimerStore((s) => s.running)
+  const ringing = useUtilityTimerStore((s) => s.ringing)
+  const alarmAction = useUtilityTimerStore((s) => s.alarmAction)
+  const alarmPath = useUtilityTimerStore((s) => s.alarmPath)
+  const setDurationInput = useUtilityTimerStore((s) => s.setDurationInput)
+  const setAlarmAction = useUtilityTimerStore((s) => s.setAlarmAction)
+  const setAlarmPath = useUtilityTimerStore((s) => s.setAlarmPath)
+  const start = useUtilityTimerStore((s) => s.start)
+  const pause = useUtilityTimerStore((s) => s.pause)
+  const reset = useUtilityTimerStore((s) => s.reset)
+  const dismiss = useUtilityTimerStore((s) => s.dismiss)
   const alarmTracks = useMemo(() => tracks.slice(0, 250), [tracks])
   useEffect(() => { if (!alarmPath && tracks[0]) setAlarmPath(tracks[0].path) }, [alarmPath, setAlarmPath, tracks])
 
   return (
     <div className={`mx-auto flex max-w-3xl flex-col gap-5 ${fullscreen ? 'pt-14' : ''}`}>
       <div className="text-center">
-        <Readout fullscreen={fullscreen}>{formatTimer(remaining())}</Readout>
+        <TimerReadout fullscreen={fullscreen} />
         {ringing && <button onClick={dismiss} className="mt-3 metal-key is-primary px-4 py-2 font-term text-[12px]">Dismiss</button>}
       </div>
       <div className="mx-auto grid w-full max-w-xl grid-cols-2 gap-3">
@@ -69,6 +85,15 @@ function CountdownTimer({ fullscreen }: { fullscreen: boolean }) {
       </div>
     </div>
   )
+}
+
+// Isolated so only this tiny node re-renders on the once-per-second countdown
+// tick — keeping the parent panel (and its up-to-250-option alarm <select>) out
+// of the per-tick render path. remaining() returns ceil-seconds, so this
+// re-renders ~1×/sec while running and not at all when paused.
+function TimerReadout({ fullscreen }: { fullscreen: boolean }) {
+  const remainingSecs = useUtilityTimerStore((s) => s.remaining())
+  return <Readout fullscreen={fullscreen}>{formatTimer(remainingSecs)}</Readout>
 }
 
 function Stopwatch({ fullscreen }: { fullscreen: boolean }) {

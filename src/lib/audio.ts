@@ -1,4 +1,10 @@
 import { dbToGain } from './audio-math'
+import { createFrameThrottle } from './perf'
+
+// The popout visualizer reads frames on its own rAF and smooths them (analyser
+// smoothingTimeConstant 0.8 + per-bar peak decay), so publishing at ~30fps looks
+// identical while halving the cross-process structured-clone IPC traffic.
+const PUBLISH_FPS = 30
 
 let ctx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
@@ -103,14 +109,16 @@ export function startPublishing(isPlayingFn?: () => boolean): void {
   if (publishRaf !== null) return
   const a = getAnalyser()
   const buf = new Uint8Array(a.frequencyBinCount)
-  function loop() {
+  const shouldPublish = createFrameThrottle(1000 / PUBLISH_FPS)
+  function loop(ts: number) {
     publishRaf = requestAnimationFrame(loop)
-    if (!isPlayingFn || isPlayingFn()) {
+    if ((!isPlayingFn || isPlayingFn()) && shouldPublish(ts)) {
       a.getByteFrequencyData(buf)
       window.hub.publishAudioFrame(buf)
     }
   }
-  loop()
+  // Seed via rAF so the first loop() gets a real frame timestamp.
+  publishRaf = requestAnimationFrame(loop)
 }
 
 export function stopPublishing(): void {

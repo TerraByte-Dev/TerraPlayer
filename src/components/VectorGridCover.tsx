@@ -10,7 +10,16 @@ interface Props {
 // resolves url(#vcg-pat) from whichever <defs> is first in the document.
 const PAT_ID = 'vcg-pat'
 
-export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
+// Static once — these never change, so there's no reason to re-allocate the
+// array (and its 4 objects) on every render of every row/queue item.
+const CORNER_MARKERS = [
+  { left: 2, top: 2 },
+  { right: 2, top: 2 },
+  { left: 2, bottom: 2 },
+  { right: 2, bottom: 2 },
+] as const
+
+function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
   return (
     <div
       style={{
@@ -71,12 +80,7 @@ export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Pro
       </svg>
 
       {/* Corner markers */}
-      {[
-        { left: 2, top: 2 },
-        { right: 2, top: 2 },
-        { left: 2, bottom: 2 },
-        { right: 2, bottom: 2 },
-      ].map((pos, i) => (
+      {CORNER_MARKERS.map((pos, i) => (
         <span
           key={i}
           style={{
@@ -91,3 +95,9 @@ export default function VectorGridCover({ src, label = 'A:000', size = 68 }: Pro
     </div>
   )
 }
+
+// Memoized: all props are primitives (string/number), so the default shallow
+// compare skips re-rendering this SVG subtree whenever a parent (TrackList on a
+// playback tick, QueuePanel on a drag-over) re-renders without changing the
+// cover's inputs.
+export default React.memo(VectorGridCover)

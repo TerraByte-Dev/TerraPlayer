@@ -23,6 +23,23 @@ const POPOVER_STYLE: React.CSSProperties = {
   boxShadow: '0 0 14px rgb(var(--accent-rgb) / 0.15)',
 }
 
+// Static progress-bar tick marks — they never change, so build the 21 elements
+// once at module load instead of re-running Array.from (and allocating 21 nodes)
+// on every PlayerBar render, which happens ~4×/sec as the time updates.
+const TICK_MARKS = Array.from({ length: 21 }, (_, i) => (
+  <div
+    key={i}
+    className="absolute"
+    style={{
+      left: `${i * 5}%`,
+      top: 4,
+      width: 1,
+      height: i % 5 === 0 ? 4 : 2,
+      background: 'rgb(var(--accent-rgb) / 0.30)',
+    }}
+  />
+))
+
 export default function PlayerBar() {
   const {
     currentTrack,
@@ -334,20 +351,8 @@ export default function PlayerBar() {
               className="absolute"
               style={{ left: 0, top: 8, height: 2, width: `${progressPct}%`, background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)', borderRadius: 1 }}
             />
-            {/* Tick marks */}
-            {Array.from({ length: 21 }, (_, i) => (
-              <div
-                key={i}
-                className="absolute"
-                style={{
-                  left: `${i * 5}%`,
-                  top: 4,
-                  width: 1,
-                  height: i % 5 === 0 ? 4 : 2,
-                  background: 'rgb(var(--accent-rgb) / 0.30)',
-                }}
-              />
-            ))}
+            {/* Tick marks (static — hoisted to a module constant) */}
+            {TICK_MARKS}
             {/* Playhead */}
             <div
               className="absolute"

@@ -19,7 +19,17 @@ export default function TrackList() {
     openPanel, playlists, loadPlaylists,
     tracks: storeTracks,
   } = useLibraryStore()
-  const { playTrack, currentTrack, isPlaying, setPlaying, addToUpNext, playNext } = usePlayerStore()
+  // Narrow selectors instead of a selector-less usePlayerStore() — the latter
+  // subscribes to EVERY store change, so the audio element's ~4×/sec currentTime
+  // tick would re-render (and re-reconcile every visible row of) the whole
+  // virtualized list during playback. Actions are stable refs; currentId is a
+  // primitive that only changes on a real track change.
+  const playTrack = usePlayerStore((s) => s.playTrack)
+  const isPlaying = usePlayerStore((s) => s.isPlaying)
+  const setPlaying = usePlayerStore((s) => s.setPlaying)
+  const addToUpNext = usePlayerStore((s) => s.addToUpNext)
+  const playNext = usePlayerStore((s) => s.playNext)
+  const currentId = usePlayerStore((s) => s.currentTrack()?.id ?? null)
   const { openMenu } = useContextMenuStore()
 
   // asyncTracks holds results for tag/playlist views (requires IPC)
@@ -116,8 +126,6 @@ export default function TrackList() {
         : <ChevronDown size={10} style={{ color: 'var(--accent)' }} />
       : null
 
-  const current = currentTrack()
-
   const viewTitle =
     sidebarView.kind === 'all'
       ? 'all tracks'
@@ -136,7 +144,7 @@ export default function TrackList() {
 
   function handleCoverClick(e: React.MouseEvent, track: Track) {
     e.stopPropagation()
-    const isCurrent = current?.id === track.id
+    const isCurrent = currentId === track.id
     if (isCurrent) {
       setPlaying(!isPlaying)
     } else {
@@ -405,7 +413,7 @@ export default function TrackList() {
 
         {visibleRows.map((track, relIdx) => {
           const idx = startIdx + relIdx
-          const isCurrentTrack = current?.id === track.id
+          const isCurrentTrack = currentId === track.id
           const isSelected = selectedTrackId === track.id
 
           return (

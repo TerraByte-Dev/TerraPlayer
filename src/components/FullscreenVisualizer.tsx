@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, ListMusic, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
 import { getAnalyser } from '@/lib/audio'
+import { spectrumStats } from '@/lib/audio-math'
 import { usePlayerStore } from '@/store/player'
 import { fmtDuration } from '@/lib/ipc'
 import type { PlaybackSnapshot, QueueSnapshotTrack, VisualizerCommand } from '@/lib/ipc'
@@ -228,12 +229,17 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
 
     let bgFrame = 0
 
+    // Reused across frames — getByteFrequencyData overwrites it in place, and
+    // the result is consumed entirely within the same draw() call. ipc mode
+    // reads the shared ipcFrameRef instead, so no analyser/AudioContext is
+    // created in the popout window. (Previously this allocated a fresh
+    // Uint8Array every frame → ~60 throwaway typed arrays/sec.)
+    const analyserBuf = source === 'ipc' ? null : new Uint8Array(getAnalyser().frequencyBinCount)
+
     function getData(): Uint8Array {
       if (source === 'ipc') return ipcFrameRef.current
-      const a = getAnalyser()
-      const buf = new Uint8Array(a.frequencyBinCount)
-      a.getByteFrequencyData(buf)
-      return buf
+      getAnalyser().getByteFrequencyData(analyserBuf!)
+      return analyserBuf!
     }
 
     function spawnBubble(W: number, H: number, bass: number) {
@@ -256,11 +262,10 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
       const preset = COLOR_PRESETS[settings.colors]
       const visualPower = 0.08 + settings.intensity * 1.02
 
-      const avg = data.reduce((a, b) => a + b, 0) / data.length / 255
-      const bass = Array.from(data.slice(0, 8)).reduce((a, b) => a + b, 0) / (8 * 255)
-      const trebleStart = Math.min(96, data.length - 1)
-      const treble = Array.from(data.slice(trebleStart)).reduce((a, b) => a + b, 0) / ((data.length - trebleStart) * 255)
-      const peak = Math.max(...Array.from(data)) / 255
+      // Single pass, zero per-frame allocation (was reduce + 2×Array.from(slice)
+      // + Math.max(...spread) → 3–4 throwaway arrays/frame). Math is identical;
+      // verified byte-for-byte against the old formula in audio-math tests.
+      const { avg, bass, treble, peak } = spectrumStats(data)
       rollingPeakRef.current.push(peak)
       rollingPeakRef.current.shift()
       const rollingAvg = rollingPeakRef.current.reduce((a, b) => a + b, 0) / rollingPeakRef.current.length
