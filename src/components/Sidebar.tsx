@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   Music2,
   ListMusic,
@@ -140,7 +140,10 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
   }
 
   const totalCount = tracks.length
-  const totalSeconds = tracks.reduce((s, t) => s + (t.duration || 0), 0)
+  // `tracks` only changes on a scan/refresh, but Sidebar re-renders on any
+  // library-store change (view/selection/panel toggles). Memoize so the O(n)
+  // walk over the whole library doesn't run on those unrelated re-renders.
+  const totalSeconds = useMemo(() => tracks.reduce((s, t) => s + (t.duration || 0), 0), [tracks])
   const totalHours = Math.floor(totalSeconds / 3600)
   const totalMins = Math.floor((totalSeconds % 3600) / 60)
   const totalSecs = Math.floor(totalSeconds % 60)

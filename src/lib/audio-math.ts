@@ -53,3 +53,48 @@ export function eqPresetGains(preset: AudioPreset): EqSettings {
 export function dbToGain(db: number): number {
   return Math.pow(10, clampPreamp(db) / 20)
 }
+
+export interface SpectrumStats {
+  /** Mean bin energy across the whole spectrum, normalized 0–1. */
+  avg: number
+  /** Low-end energy (first 8 bins) over a fixed 8-bin window, 0–1. */
+  bass: number
+  /** High-end energy (bins ≥ trebleStart) over its window, 0–1. */
+  treble: number
+  /** Loudest single bin, normalized 0–1. */
+  peak: number
+}
+
+/**
+ * One-pass spectrum summary for the visualizer draw loop. Returns exactly the
+ * same four 0–1 values the fullscreen visualizer computes per frame, but in a
+ * single pass over the typed array with ZERO intermediate allocations — the old
+ * code ran `reduce` + two `Array.from(slice(...))` + `Math.max(...spread)` every
+ * frame (~60 fps), churning 3–4 throwaway arrays. The divisors are preserved
+ * verbatim: bass over a fixed 8-bin window, treble over (n − trebleStart) bins
+ * where trebleStart = min(96, n − 1). Pure + unit-tested so the hot loop can
+ * trust it. (Bytes are read straight from a `Uint8Array`; `ArrayLike` keeps it
+ * testable with plain arrays.)
+ */
+export function spectrumStats(data: ArrayLike<number>): SpectrumStats {
+  const n = data.length
+  if (n === 0) return { avg: 0, bass: 0, treble: 0, peak: 0 }
+  const trebleStart = Math.min(96, n - 1)
+  let sum = 0
+  let bassSum = 0
+  let trebleSum = 0
+  let max = 0
+  for (let i = 0; i < n; i++) {
+    const v = data[i]
+    sum += v
+    if (v > max) max = v
+    if (i < 8) bassSum += v
+    if (i >= trebleStart) trebleSum += v
+  }
+  return {
+    avg: sum / n / 255,
+    bass: bassSum / (8 * 255),
+    treble: trebleSum / ((n - trebleStart) * 255),
+    peak: max / 255,
+  }
+}

@@ -23,11 +23,13 @@ function logBinRange(barIdx: number, barCount: number, binCount: number): [numbe
   return [Math.min(lo, binCount - 1), Math.min(Math.max(hi, lo + 1), binCount)]
 }
 
-export default function Visualizer({ height = 40 }: { height?: number }) {
+function Visualizer({ height = 40 }: { height?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef = useRef<number>(0)
   const peakRef = useRef<Float32Array>(new Float32Array(BAR_COUNT).fill(0))
   const isPlaying = usePlayerStore((s) => s.isPlaying)
+  const isPlayingRef = useRef(isPlaying)
+  const startRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -46,7 +48,6 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
     const binCount = analyser.frequencyBinCount
 
     function draw() {
-      rafRef.current = requestAnimationFrame(draw)
       analyser.getByteFrequencyData(dataArray)
 
       ctx!.clearRect(0, 0, W_CSS, H_CSS)
@@ -54,6 +55,7 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
       const totalGap = (BAR_COUNT - 1) * GAP
       const barW = (W_CSS - totalGap) / BAR_COUNT
 
+      let anyAlive = false
       for (let i = 0; i < BAR_COUNT; i++) {
         const sourceIdx = i < SOURCE_BARS ? SOURCE_BARS - 1 - i : i - SOURCE_BARS
         const [lo, hi] = logBinRange(sourceIdx, SOURCE_BARS, binCount)
@@ -62,6 +64,7 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
         const val = maxBin / 255
 
         peakRef.current[i] = Math.max(val, peakRef.current[i] * 0.94)
+        if (peakRef.current[i] > 0.002) anyAlive = true
         const barH = Math.max(2, peakRef.current[i] * H_CSS)
         const x = i * (barW + GAP)
 
@@ -80,11 +83,29 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
         ctx!.fillStyle = COLOR.peak
         ctx!.fillRect(x, py, barW, 1)
       }
+
+      // Keep animating while playing; when paused, let the bars decay out and
+      // then stop re-queuing so an idle/paused player doesn't pin a CPU core at
+      // 60fps for the whole session (this canvas is always mounted in PlayerBar).
+      if (isPlayingRef.current || anyAlive) {
+        rafRef.current = requestAnimationFrame(draw)
+      } else {
+        rafRef.current = 0
+      }
     }
 
-    draw()
-    return () => cancelAnimationFrame(rafRef.current)
+    const start = () => { if (!rafRef.current) rafRef.current = requestAnimationFrame(draw) }
+    startRef.current = start
+    start()
+    return () => { cancelAnimationFrame(rafRef.current); rafRef.current = 0; startRef.current = null }
   }, [height])
+
+  // Restart the loop when playback resumes (it self-stops after the bars decay
+  // while paused). isPlaying is already subscribed for the opacity class.
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+    if (isPlaying) startRef.current?.()
+  }, [isPlaying])
 
   return (
     <canvas
@@ -94,3 +115,7 @@ export default function Visualizer({ height = 40 }: { height?: number }) {
     />
   )
 }
+
+// Memoized: the only prop is `height` (number), so this never reconciles when a
+// parent (PlayerBar on a playback tick) re-renders with the same height.
+export default React.memo(Visualizer)

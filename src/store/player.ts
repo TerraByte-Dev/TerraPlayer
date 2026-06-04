@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { createDedupeStorage } from '@/lib/perf'
 import type { Track } from '@/lib/ipc'
 import { eqPresetGains, clampEqBand, type AudioPreset, type EqSettings } from '@/lib/audio-math'
 
@@ -221,6 +222,12 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   clearUpNext: () => set({ upNext: [] }),
 }), {
   name: 'tplay-player',
+  // Dedupe writes: zustand's persist re-serializes + writes storage on EVERY
+  // set() without diffing, so the ~4×/sec currentTime tick during playback would
+  // otherwise fire a synchronous localStorage write of byte-identical JSON
+  // (currentTime isn't even in the partial below). The wrapper skips those no-op
+  // writes; the first write of any genuinely-changed preference still goes through.
+  storage: createJSONStorage(() => createDedupeStorage(localStorage)),
   // Persist only durable preferences — never the transient session (queue, current track, play state).
   // This is what lets volume, the EQ, and the shuffle/repeat modes survive a restart.
   partialize: (s) => ({ volume: s.volume, eq: s.eq, shuffle: s.shuffle, repeat: s.repeat }),
