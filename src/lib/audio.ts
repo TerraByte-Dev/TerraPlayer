@@ -1,4 +1,4 @@
-import { dbToGain } from './audio-math'
+import { dbToGain, clampEqBand, EQ_FREQUENCIES, EQ_Q } from './audio-math'
 import { createFrameThrottle } from './perf'
 
 // The popout visualizer reads frames on its own rAF and smooths them (analyser
@@ -10,10 +10,9 @@ let ctx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
 let sourceNode: MediaElementAudioSourceNode | null = null
 let preampGain: GainNode | null = null
-let lowFilter: BiquadFilterNode | null = null
-let midFilter: BiquadFilterNode | null = null
-let highFilter: BiquadFilterNode | null = null
+let eqBands: BiquadFilterNode[] | null = null
 let monoGain: GainNode | null = null
+let fadeGain: GainNode | null = null
 let publishRaf: number | null = null
 
 export function getAudioContext(): AudioContext {
@@ -32,40 +31,41 @@ export function getAnalyser(): AnalyserNode {
 }
 
 // Builds (once) the processing graph and returns its entry node. Signal path:
-//   source → preamp(gain) → low → mid → high → mono(downmix) → analyser → destination
+//   source → preamp → b0(31Hz) … b9(16kHz) → mono(downmix) → fade → analyser → destination
+// The analyser is the single edge into `destination` (set in getAnalyser); fade sits just before it so
+// the visualizer fades together with the audible output.
 function getEqChain(): { input: GainNode } {
   const context = getAudioContext()
-  if (!preampGain || !lowFilter || !midFilter || !highFilter || !monoGain) {
+  if (!preampGain || !eqBands || !monoGain || !fadeGain) {
     preampGain = context.createGain()
     preampGain.gain.value = 1 // 0 dB
 
-    lowFilter = context.createBiquadFilter()
-    lowFilter.type = 'lowshelf'
-    lowFilter.frequency.value = 120
-    lowFilter.gain.value = 0
+    // 10 peaking biquads at ISO octave centers — a flat-by-default graphic EQ. All native, so the EQ
+    // costs nothing per frame on the JS side regardless of how many bands are nudged.
+    eqBands = EQ_FREQUENCIES.map((freq) => {
+      const f = context.createBiquadFilter()
+      f.type = 'peaking'
+      f.frequency.value = freq
+      f.Q.value = EQ_Q
+      f.gain.value = 0
+      return f
+    })
 
-    midFilter = context.createBiquadFilter()
-    midFilter.type = 'peaking'
-    midFilter.frequency.value = 1200
-    midFilter.Q.value = 0.9
-    midFilter.gain.value = 0
-
-    highFilter = context.createBiquadFilter()
-    highFilter.type = 'highshelf'
-    highFilter.frequency.value = 7200
-    highFilter.gain.value = 0
-
-    // Mono node: when channelCount=1 + 'explicit', it sums L+R to a single channel (true mono downmix);
-    // the destination then upmixes it back to both speakers. 'max'/2 leaves stereo untouched.
+    // Mono node: channelCount=1 + 'explicit' sums L+R to a single channel (true mono downmix); the
+    // destination upmixes it back to both speakers. 'max' leaves stereo untouched.
     monoGain = context.createGain()
     monoGain.gain.value = 1
     monoGain.channelCountMode = 'max'
 
-    preampGain.connect(lowFilter)
-    lowFilter.connect(midFilter)
-    midFilter.connect(highFilter)
-    highFilter.connect(monoGain)
-    monoGain.connect(getAnalyser())
+    // Fade node: 1 = full volume by default (so builds without fades are unaffected). rampFade automates it.
+    fadeGain = context.createGain()
+    fadeGain.gain.value = 1
+
+    preampGain.connect(eqBands[0])
+    for (let i = 0; i < eqBands.length - 1; i++) eqBands[i].connect(eqBands[i + 1])
+    eqBands[eqBands.length - 1].connect(monoGain)
+    monoGain.connect(fadeGain)
+    fadeGain.connect(getAnalyser())
   }
   return { input: preampGain }
 }
@@ -73,6 +73,8 @@ function getEqChain(): { input: GainNode } {
 export function connectAudioElement(el: HTMLAudioElement): void {
   const context = getAudioContext()
   if (sourceNode && sourceNode.mediaElement === el) return
+  // Keep pitch constant when playbackRate changes (so 1.25× doesn't chipmunk the audio).
+  ;(el as HTMLMediaElement & { preservesPitch?: boolean }).preservesPitch = true
   sourceNode = context.createMediaElementSource(el)
   sourceNode.connect(getEqChain().input)
 }
@@ -91,13 +93,29 @@ export function setMono(mono: boolean): void {
   monoGain!.channelCountMode = mono ? 'explicit' : 'max'
 }
 
-export function setEqGains(low: number, mid: number, high: number): void {
+/** Apply the 10 band gains (dB) to the graphic EQ. Smoothed (setTargetAtTime) so dragging is click-free. */
+export function setEqBands(gains: number[]): void {
   const context = getAudioContext()
   getEqChain()
   const t = context.currentTime
-  lowFilter!.gain.setTargetAtTime(low, t, 0.015)
-  midFilter!.gain.setTargetAtTime(mid, t, 0.015)
-  highFilter!.gain.setTargetAtTime(high, t, 0.015)
+  for (let i = 0; i < eqBands!.length; i++) {
+    eqBands![i].gain.setTargetAtTime(clampEqBand(gains[i] ?? 0), t, 0.015)
+  }
+}
+
+/**
+ * Ramp the fade gain to `target` (0–1) over `seconds`. Click-free and robust to rapid play/pause:
+ * cancels any in-flight ramp, pins the LIVE value (so it never jumps), then schedules a definite-endpoint
+ * linear ramp — NOT setTargetAtTime, whose asymptote never actually reaches 0. seconds≈0 hard-sets.
+ */
+export function rampFade(target: number, seconds: number): void {
+  getEqChain()
+  const t = getAudioContext().currentTime
+  const g = fadeGain!.gain
+  g.cancelScheduledValues(t)
+  g.setValueAtTime(g.value, t)
+  if (seconds <= 0.005) g.setValueAtTime(target, t)
+  else g.linearRampToValueAtTime(target, t + seconds)
 }
 
 export function resumeContext(): void {

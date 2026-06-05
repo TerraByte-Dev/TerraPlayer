@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createDedupeStorage } from '@/lib/perf'
 import type { Track } from '@/lib/ipc'
-import { eqPresetGains, clampEqBand, type AudioPreset, type EqSettings } from '@/lib/audio-math'
+import { eqPresetGains, clampEqBand, coerceEqSettings, type AudioPreset, type EqSettings } from '@/lib/audio-math'
 
 export type RepeatMode = 'off' | 'all' | 'one'
 export type { AudioPreset, EqSettings } from '@/lib/audio-math'
@@ -35,7 +35,7 @@ interface PlayerState {
   cycleRepeat: () => void
   setVizFullscreen: (v: boolean) => void
   setEqPreset: (preset: AudioPreset) => void
-  setEqBand: (band: keyof Omit<EqSettings, 'preset'>, value: number) => void
+  setEqBand: (index: number, value: number) => void
   addToUpNext: (track: Track) => void
   playNext: (track: Track) => void
   removeFromUpNext: (index: number) => void
@@ -81,7 +81,7 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   shuffle: false,
   repeat: 'off',
   vizFullscreen: false,
-  eq: { preset: 'off', low: 0, mid: 0, high: 0 },
+  eq: eqPresetGains('off'),
 
   activeQueue: () => {
     const { shuffle, queue, shuffledQueue } = get()
@@ -172,8 +172,14 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   setDuration: (d) => set({ duration: d }),
   setVizFullscreen: (v) => set({ vizFullscreen: v }),
   setEqPreset: (preset) => set({ eq: eqPresetGains(preset) }),
-  setEqBand: (band, value) =>
-    set((s) => ({ eq: { ...s.eq, preset: 'off', [band]: clampEqBand(value) } })),
+  // Editing a band always yields a NEW bands array (so the [eq.bands]-keyed apply effect + the dedupe
+  // persist write actually fire) and flips the preset to 'custom' (never mislabel a manual curve as Flat).
+  setEqBand: (index, value) =>
+    set((s) => {
+      const bands = s.eq.bands.slice()
+      bands[index] = clampEqBand(value)
+      return { eq: { preset: 'custom', bands } }
+    }),
 
   addToUpNext: (track) => set((s) => ({ upNext: [...s.upNext, track] })),
   playNext: (track) => set((s) => ({ upNext: [track, ...s.upNext] })),
@@ -231,4 +237,14 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   // Persist only durable preferences — never the transient session (queue, current track, play state).
   // This is what lets volume, the EQ, and the shuffle/repeat modes survive a restart.
   partialize: (s) => ({ volume: s.volume, eq: s.eq, shuffle: s.shuffle, repeat: s.repeat }),
+  // v0→v1: the EQ went from { preset, low, mid, high } to { preset, bands[10] }. Run any persisted eq through
+  // coerceEqSettings, which normalizes the legacy shape, the new shape, AND null/garbage to a valid value —
+  // so a corrupt or missing eq can never leave `undefined` to clobber the default on merge (→ hydration crash).
+  // Idempotent. Only touched when an `eq` key is present; absent → the initial default is used as-is.
+  version: 1,
+  migrate: (persisted) => {
+    const p = (persisted ?? {}) as { eq?: unknown } & Record<string, unknown>
+    if ('eq' in p) p.eq = coerceEqSettings(p.eq)
+    return p as unknown as PlayerState
+  },
 }))

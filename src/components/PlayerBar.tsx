@@ -10,8 +10,10 @@ import { usePlayerStore } from '@/store/player'
 import { useLibraryStore } from '@/store/library'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { trackUrl, fmtDuration } from '@/lib/ipc'
-import { connectAudioElement, resumeContext, setEqGains, setPreampDb, setMono, startPublishing, stopPublishing } from '@/lib/audio'
+import { connectAudioElement, resumeContext, rampFade, setEqBands, setPreampDb, setMono, startPublishing, stopPublishing } from '@/lib/audio'
 import { useSettingsStore } from '@/store/settings'
+import { useUiStore } from '@/store/ui'
+import { EQ_PRESETS, EQ_PRESET_ORDER, fadeStartTime } from '@/lib/audio-math'
 import Visualizer from './Visualizer'
 import VectorGridCover from './VectorGridCover'
 import type { DisplayInfo, QueueSnapshotTrack } from '@/lib/ipc'
@@ -52,7 +54,7 @@ export default function PlayerBar() {
     repeat, cycleRepeat,
     vizFullscreen, setVizFullscreen,
     upNext, clearUpNext,
-    eq, setEqPreset, setEqBand,
+    eq, setEqPreset,
   } = usePlayerStore()
 
   const { openPanel, rightPanelOpen, panelMode, selectTrack } = useLibraryStore()
@@ -65,7 +67,23 @@ export default function PlayerBar() {
   const [showDisplayPicker, setShowDisplayPicker] = useState(false)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [popoutOpen, setPopoutOpen] = useState(false)
+  // Fade + speed prefs (settings store) + live refs handlers read without re-subscribing/re-binding.
+  const fadeSec = useSettingsStore((s) => s.fadeSec)
+  const speed = useSettingsStore((s) => s.speed)
+  const fadeSecRef = useRef(fadeSec); fadeSecRef.current = fadeSec
+  const speedRef = useRef(speed); speedRef.current = speed
+  const fadeArmedRef = useRef(false)                     // end-of-track fade-out fired for the current track?
+  const fadePauseTimerRef = useRef<number | null>(null)  // pending el.pause() scheduled after a fade-out
+  const preMuteVolRef = useRef(0.8)                      // volume to restore when un-muting (keyboard 'm')
   const track = currentTrack()
+
+  // Cancel a pending deferred pause so a quick resume isn't paused mid-fade-in.
+  function clearFadePause() {
+    if (fadePauseTimerRef.current !== null) {
+      window.clearTimeout(fadePauseTimerRef.current)
+      fadePauseTimerRef.current = null
+    }
+  }
 
   useEffect(() => {
     const el = audioRef.current
@@ -77,22 +95,34 @@ export default function PlayerBar() {
   useEffect(() => {
     const el = audioRef.current
     if (!el || !track) return
+    clearFadePause()
+    fadeArmedRef.current = false              // new track — re-arm the end-of-track fade
     el.src = trackUrl(track.path)
     el.load()
+    el.playbackRate = speedRef.current        // el.load() resets the rate; re-assert it
     if (isPlaying) {
       resumeContext()
+      rampFade(0, 0)                           // start from silence...
       el.play().catch(() => {})
+      rampFade(1, fadeSecRef.current)          // ...then fade in (instant when fadeSec is 0)
     }
   }, [track?.id])
 
   useEffect(() => {
     const el = audioRef.current
     if (!el) return
+    const sec = fadeSecRef.current
     if (isPlaying) {
+      clearFadePause()
+      fadeArmedRef.current = false             // resuming re-arms the end fade (a resume inside the window must re-fade)
       resumeContext()
       el.play().catch(() => {})
+      rampFade(1, sec)                         // fade in (instant when 0)
     } else {
-      el.pause()
+      rampFade(0, sec)                         // fade out, then pause once silent so audio stays through the fade
+      clearFadePause()
+      if (sec <= 0.005) el.pause()
+      else fadePauseTimerRef.current = window.setTimeout(() => { el.pause(); fadePauseTimerRef.current = null }, sec * 1000 + 30)
     }
   }, [isPlaying])
 
@@ -148,21 +178,68 @@ export default function PlayerBar() {
     })
   }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverUrl, currentTime, duration, volume, upNext, popoutOpen])
 
+  // Apply the 10-band EQ. eq.bands is always a fresh array (store copies on every change), so this fires on
+  // every preset/band change.
   useEffect(() => {
-    setEqGains(eq.low, eq.mid, eq.high)
-  }, [eq.low, eq.mid, eq.high])
+    setEqBands(eq.bands)
+  }, [eq.bands])
 
-  // Apply persisted pre-amp + mono prefs to the Web Audio graph (initial + on change).
+  // Apply persisted pre-amp + mono + speed prefs to the graph / element (initial + on change).
   const preampDb = useSettingsStore((s) => s.preampDb)
   const mono = useSettingsStore((s) => s.mono)
   useEffect(() => { setPreampDb(preampDb) }, [preampDb])
   useEffect(() => { setMono(mono) }, [mono])
+  useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = speed }, [speed])
+
+  // Global keyboard transport. Ignored while typing in a field or with a modifier held, so it never fights
+  // the search box or app shortcuts. Reads live state via getState() so the handler binds once.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Yield while a tool/Settings/Downloader overlay owns the keyboard (e.g. Snake/2048 use Space + arrows).
+      if (useUiStore.getState().overlayOpen) return
+      const el = document.activeElement as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const st = usePlayerStore.getState()
+      switch (e.key) {
+        case ' ':
+        case 'Spacebar': e.preventDefault(); setPlaying(!st.isPlaying); break
+        case 'ArrowRight': e.preventDefault(); if (e.shiftKey) next(); else seekTo((st.currentTime || 0) + 5); break
+        case 'ArrowLeft': e.preventDefault(); if (e.shiftKey) prev(); else seekTo((st.currentTime || 0) - 5); break
+        case 'ArrowUp': e.preventDefault(); setVolume(Math.min(1, st.volume + 0.05)); break
+        case 'ArrowDown': e.preventDefault(); setVolume(Math.max(0, st.volume - 0.05)); break
+        case 'm':
+        case 'M': e.preventDefault(); toggleMute(); break
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [next, prev, setPlaying, setVolume])
+
+  // Cancel any pending deferred pause if the bar tears down (HMR / unmount) so it can't fire on a dead element.
+  useEffect(() => () => {
+    if (fadePauseTimerRef.current !== null) window.clearTimeout(fadePauseTimerRef.current)
+  }, [])
 
   function seekTo(t: number) {
     const liveDuration = usePlayerStore.getState().duration || audioRef.current?.duration || duration || 0
     const bounded = Math.max(0, Math.min(liveDuration, t))
     setCurrentTime(bounded)
     if (audioRef.current) audioRef.current.currentTime = bounded
+    // Seeking back out of the end-of-track fade window re-arms it and restores volume (we may have faded down).
+    const fadeStart = fadeStartTime(liveDuration, fadeSecRef.current)
+    if (fadeArmedRef.current && (fadeStart === null || bounded < fadeStart)) {
+      fadeArmedRef.current = false
+      if (usePlayerStore.getState().isPlaying) rampFade(1, 0.08)
+    }
+  }
+
+  // Mute/unmute toggle for the 'm' keyboard shortcut (remembers the pre-mute level).
+  function toggleMute() {
+    const v = usePlayerStore.getState().volume
+    if (v > 0) { preMuteVolRef.current = v; setVolume(0) }
+    else setVolume(preMuteVolRef.current || 0.8)
   }
 
   function handleSeekPointer(e: React.PointerEvent<HTMLDivElement>) {
@@ -176,11 +253,12 @@ export default function PlayerBar() {
     if (repeat === 'one') {
       const el = audioRef.current
       setCurrentTime(0)
-      if (el) { el.currentTime = 0; resumeContext(); el.play().catch(() => {}) }
+      fadeArmedRef.current = false            // replaying same track — re-arm + restore from the end fade
+      if (el) { el.currentTime = 0; resumeContext(); el.play().catch(() => {}); rampFade(1, fadeSecRef.current) }
     } else {
       const state = usePlayerStore.getState()
       const atEndOfQueue = state.queueIndex >= state.activeQueue().length - 1
-      if (state.repeat === 'off' && state.upNext.length === 0 && atEndOfQueue) { setPlaying(false); return }
+      if (state.repeat === 'off' && state.upNext.length === 0 && atEndOfQueue) { fadeArmedRef.current = false; setPlaying(false); return }
       next()
     }
   }
@@ -256,7 +334,17 @@ export default function PlayerBar() {
 
       <audio
         ref={audioRef}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        onTimeUpdate={(e) => {
+          const el = e.currentTarget
+          setCurrentTime(el.currentTime)
+          // Arm the end-of-track fade-out once we cross into the fade window.
+          const fadeStart = fadeStartTime(el.duration, fadeSecRef.current)
+          if (fadeStart !== null && !fadeArmedRef.current && el.currentTime >= fadeStart) {
+            fadeArmedRef.current = true
+            // Fade over whatever is actually left (a late arm, e.g. after seeking forward, shouldn't get cut off).
+            rampFade(0, Math.min(fadeSecRef.current, Math.max(0, el.duration - el.currentTime)))
+          }
+        }}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onEnded={handleEnded}
         onPlay={() => setPlaying(true)}
@@ -393,44 +481,37 @@ export default function PlayerBar() {
         <div className="relative">
           <button
             onClick={() => { setShowEnhance((v) => !v); setShowVolume(false); setShowDisplayPicker(false) }}
-            className={`metal-key ${eq.preset !== 'off' || eq.low || eq.mid || eq.high ? 'is-primary' : ''}`}
+            className={`metal-key ${eq.preset !== 'off' || eq.bands.some((b) => b !== 0) ? 'is-primary' : ''}`}
             style={{ width: 26, height: 26 }}
-            title="Audio enhancement"
+            title="Equalizer presets"
           >
             <SlidersHorizontal size={11} />
           </button>
           {showEnhance && (
-            <div className="absolute bottom-10 right-0 z-20 w-52 px-3 py-2.5 shadow-xl" style={POPOVER_STYLE}>
-              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>ENHANCE</p>
-              <div className="grid grid-cols-2 gap-1 mb-3">
-                {([['off', 'Flat'], ['polish', 'YT Polish'], ['bass', 'Bass Lift'], ['voice', 'Voice']] as const).map(([preset, label]) => (
-                  <button
-                    key={preset}
-                    onClick={() => setEqPreset(preset)}
-                    className="font-term text-[13px] px-2 py-1 transition-colors"
-                    style={{
-                      border: eq.preset === preset ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.15)',
-                      color: eq.preset === preset ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
-                      background: eq.preset === preset ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="absolute bottom-10 right-0 z-20 w-56 px-3 py-2.5 shadow-xl" style={POPOVER_STYLE}>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>EQUALIZER</p>
+              <div className="grid grid-cols-2 gap-1 mb-2">
+                {EQ_PRESET_ORDER.map((id) => {
+                  const active = eq.preset === id
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setEqPreset(id)}
+                      className="font-term text-[12px] px-2 py-1 text-left transition-colors"
+                      style={{
+                        border: active ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.15)',
+                        color: active ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
+                        background: active ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
+                      }}
+                    >
+                      {EQ_PRESETS[id].label}
+                    </button>
+                  )
+                })}
               </div>
-              {(['low', 'mid', 'high'] as const).map((band) => (
-                <label key={band} className="grid grid-cols-[34px_1fr_28px] items-center gap-2 mb-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgb(var(--ink-rgb) / 0.50)' }}>{band}</span>
-                  <input
-                    type="range" min={-8} max={8} step={0.5} value={eq[band]}
-                    onChange={(e) => setEqBand(band, Number(e.target.value))}
-                    className="w-full"
-                  />
-                  <span className="text-right font-mono text-[9px] tabular-nums" style={{ color: 'var(--ink)' }}>
-                    {eq[band] > 0 ? '+' : ''}{eq[band]}
-                  </span>
-                </label>
-              ))}
+              <p className="font-term text-[11px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>
+                {eq.preset === 'custom' ? '● Custom curve — ' : ''}fine-tune all 10 bands in Settings → Audio.
+              </p>
             </div>
           )}
         </div>
