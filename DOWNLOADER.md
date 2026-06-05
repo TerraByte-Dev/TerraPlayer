@@ -98,7 +98,7 @@ the folder isn't in your library yet, an **+ add to library** button appears.
 `python` and the cookies browser are likewise overridable via
 `downloader.local.json` (`"python"`, `"cookiesFromBrowser"`) or the
 `TPLAY_PYTHON` / `TPLAY_COOKIES_BROWSER` env vars. Default cookies browser is
-Firefox (Chrome/Edge cookies are encryption-locked — see the Media `CLAUDE.md`).
+Firefox (Chrome/Edge cookies are encryption-locked).
 
 ## The NDJSON contract
 
