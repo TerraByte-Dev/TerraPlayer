@@ -14,6 +14,8 @@ Thumbs.db
 
 # Per-machine downloader paths (script + output dir). See downloader.local.example.json
 downloader.local.json
+# Staged (private, external) downloader backend — copied in at build time by scripts/stage-downloader.mjs
+build/download_music.py
 
 # Claude Code
 CLAUDE.md
