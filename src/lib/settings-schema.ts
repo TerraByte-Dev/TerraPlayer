@@ -3,10 +3,12 @@
 // app: every imported value is clamped/validated and merged over a complete set of defaults.
 
 import { isKnownThemeId, DEFAULT_THEME_ID } from './theme.ts'
-import { clampPreamp, clampEqBand, clamp, EQ_PRESETS, type AudioPreset, type EqSettings } from './audio-math.ts'
+import { coerceEqSettings, eqPresetGains, clampPreamp, clampSpeed, clampFadeSec, clamp, type EqSettings } from './audio-math.ts'
 
 export const EXPORT_KIND = 'terraplayer-settings'
-export const EXPORT_VERSION = 1
+// v2: EQ shape moved from { low, mid, high } to { bands[10] } and playback gained fade + speed.
+// coerceEqSettings/normalizeSettings accept BOTH shapes, so older v1 files still import cleanly.
+export const EXPORT_VERSION = 2
 
 export type RepeatMode = 'off' | 'all' | 'one'
 
@@ -14,7 +16,7 @@ export interface SettingsPayload {
   theme: string
   display: { scanlines: boolean; reduceMotion: boolean }
   audio: { volume: number; preampDb: number; mono: boolean; eq: EqSettings }
-  playback: { shuffle: boolean; repeat: RepeatMode }
+  playback: { shuffle: boolean; repeat: RepeatMode; fadeSec: number; speed: number }
 }
 
 export interface SettingsExport extends SettingsPayload {
@@ -26,12 +28,11 @@ export interface SettingsExport extends SettingsPayload {
 export const DEFAULT_SETTINGS: SettingsPayload = {
   theme: DEFAULT_THEME_ID,
   display: { scanlines: true, reduceMotion: false },
-  audio: { volume: 0.8, preampDb: 0, mono: false, eq: { ...EQ_PRESETS.off } },
-  playback: { shuffle: false, repeat: 'off' },
+  audio: { volume: 0.8, preampDb: 0, mono: false, eq: eqPresetGains('off') },
+  playback: { shuffle: false, repeat: 'off', fadeSec: 0, speed: 1 },
 }
 
 const REPEATS: ReadonlySet<string> = new Set<RepeatMode>(['off', 'all', 'one'])
-const PRESETS: ReadonlySet<string> = new Set<AudioPreset>(['off', 'polish', 'bass', 'voice'])
 
 function bool(v: unknown, fallback: boolean): boolean {
   return typeof v === 'boolean' ? v : fallback
@@ -41,21 +42,11 @@ function obj(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
 }
 
-function coerceEq(raw: unknown): EqSettings {
-  const e = obj(raw)
-  const preset = PRESETS.has(e.preset as string) ? (e.preset as AudioPreset) : 'off'
-  return {
-    preset,
-    low: clampEqBand(Number(e.low) || 0),
-    mid: clampEqBand(Number(e.mid) || 0),
-    high: clampEqBand(Number(e.high) || 0),
-  }
-}
-
 /**
  * Build a COMPLETE, VALID SettingsPayload from arbitrary untrusted input. Unknown keys are ignored,
  * out-of-range numbers are clamped, an unknown theme id falls back to the default, and missing sections
- * inherit DEFAULT_SETTINGS. Never throws — always returns something the app can safely apply.
+ * inherit DEFAULT_SETTINGS. The EQ accepts both the current { preset, bands } shape and the legacy
+ * { preset, low, mid, high } shape (via coerceEqSettings). Never throws.
  */
 export function normalizeSettings(raw: unknown): SettingsPayload {
   const r = obj(raw)
@@ -72,11 +63,13 @@ export function normalizeSettings(raw: unknown): SettingsPayload {
       volume: Number.isFinite(Number(audio.volume)) ? clamp(Number(audio.volume), 0, 1) : DEFAULT_SETTINGS.audio.volume,
       preampDb: clampPreamp(Number(audio.preampDb) || 0),
       mono: bool(audio.mono, DEFAULT_SETTINGS.audio.mono),
-      eq: coerceEq(audio.eq),
+      eq: coerceEqSettings(audio.eq),
     },
     playback: {
       shuffle: bool(playback.shuffle, DEFAULT_SETTINGS.playback.shuffle),
       repeat: REPEATS.has(playback.repeat as string) ? (playback.repeat as RepeatMode) : 'off',
+      fadeSec: clampFadeSec(Number(playback.fadeSec) || 0),
+      speed: clampSpeed(Number(playback.speed)),
     },
   }
 }

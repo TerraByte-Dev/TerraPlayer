@@ -16,6 +16,7 @@ import Downloader from './components/Downloader'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
+import { useUiStore } from './store/ui'
 import { hub } from './lib/ipc'
 
 export default function App() {
@@ -30,6 +31,11 @@ export default function App() {
   useEffect(() => {
     load()
   }, [])
+
+  // Let PlayerBar's global transport shortcuts yield while a tool/Settings/Downloader overlay owns the keyboard.
+  useEffect(() => {
+    useUiStore.getState().setOverlayOpen(!!utilityMode || settingsOpen || downloaderOpen)
+  }, [utilityMode, settingsOpen, downloaderOpen])
 
   useEffect(() => {
     const unsub = window.hub.onMainFullscreenChange((fullscreen) => {
