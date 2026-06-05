@@ -27,7 +27,7 @@ export function gatherSettings(): SettingsExport {
     theme: getThemeId(),
     display: { scanlines: !getCrtOff(), reduceMotion: getReduceMotion() },
     audio: { volume: p.volume, preampDb: s.preampDb, mono: s.mono, eq: p.eq },
-    playback: { shuffle: p.shuffle, repeat: p.repeat },
+    playback: { shuffle: p.shuffle, repeat: p.repeat, fadeSec: s.fadeSec, speed: s.speed },
   }
 }
 
@@ -62,9 +62,11 @@ export function applyImportedSettings(raw: unknown): SettingsExport {
   setCrtOff(!n.display.scanlines)
   setReduceMotion(n.display.reduceMotion)
 
-  // Audio graph prefs.
+  // Audio graph + playback prefs.
   useSettingsStore.getState().setPreampDb(n.audio.preampDb)
   useSettingsStore.getState().setMono(n.audio.mono)
+  useSettingsStore.getState().setFadeSec(n.playback.fadeSec)
+  useSettingsStore.getState().setSpeed(n.playback.speed)
 
   // Player: volume + EQ via setState (a PlayerBar effect re-applies them to the audio element/graph).
   usePlayerStore.setState({ volume: n.audio.volume, eq: n.audio.eq })

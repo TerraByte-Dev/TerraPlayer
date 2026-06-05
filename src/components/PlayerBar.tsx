@@ -10,8 +10,10 @@ import { usePlayerStore } from '@/store/player'
 import { useLibraryStore } from '@/store/library'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { trackUrl, fmtDuration } from '@/lib/ipc'
-import { connectAudioElement, resumeContext, setEqGains, setPreampDb, setMono, startPublishing, stopPublishing } from '@/lib/audio'
+import { connectDeck, resumeContext, rampDeck, setEqBands, setPreampDb, setMono, startPublishing, stopPublishing, type Deck } from '@/lib/audio'
 import { useSettingsStore } from '@/store/settings'
+import { useUiStore } from '@/store/ui'
+import { EQ_PRESETS, EQ_PRESET_ORDER, fadeStartTime } from '@/lib/audio-math'
 import Visualizer from './Visualizer'
 import VectorGridCover from './VectorGridCover'
 import type { DisplayInfo, QueueSnapshotTrack } from '@/lib/ipc'
@@ -52,52 +54,120 @@ export default function PlayerBar() {
     repeat, cycleRepeat,
     vizFullscreen, setVizFullscreen,
     upNext, clearUpNext,
-    eq, setEqPreset, setEqBand,
+    eq, setEqPreset,
   } = usePlayerStore()
 
   const { openPanel, rightPanelOpen, panelMode, selectTrack } = useLibraryStore()
   const { openMenu } = useContextMenuStore()
 
-  const audioRef = useRef<HTMLAudioElement>(null)
+  // Two playback decks so songs can overlap during a crossfade; activeDeckRef points at the current song.
+  const deckARef = useRef<HTMLAudioElement>(null)
+  const deckBRef = useRef<HTMLAudioElement>(null)
+  const activeDeckRef = useRef<Deck>('a')
   const connectedRef = useRef(false)
   const [showVolume, setShowVolume] = useState(false)
   const [showEnhance, setShowEnhance] = useState(false)
   const [showDisplayPicker, setShowDisplayPicker] = useState(false)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [popoutOpen, setPopoutOpen] = useState(false)
+  // Crossfade + speed prefs + live refs handlers read without re-subscribing/re-binding.
+  const fadeSec = useSettingsStore((s) => s.fadeSec)
+  const speed = useSettingsStore((s) => s.speed)
+  const fadeSecRef = useRef(fadeSec); fadeSecRef.current = fadeSec
+  const speedRef = useRef(speed); speedRef.current = speed
+  const crossfadeArmedRef = useRef(false)                // end-of-track crossfade triggered for this track?
+  const retireTimerRef = useRef<number | null>(null)     // pending pause() of the outgoing deck after a crossfade
+  const preMuteVolRef = useRef(0.8)                      // volume to restore when un-muting (keyboard 'm')
   const track = currentTrack()
 
+  const deckEl = (deck: Deck) => (deck === 'a' ? deckARef.current : deckBRef.current)
+  const activeEl = () => deckEl(activeDeckRef.current)
+
+  function clearRetire() {
+    if (retireTimerRef.current !== null) {
+      window.clearTimeout(retireTimerRef.current)
+      retireTimerRef.current = null
+    }
+  }
+  // Is there a NEXT song to crossfade into? (repeat-one excluded — it just restarts the same track.)
+  function hasNextTrack(state = usePlayerStore.getState()): boolean {
+    if (state.repeat === 'one') return false
+    if (state.upNext.length > 0) return true
+    if (state.queueIndex < state.activeQueue().length - 1) return true
+    return state.repeat === 'all' && state.activeQueue().length > 1   // repeat-all wraps to a NEW track only with >1
+  }
+
   useEffect(() => {
-    const el = audioRef.current
-    if (!el || connectedRef.current) return
-    connectAudioElement(el)
+    const a = deckARef.current, b = deckBRef.current
+    if (!a || !b || connectedRef.current) return
+    connectDeck(a, 'a')
+    connectDeck(b, 'b')
+    a.volume = b.volume = usePlayerStore.getState().volume
     connectedRef.current = true
   }, [])
 
+  // Start the new current track. A crossfade (overlap) happens ONLY on an end-of-track auto-advance — the
+  // outgoing deck plays its tail and ramps down while the incoming ramps up. A MANUAL change (clicking a
+  // song, next/prev), the first play, play-after-stop, or a track change while paused all start instantly
+  // (a clean cut) — never a fade. crossfadeArmedRef is set by the near-end handler just before it advances,
+  // so it tells us which case this is.
   useEffect(() => {
-    const el = audioRef.current
-    if (!el || !track) return
-    el.src = trackUrl(track.path)
-    el.load()
+    if (!track) return
+    const sec = fadeSecRef.current
+    const autoAdvance = crossfadeArmedRef.current   // true only when the previous song ran into this one
+    crossfadeArmedRef.current = false
+    const fromDeck = activeDeckRef.current
+    const toDeck: Deck = fromDeck === 'a' ? 'b' : 'a'
+    const toEl = deckEl(toDeck)
+    const fromEl = deckEl(fromDeck)
+    if (!toEl) return
+    clearRetire()
+    toEl.src = trackUrl(track.path)
+    toEl.load()
+    toEl.playbackRate = speedRef.current      // el.load() resets the rate; re-assert it
     if (isPlaying) {
+      const blend = autoAdvance && sec > 0 && !!fromEl && !fromEl.paused   // overlap only on an end-of-track hand-off
       resumeContext()
-      el.play().catch(() => {})
+      rampDeck(toDeck, 0, 0)
+      toEl.play().catch(() => {})
+      rampDeck(toDeck, 1, blend ? sec : 0)
+      if (blend && fromEl) {
+        rampDeck(fromDeck, 0, sec)
+        retireTimerRef.current = window.setTimeout(() => { fromEl.pause(); retireTimerRef.current = null }, sec * 1000 + 60)
+      } else if (fromEl) {
+        rampDeck(fromDeck, 0, 0)
+        fromEl.pause()
+      }
+    } else {
+      rampDeck(toDeck, 1, 0)                   // staged but silent until play
+      rampDeck(fromDeck, 0, 0)
+      if (fromEl) fromEl.pause()
     }
+    activeDeckRef.current = toDeck
   }, [track?.id])
 
   useEffect(() => {
-    const el = audioRef.current
+    const el = activeEl()
     if (!el) return
     if (isPlaying) {
       resumeContext()
       el.play().catch(() => {})
+      // Settle gains in case a pause landed mid-crossfade: active song at full level, the other silenced.
+      const other: Deck = activeDeckRef.current === 'a' ? 'b' : 'a'
+      rampDeck(activeDeckRef.current, 1, 0)
+      rampDeck(other, 0, 0)
     } else {
-      el.pause()
+      // Pause whatever is sounding — the active deck and any still-retiring outgoing deck. No fade: play/pause
+      // is instant (the crossfade is strictly a song→song transition).
+      deckARef.current?.pause()
+      deckBRef.current?.pause()
+      clearRetire()
     }
   }, [isPlaying])
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume
+    if (deckARef.current) deckARef.current.volume = volume
+    if (deckBRef.current) deckBRef.current.volume = volume
   }, [volume])
 
   useEffect(() => {
@@ -148,21 +218,71 @@ export default function PlayerBar() {
     })
   }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverUrl, currentTime, duration, volume, upNext, popoutOpen])
 
+  // Apply the 10-band EQ. eq.bands is always a fresh array (store copies on every change), so this fires on
+  // every preset/band change.
   useEffect(() => {
-    setEqGains(eq.low, eq.mid, eq.high)
-  }, [eq.low, eq.mid, eq.high])
+    setEqBands(eq.bands)
+  }, [eq.bands])
 
-  // Apply persisted pre-amp + mono prefs to the Web Audio graph (initial + on change).
+  // Apply persisted pre-amp + mono + speed prefs to the graph / element (initial + on change).
   const preampDb = useSettingsStore((s) => s.preampDb)
   const mono = useSettingsStore((s) => s.mono)
   useEffect(() => { setPreampDb(preampDb) }, [preampDb])
   useEffect(() => { setMono(mono) }, [mono])
+  useEffect(() => {
+    if (deckARef.current) deckARef.current.playbackRate = speed
+    if (deckBRef.current) deckBRef.current.playbackRate = speed
+  }, [speed])
+
+  // Global keyboard transport. Ignored while typing in a field or with a modifier held, so it never fights
+  // the search box or app shortcuts. Reads live state via getState() so the handler binds once.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Yield while a tool/Settings/Downloader overlay owns the keyboard (e.g. Snake/2048 use Space + arrows).
+      if (useUiStore.getState().overlayOpen) return
+      const el = document.activeElement as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const st = usePlayerStore.getState()
+      switch (e.key) {
+        case ' ':
+        case 'Spacebar': e.preventDefault(); setPlaying(!st.isPlaying); break
+        case 'ArrowRight': e.preventDefault(); if (e.shiftKey) next(); else seekTo((st.currentTime || 0) + 5); break
+        case 'ArrowLeft': e.preventDefault(); if (e.shiftKey) prev(); else seekTo((st.currentTime || 0) - 5); break
+        case 'ArrowUp': e.preventDefault(); setVolume(Math.min(1, st.volume + 0.05)); break
+        case 'ArrowDown': e.preventDefault(); setVolume(Math.max(0, st.volume - 0.05)); break
+        case 'm':
+        case 'M': e.preventDefault(); toggleMute(); break
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [next, prev, setPlaying, setVolume])
+
+  // Cancel a pending deck-retire pause if the bar tears down (HMR / unmount) so it can't fire on a dead element.
+  useEffect(() => () => {
+    if (retireTimerRef.current !== null) window.clearTimeout(retireTimerRef.current)
+  }, [])
 
   function seekTo(t: number) {
-    const liveDuration = usePlayerStore.getState().duration || audioRef.current?.duration || duration || 0
+    const el = activeEl()
+    const liveDuration = usePlayerStore.getState().duration || el?.duration || duration || 0
     const bounded = Math.max(0, Math.min(liveDuration, t))
     setCurrentTime(bounded)
-    if (audioRef.current) audioRef.current.currentTime = bounded
+    if (el) el.currentTime = bounded
+    // Seeking back out of the crossfade window re-arms the end-of-track crossfade.
+    const cfStart = fadeStartTime(liveDuration, fadeSecRef.current)
+    if (crossfadeArmedRef.current && (cfStart === null || bounded < cfStart)) {
+      crossfadeArmedRef.current = false
+    }
+  }
+
+  // Mute/unmute toggle for the 'm' keyboard shortcut (remembers the pre-mute level).
+  function toggleMute() {
+    const v = usePlayerStore.getState().volume
+    if (v > 0) { preMuteVolRef.current = v; setVolume(0) }
+    else setVolume(preMuteVolRef.current || 0.8)
   }
 
   function handleSeekPointer(e: React.PointerEvent<HTMLDivElement>) {
@@ -172,17 +292,37 @@ export default function PlayerBar() {
     seekTo(ratio * duration)
   }
 
-  function handleEnded() {
-    if (repeat === 'one') {
-      const el = audioRef.current
+  function handleEnded(deck: Deck) {
+    if (deck !== activeDeckRef.current) return     // an outgoing deck finished its tail after a crossfade — ignore
+    const state = usePlayerStore.getState()
+    // Loop the current track for repeat-one, or single-track repeat-all (where next() wouldn't change the track).
+    if (state.repeat === 'one' || (state.repeat === 'all' && !hasNextTrack(state))) {
+      const el = activeEl()
+      crossfadeArmedRef.current = false
       setCurrentTime(0)
       if (el) { el.currentTime = 0; resumeContext(); el.play().catch(() => {}) }
-    } else {
-      const state = usePlayerStore.getState()
-      const atEndOfQueue = state.queueIndex >= state.activeQueue().length - 1
-      if (state.repeat === 'off' && state.upNext.length === 0 && atEndOfQueue) { setPlaying(false); return }
-      next()
+      return
     }
+    if (hasNextTrack(state)) { next(); return }    // reached when fadeSec=0 or the crossfade window was skipped
+    setPlaying(false)                               // end of queue, repeat off → stop
+  }
+
+  function handleTimeUpdate(deck: Deck, el: HTMLAudioElement) {
+    if (deck !== activeDeckRef.current) return     // ignore the outgoing deck's tail while it fades out
+    setCurrentTime(el.currentTime)
+    const sec = fadeSecRef.current
+    if (sec <= 0 || crossfadeArmedRef.current) return
+    const cfStart = fadeStartTime(el.duration, sec)
+    // Begin the crossfade once we reach the tail — but only on tracks meaningfully longer than the fade,
+    // and only when there's a next song to blend into (the last song just ends).
+    if (cfStart !== null && cfStart >= 1 && el.currentTime >= cfStart && hasNextTrack()) {
+      crossfadeArmedRef.current = true
+      next()    // advance now; the track-change effect crossfades while this deck plays out its tail
+    }
+  }
+
+  function handleLoadedMeta(deck: Deck, el: HTMLAudioElement) {
+    if (deck === activeDeckRef.current) setDuration(el.duration)
   }
 
   async function handleToggleFullscreen() {
@@ -254,13 +394,22 @@ export default function PlayerBar() {
       <div className="pb-scanline absolute inset-0 pointer-events-none" />
 
 
+      {/* Two decks so songs overlap during a crossfade; the active deck drives the store + UI. */}
       <audio
-        ref={audioRef}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={handleEnded}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        ref={deckARef}
+        onTimeUpdate={(e) => handleTimeUpdate('a', e.currentTarget)}
+        onLoadedMetadata={(e) => handleLoadedMeta('a', e.currentTarget)}
+        onEnded={() => handleEnded('a')}
+        onPlay={() => { if (activeDeckRef.current === 'a') setPlaying(true) }}
+        onPause={() => { if (activeDeckRef.current === 'a') setPlaying(false) }}
+      />
+      <audio
+        ref={deckBRef}
+        onTimeUpdate={(e) => handleTimeUpdate('b', e.currentTarget)}
+        onLoadedMetadata={(e) => handleLoadedMeta('b', e.currentTarget)}
+        onEnded={() => handleEnded('b')}
+        onPlay={() => { if (activeDeckRef.current === 'b') setPlaying(true) }}
+        onPause={() => { if (activeDeckRef.current === 'b') setPlaying(false) }}
       />
 
       {/* === LEFT: Cover + meta (240px) === */}
@@ -393,44 +542,37 @@ export default function PlayerBar() {
         <div className="relative">
           <button
             onClick={() => { setShowEnhance((v) => !v); setShowVolume(false); setShowDisplayPicker(false) }}
-            className={`metal-key ${eq.preset !== 'off' || eq.low || eq.mid || eq.high ? 'is-primary' : ''}`}
+            className={`metal-key ${eq.preset !== 'off' || eq.bands.some((b) => b !== 0) ? 'is-primary' : ''}`}
             style={{ width: 26, height: 26 }}
-            title="Audio enhancement"
+            title="Equalizer presets"
           >
             <SlidersHorizontal size={11} />
           </button>
           {showEnhance && (
-            <div className="absolute bottom-10 right-0 z-20 w-52 px-3 py-2.5 shadow-xl" style={POPOVER_STYLE}>
-              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>ENHANCE</p>
-              <div className="grid grid-cols-2 gap-1 mb-3">
-                {([['off', 'Flat'], ['polish', 'YT Polish'], ['bass', 'Bass Lift'], ['voice', 'Voice']] as const).map(([preset, label]) => (
-                  <button
-                    key={preset}
-                    onClick={() => setEqPreset(preset)}
-                    className="font-term text-[13px] px-2 py-1 transition-colors"
-                    style={{
-                      border: eq.preset === preset ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.15)',
-                      color: eq.preset === preset ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
-                      background: eq.preset === preset ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="absolute bottom-10 right-0 z-20 w-56 px-3 py-2.5 shadow-xl" style={POPOVER_STYLE}>
+              <p className="font-mono text-[9px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--accent2)' }}>EQUALIZER</p>
+              <div className="grid grid-cols-2 gap-1 mb-2">
+                {EQ_PRESET_ORDER.map((id) => {
+                  const active = eq.preset === id
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => setEqPreset(id)}
+                      className="font-term text-[12px] px-2 py-1 text-left transition-colors"
+                      style={{
+                        border: active ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.15)',
+                        color: active ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
+                        background: active ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
+                      }}
+                    >
+                      {EQ_PRESETS[id].label}
+                    </button>
+                  )
+                })}
               </div>
-              {(['low', 'mid', 'high'] as const).map((band) => (
-                <label key={band} className="grid grid-cols-[34px_1fr_28px] items-center gap-2 mb-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[1px]" style={{ color: 'rgb(var(--ink-rgb) / 0.50)' }}>{band}</span>
-                  <input
-                    type="range" min={-8} max={8} step={0.5} value={eq[band]}
-                    onChange={(e) => setEqBand(band, Number(e.target.value))}
-                    className="w-full"
-                  />
-                  <span className="text-right font-mono text-[9px] tabular-nums" style={{ color: 'var(--ink)' }}>
-                    {eq[band] > 0 ? '+' : ''}{eq[band]}
-                  </span>
-                </label>
-              ))}
+              <p className="font-term text-[11px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>
+                {eq.preset === 'custom' ? '● Custom curve — ' : ''}fine-tune all 10 bands in Settings → Audio.
+              </p>
             </div>
           )}
         </div>

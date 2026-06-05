@@ -1,39 +1,68 @@
 import React from 'react'
-import { usePlayerStore } from '@/store/player'
-import type { RepeatMode } from '@/store/player'
-import { Section, SettingRow, Slider, Segmented, Toggle } from './primitives'
+import { useSettingsStore } from '@/store/settings'
+import { FADE_MAX, SPEED_MIN, SPEED_MAX } from '@/lib/audio-math'
+import { Section, SettingRow, Slider } from './primitives'
 
-const REPEATS: { value: RepeatMode; label: string }[] = [
-  { value: 'off', label: 'Off' },
-  { value: 'all', label: 'All' },
-  { value: 'one', label: 'One' },
+// Transport mode + volume live on the player bar (HUD), so they're intentionally NOT duplicated here.
+// This pane is for the things the HUD doesn't expose.
+
+const SHORTCUTS: [keys: string, action: string][] = [
+  ['Space', 'Play / pause'],
+  ['← / →', 'Seek −/+ 5s'],
+  ['Shift + ← / →', 'Previous / next track'],
+  ['↑ / ↓', 'Volume up / down'],
+  ['M', 'Mute / unmute'],
 ]
 
 export default function Playback() {
-  const { volume, setVolume, shuffle, toggleShuffle, repeat } = usePlayerStore()
-
-  // The store models shuffle/repeat as actions (so the shuffled queue stays consistent). Drive them to an
-  // explicit target by toggling/cycling until they match.
-  const setShuffle = (on: boolean) => { if (shuffle !== on) toggleShuffle() }
-  const setRepeat = (mode: RepeatMode) => {
-    let guard = 0
-    while (usePlayerStore.getState().repeat !== mode && guard++ < 3) usePlayerStore.getState().cycleRepeat()
-  }
+  const { fadeSec, speed, setFadeSec, setSpeed } = useSettingsStore()
 
   return (
-    <Section
-      title="Playback"
-      description="These default modes and your volume are remembered across restarts."
-    >
-      <SettingRow label="Volume">
-        <Slider value={Math.round(volume * 100)} min={0} max={100} step={1} onChange={(v) => setVolume(v / 100)} format={(v) => `${v}%`} />
-      </SettingRow>
-      <SettingRow label="Shuffle" help={shuffle ? 'On' : 'Off'}>
-        <Toggle checked={shuffle} onChange={setShuffle} />
-      </SettingRow>
-      <SettingRow label="Repeat">
-        <Segmented value={repeat} options={REPEATS} onChange={setRepeat} />
-      </SettingRow>
-    </Section>
+    <>
+      <Section
+        title="Playback"
+        description="Applied to the audio engine live and remembered across restarts."
+      >
+        <SettingRow label="Crossfade" help="Blend each song into the next as it ends (manual skips cut instantly)">
+          <Slider
+            value={fadeSec}
+            min={0}
+            max={FADE_MAX}
+            step={0.5}
+            onChange={setFadeSec}
+            format={(v) => (v === 0 ? 'Off' : `${v}s`)}
+          />
+        </SettingRow>
+        <SettingRow label="Speed" help="Tempo only — pitch is preserved">
+          <Slider
+            value={speed}
+            min={SPEED_MIN}
+            max={SPEED_MAX}
+            step={0.05}
+            onChange={setSpeed}
+            format={(v) => `${v.toFixed(2)}×`}
+          />
+        </SettingRow>
+      </Section>
+
+      <Section
+        title="Keyboard shortcuts"
+        description="Work anywhere in the app, except while typing in a text field."
+      >
+        <div className="flex flex-col gap-2">
+          {SHORTCUTS.map(([keys, action]) => (
+            <div key={action} className="flex items-center justify-between gap-4">
+              <span className="font-term text-[13px]" style={{ color: 'var(--ink)' }}>{action}</span>
+              <kbd
+                className="font-mono text-[11px] px-2 py-0.5 flex-shrink-0"
+                style={{ color: 'var(--accent)', border: '1px solid rgb(var(--accent-rgb) / 0.3)', background: 'rgb(var(--accent-rgb) / 0.06)', borderRadius: 2 }}
+              >
+                {keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </>
   )
 }
