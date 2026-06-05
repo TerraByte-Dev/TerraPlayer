@@ -133,7 +133,11 @@ export function rampDeck(deck: Deck, target: number, seconds: number): void {
 export function setPreampDb(db: number): void {
   const context = getAudioContext()
   getEqChain()
-  preampGain!.gain.setTargetAtTime(dbToGain(db), context.currentTime, 0.02)
+  const t = context.currentTime
+  // Match rampDeck: a ramp while the context is suspended is meaningless (currentTime is frozen) — hard-set so
+  // a persisted non-zero preamp is correct from sample zero rather than gliding in at the first instant of play.
+  if (context.state === 'suspended') preampGain!.gain.setValueAtTime(dbToGain(db), t)
+  else preampGain!.gain.setTargetAtTime(dbToGain(db), t, 0.02)
 }
 
 /** Toggle a true mono downmix (L+R summed to both speakers) vs. untouched stereo. */
@@ -148,8 +152,12 @@ export function setEqBands(gains: number[]): void {
   const context = getAudioContext()
   getEqChain()
   const t = context.currentTime
+  const suspended = context.state === 'suspended'
   for (let i = 0; i < eqBands!.length; i++) {
-    eqBands![i].gain.setTargetAtTime(clampEqBand(gains[i] ?? 0), t, 0.015)
+    const g = clampEqBand(gains[i] ?? 0)
+    // See setPreampDb: hard-set on a suspended (frozen) clock, smooth otherwise.
+    if (suspended) eqBands![i].gain.setValueAtTime(g, t)
+    else eqBands![i].gain.setTargetAtTime(g, t, 0.015)
   }
 }
 

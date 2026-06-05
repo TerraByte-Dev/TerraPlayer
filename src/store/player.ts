@@ -176,6 +176,7 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   // persist write actually fire) and flips the preset to 'custom' (never mislabel a manual curve as Flat).
   setEqBand: (index, value) =>
     set((s) => {
+      if (index < 0 || index >= s.eq.bands.length) return {} // keep the 10-band invariant in the setter itself
       const bands = s.eq.bands.slice()
       bands[index] = clampEqBand(value)
       return { eq: { preset: 'custom', bands } }
