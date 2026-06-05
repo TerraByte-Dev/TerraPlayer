@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { getAnalyser } from '@/lib/audio'
+import { DEFAULT_PALETTE, lerpStops, resolvePalette, type Palette } from '@/lib/viz-palette'
+import { THEME_EVENT } from '@/lib/theme'
 import { usePlayerStore } from '@/store/player'
 
 const BAR_COUNT = 28
@@ -7,14 +9,6 @@ const SOURCE_BARS = BAR_COUNT / 2
 const GAP = 2
 const SEG_H = 3
 const SEG_GAP = 1
-
-// Palette hex → RGB for canvas
-const COLOR = {
-  lo:   '#00FF88',
-  mid:  '#FFB000',
-  hi:   '#FF3030',
-  peak: '#00E5FF',
-}
 
 function logBinRange(barIdx: number, barCount: number, binCount: number): [number, number] {
   const logMax = Math.log2(binCount)
@@ -30,6 +24,7 @@ function Visualizer({ height = 40 }: { height?: number }) {
   const isPlaying = usePlayerStore((s) => s.isPlaying)
   const isPlayingRef = useRef(isPlaying)
   const startRef = useRef<(() => void) | null>(null)
+  const paletteRef = useRef<Palette>(DEFAULT_PALETTE)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -51,6 +46,7 @@ function Visualizer({ height = 40 }: { height?: number }) {
       analyser.getByteFrequencyData(dataArray)
 
       ctx!.clearRect(0, 0, W_CSS, H_CSS)
+      const pal = paletteRef.current
 
       const totalGap = (BAR_COUNT - 1) * GAP
       const barW = (W_CSS - totalGap) / BAR_COUNT
@@ -74,13 +70,13 @@ function Visualizer({ height = 40 }: { height?: number }) {
         for (let s = 0; s < segCount; s++) {
           const sy = H_CSS - (s + 1) * (SEG_H + SEG_GAP)
           const ratio = (s + 1) / totalSegs
-          ctx!.fillStyle = ratio < 0.55 ? COLOR.lo : ratio < 0.8 ? COLOR.mid : COLOR.hi
+          ctx!.fillStyle = lerpStops(pal.barStops, ratio)
           ctx!.fillRect(x, sy, barW, SEG_H)
         }
 
         // Peak indicator (1px line 2px above bar top)
         const py = H_CSS - peakRef.current[i] * H_CSS - 2
-        ctx!.fillStyle = COLOR.peak
+        ctx!.fillStyle = `rgba(${pal.accent2Str},1)`
         ctx!.fillRect(x, py, barW, 1)
       }
 
@@ -99,6 +95,14 @@ function Visualizer({ height = 40 }: { height?: number }) {
     start()
     return () => { cancelAnimationFrame(rafRef.current); rafRef.current = 0; startRef.current = null }
   }, [height])
+
+  // Theme palette: resolve on mount + on theme change (mutate the ref; the draw loop reads it next frame).
+  useEffect(() => {
+    const recompute = () => { paletteRef.current = resolvePalette() }
+    recompute()
+    window.addEventListener(THEME_EVENT, recompute)
+    return () => window.removeEventListener(THEME_EVENT, recompute)
+  }, [])
 
   // Restart the loop when playback resumes (it self-stops after the bars decay
   // while paused). isPlaying is already subscribed for the opacity class.
