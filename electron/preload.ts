@@ -114,6 +114,19 @@ contextBridge.exposeInMainWorld('hub', {
     ipcRenderer.on('viz:control', handler)
     return () => ipcRenderer.off('viz:control', handler)
   },
+  // Theme sync (main renderer → main process → viz window) so the popout recolors with the app.
+  publishTheme: (id: string) => ipcRenderer.send('viz:theme', id),
+  onThemeChange: (cb: (id: string) => void) => {
+    const handler = (_: IpcRendererEvent, id: string) => cb(id)
+    ipcRenderer.on('viz:theme', handler)
+    return () => ipcRenderer.off('viz:theme', handler)
+  },
+  // A freshly-opened popout pings this; the main renderer answers by re-publishing the current theme.
+  onRequestTheme: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('viz:request-theme', handler)
+    return () => ipcRenderer.off('viz:request-theme', handler)
+  },
 
   // Updater
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('updater:get-version'),
