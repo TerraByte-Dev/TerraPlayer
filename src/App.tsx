@@ -16,6 +16,7 @@ import Downloader from './components/Downloader'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
+import { THEME_EVENT, getThemeId } from './lib/theme'
 import { hub } from './lib/ipc'
 
 export default function App() {
@@ -29,6 +30,16 @@ export default function App() {
 
   useEffect(() => {
     load()
+  }, [])
+
+  // Relay the app theme to the popout visualizer so the second monitor recolors with the app: publish on
+  // every theme change, prime once at mount (covers a popout already open), and answer a popout's request.
+  useEffect(() => {
+    const onTheme = (e: Event) => window.hub.publishTheme((e as CustomEvent).detail as string)
+    window.addEventListener(THEME_EVENT, onTheme)
+    const offRequest = window.hub.onRequestTheme(() => window.hub.publishTheme(getThemeId()))
+    window.hub.publishTheme(getThemeId())
+    return () => { window.removeEventListener(THEME_EVENT, onTheme); offRequest() }
   }, [])
 
   useEffect(() => {
