@@ -1,131 +1,141 @@
-# TerraPlayer
+<!-- Hero: CRT "TERRAPLAYER" phosphor wordmark — see docs/assets/README.md for the image-gen prompt. -->
+<p align="center">
+  <img src="docs/assets/terraplayer-wordmark.png" alt="TerraPlayer" width="680" />
+</p>
 
-An offline desktop music player with a y2k / phosphor-terminal aesthetic. Built with Electron, React, and TypeScript.
+<p align="center">
+  <strong>An offline music player that lives in the terminal.</strong><br/>
+  A local-first desktop player with a y2k phosphor-CRT soul — your folders, your files, no internet required.
+</p>
 
-Point it at a folder of local audio files — it scans the library, reads metadata and cover art, and gives you a fully featured player with no internet dependency.
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-00FF88.svg"></a>
+  <a href="https://github.com/TerraByte-Dev/TerraPlayer/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/TerraByte-Dev/TerraPlayer?color=00FF88&label=release"></a>
+  <img alt="100% offline" src="https://img.shields.io/badge/100%25-offline-00FF88">
+  <img alt="Electron 32 · React 18 · TypeScript" src="https://img.shields.io/badge/Electron%2032-React%2018%20%C2%B7%20TypeScript-00FF88">
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#development">Development</a> ·
+  <a href="LICENSE">License</a>
+</p>
+
+<p align="center">
+  <sub>brought to you by</sub><br/>
+  <a href="https://github.com/TerraByte-Dev"><img src="docs/assets/terrabyte-logo.png" alt="TerraByte Solutions LLC" width="84" /></a>
+</p>
 
 ---
 
-## What's new in v2
-
-- **MAINFRAME theme** — full y2k phosphor-green aesthetic: LCD fonts, scanline overlays, glowing transport keys, CRT-green progress bars
-- **MEDIA.DRIVE panel** — live sidebar stats: song count, disk space used (bar, 50 GB cap), total library length (HH:MM:SS), uptime
-- **Seek bar fix** — click-to-seek now maps to the visible progress bar, not the full player width
-- **Themed window controls** — native title bar overlay matches the phosphor palette (black bg, green symbols)
-- **VectorGrid cover art** — generative procedural cover for tracks without embedded art
-- **Popout visualizer** — pop the audio visualizer out to a second display in fullscreen
-- **Settings panel** — 3-dot menu next to MAINFRAME; check for updates from inside the app
-
----
+TerraPlayer points at folders of music you already own, indexes them into a local **SQLite** library, and plays
+them through a custom in-process stream — wrapped in a green-phosphor mainframe UI. It's built to be **genuinely
+offline**: no account, no telemetry, no open ports, and the fonts are bundled, so a fresh launch makes **zero**
+network requests. The only time it ever touches the internet is the optional, explicit music downloader — and
+only when you ask it to.
 
 ## Features
 
-- **Local library** — scans folders for `.m4a` and `.mp3`, reads embedded metadata and cover art
-- **Playlists & tags** — create playlists and custom tags, assign tracks, filter by either
-- **Metadata editor** — edit title, artist, album, year; writes back to the file via IPC
-- **Playback** — play/pause, skip, shuffle, repeat (off / all / one), seek, volume
-- **Themes** — 12 phosphor recolors (Mainframe, Matrix, Ice, Synthwave, Ultraviolet, Amber…) that recolor the whole app instantly; scanline + reduced-motion toggles ([SETTINGS.md](SETTINGS.md))
-- **Full settings panel** — Appearance, Audio, Playback, Library, Updates, About; every preference persists across restarts
-- **EQ / audio enhancement** — bass lift, voice, YT-polish presets + manual low/mid/high bands, a pre-amp, and a mono downmix — all wired to the Web Audio graph
-- **Audio visualizer** — spectrum bar visualizer, fullscreen mode, pop-out to a second display
-- **Queue panel** — Up Next queue; "Play next" context-menu on any track
-- **Tools** — a built-in tray of utilities & games: whiteboard, timer/stopwatch/world-clock, calculator, metronome, scratchpad, RNG, plus 2048 / Snake / Minesweeper / Tic-Tac-Toe ([TOOLS.md](TOOLS.md))
-- **Cover art** — embedded art shown on player bar and track list; procedural fallback
-- **Add Music** — download songs straight into your library, preferring the explicit / original master over clean or radio edits (Settings → ADD MUSIC)
-- **Settings backup** — export/import all preferences (incl. theme) as a portable JSON file
-- **Auto-updater** — check for updates from Settings; downloads and installs on restart
+- **Your library, your files** — point it at folders; a recursive scan indexes your `.mp3` / `.m4a` into SQLite. Instant search, playlists, a genre / mood / custom **tag** system, and a built-in metadata + cover-art editor (procedural cover art for files without embedded art).
+- **A real audio chain** — a **10-band graphic EQ** with a dozen presets, pre-amp, true mono downmix, **crossfade between songs**, and pitch-preserved **playback speed** — all native Web Audio, so it costs nothing per frame.
+- **A visualizer worth staring at** — a live spectrum in the transport bar plus a **fullscreen phosphor visualizer** you can pop out to a second display.
+- **100% offline & private** — no account, no telemetry, no listening sockets; fonts are vendored locally. Your data is a local SQLite database that never leaves your machine.
+- **Optional in-app downloader** — paste `Artist - Track` (or a URL) and pull new songs straight into your library, preferring the original/explicit master. Wraps `yt-dlp`, previews each match, and lets you swap the exact version before downloading. The *only* networked feature — opt-in; see [`DOWNLOADER.md`](DOWNLOADER.md).
+- **A whole toolbox** — a dock of mini-tools and games: calculator, notes, whiteboard, metronome, world clock, timer, random number — plus Snake, 2048, Minesweeper, and Tic-Tac-Toe ([`TOOLS.md`](TOOLS.md)).
+- **Themes** — a CRT phosphor-green default with 11 recolors (Matrix, Ice, Aqua, Ultraviolet, Synthwave, Vapor, Crimson, Tangerine…), all CSS-variable driven and applied **before first paint** so there's no flash, plus scanline + reduced-motion toggles ([`SETTINGS.md`](SETTINGS.md)).
+- **Keyboard-first & auto-updating** — global transport shortcuts (space · seek · prev/next · volume · mute), and a Windows installer that auto-updates from GitHub Releases.
 
-## Add Music (downloader)
+## Screenshots
 
-Open from **Settings (gear) → ADD MUSIC → Open Music Downloader**. Paste an
-`Artist - Track` list (or a YouTube URL, or a Spotify `.csv`), **preview** the
-chosen version with a colour-coded confidence flag, fix anything per row
-(swap / pin / edit / remove), then **download** with live progress — the
-library reindexes automatically so new tracks appear right away.
+> Captured live in `npm run dev`. See [`docs/assets/screenshots/README.md`](docs/assets/screenshots/README.md) for the shot list + capture settings.
 
-- **Preflight banner** checks your environment (yt-dlp, ffmpeg, Deno, ytmusicapi)
-  with a one-click **"Fix it for me"** installer, plus a real YouTube sign-in probe.
-- **YouTube sign-in** offers three probe-verified sources — in-app login, browser
-  cookies, or a `cookies.txt` import. No password is stored; nothing leaves your machine.
+<p align="center">
+  <img src="docs/assets/screenshots/visualizer.png" alt="Fullscreen phosphor visualizer — spectrum bars, radial ring, and vector grid over a black CRT field" width="100%" />
+</p>
+<p align="center">
+  <sub><b>Fullscreen visualizer</b> — a reactive phosphor spectrum you can pop out to a second display.</sub>
+</p>
 
-It's a UI over the Media project's `download_music.py` backend (run in `--json`
-mode). Full details in [`DOWNLOADER.md`](DOWNLOADER.md).
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/library.png" alt="Library view — the terminal-styled track list" /><br/>
+      <sub><b>Library</b> — your folders indexed into a searchable track list, with playlists &amp; tags.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/audio.png" alt="Audio settings — the 10-band graphic EQ + presets" /><br/>
+      <sub><b>Audio</b> — a 10-band graphic EQ, presets, pre-amp, mono, crossfade &amp; speed.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/themes.png" alt="CRT theme picker" /><br/>
+      <sub><b>Themes</b> — a CRT phosphor look with recolors, all CSS-variable driven.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/screenshots/downloader.png" alt="In-app music downloader preview" /><br/>
+      <sub><b>Downloader</b> — pull new songs into your library, preview &amp; pick the version (opt-in).</sub>
+    </td>
+  </tr>
+</table>
 
-## Themes & settings
+## Quickstart
 
-Open **Settings (gear)** for a full control surface. **Appearance** offers 12 themes that
-recolor the entire interface instantly — phosphor recolors (Mainframe green, Matrix lime,
-Amber, Tangerine, Crimson), cool tones (Ice, Aqua, Slate), and neon duotones (Synthwave,
-Vapor, Ultraviolet, Gold) — plus scanline and reduced-motion toggles. **Audio** surfaces a
-3-band EQ with presets, a pre-amp, and a mono downmix, all wired live to the Web Audio
-graph. **Playback** remembers your volume and shuffle/repeat modes; **Library** manages
-your scanned folders and shows live stats; **About** carries your whole setup between
-machines via export/import.
+**Prerequisites**
 
-The UI chrome is fully CSS-variable driven, so a theme is just a bundle of token overrides.
-Architecture + how to add a theme: [SETTINGS.md](SETTINGS.md).
+- [Node.js](https://nodejs.org/) 20.19+ or 22.12+
+- _(optional, for the in-app downloader only)_ [Python 3](https://www.python.org/) with [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) + `ffmpeg` — the app walks you through this on first open.
 
-## Tech stack
-
-| Layer | Tech |
-|---|---|
-| Shell | Electron 32 |
-| Renderer | React 18 + TypeScript |
-| Build | electron-vite + Vite 5 |
-| Styling | Tailwind CSS |
-| Database | better-sqlite3 (SQLite, native file-backed, WAL mode) |
-| Audio | Web Audio API |
-| Metadata | music-metadata |
-| Updates | electron-updater + GitHub Releases |
-
-## Getting started
+**Run**
 
 ```bash
-cd hub
+git clone https://github.com/TerraByte-Dev/TerraPlayer.git
+cd TerraPlayer
 npm install
-npm run dev
+npm run dev          # launches the desktop app with hot reload
 ```
 
-On first launch click **Add folder** and point the app at a directory of music files. Hit **> reindex** any time you add new tracks.
+On first run, add a folder (drag one in, or use the picker) to index your music, then hit play. Everything else —
+EQ, crossfade, themes, the visualizer — lives behind the gear (**Settings**) and the player bar.
 
-### Build installer (Windows)
+> Prefer a prebuilt installer? Grab the latest from [**Releases**](https://github.com/TerraByte-Dev/TerraPlayer/releases/latest) — installed apps auto-update.
+
+## Development
 
 ```bash
-npm run build
-# outputs: hub/dist/TerraPlayer Setup 2.0.0.exe
+npm run dev          # dev app with HMR (electron-vite)
+npm test             # unit tests (node --test): audio math, queue, settings, tools
+npm run typecheck    # tsc --noEmit for the renderer + the electron main/preload
+npm run compile      # production build (electron-vite, no installer)
+npm run release      # build + publish a GitHub Release (needs GH_TOKEN)
 ```
 
-## Project structure
+## Architecture
 
-```
-hub/
-  electron/       # Main process + IPC handlers
-    ipc/          # library, metadata, stream, db
-  src/
-    components/   # React UI components
-    store/        # Zustand state (player, library)
-    lib/          # IPC bridge, audio engine, utilities
-  build/          # App icon (icon.ico)
-```
+Electron **main** ↔ **preload** (`contextBridge` → `window.hub`) ↔ a React **renderer**. The library is a local
+SQLite database (`better-sqlite3`, stored under `%APPDATA%/TerraPlayer`), and local files are served to the
+`<audio>` element through a custom in-process **`hub://`** stream protocol that honors range requests, so
+seeking is instant. A few orientation points:
 
-## Releasing
+- `electron/main.ts` — IPC handlers + the electron-updater wiring.
+- `electron/ipc/*` — `library` (scan → SQLite), `stream` (the `hub://` protocol), `metadata`, `downloader` + `ytauth`.
+- `src/store/*` — zustand stores (player, library, settings, …).
+- `src/lib/*` — the Web Audio graph (`audio.ts`), pure audio math (`audio-math.ts`), the CSS-variable theme system (`theme.ts`).
+- `src/components/*` — the UI; `settings/*` is modular and `tools/*` is the utilities dock.
 
-Releases are published to GitHub Releases and picked up automatically by the in-app updater.
+Deeper notes: [`AUDIO.md`](AUDIO.md) (the audio chain), [`DOWNLOADER.md`](DOWNLOADER.md) (the in-app downloader),
+[`SETTINGS.md`](SETTINGS.md) (themes + settings), [`TOOLS.md`](TOOLS.md) (the utilities dock), and
+[`PERFORMANCE.md`](PERFORMANCE.md) (the perf model). Audio files are never modified except when you explicitly
+save metadata.
 
-```powershell
-# One-time: set your GitHub token
-$env:GH_TOKEN = (gh auth token)
+## License
 
-# Bump version in package.json, then:
-npm run release
-```
+[MIT](LICENSE) © TerraByte Solutions LLC.
 
-This builds the installer, generates `latest.yml`, creates a tagged GitHub release, and uploads both files. Users running the previous version will see the update available in Settings → Updates.
-
-## Notes
-
-- Library database lives in `%APPDATA%/TerraPlayer` — persists across updates
-- Upgrading from a previous install automatically migrates data from the old `tb-media-player` folder
-- Audio files are never modified except when explicitly saving metadata changes
-- M4A (AAC) and MP3 are both fully supported
-- Window controls on Windows use Electron's native title bar overlay (black bg, phosphor green symbols)
+<p align="center">
+  <a href="https://github.com/TerraByte-Dev"><img src="docs/assets/terrabyte-logo.png" alt="TerraByte Solutions LLC" width="64" /></a><br/>
+  <sub>An open-source project by <strong>TerraByte Solutions LLC</strong></sub>
+</p>
