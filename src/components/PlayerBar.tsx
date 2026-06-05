@@ -106,25 +106,27 @@ export default function PlayerBar() {
     connectedRef.current = true
   }, [])
 
-  // Crossfade to the new current track: the outgoing deck keeps playing its tail while its gain ramps down,
-  // and the incoming deck starts silent and ramps up — so the songs overlap. Only blends when a song is
-  // actually playing, so the first play / play-after-stop / a track change while paused is an instant,
-  // fade-free start (the crossfade is a *between-songs* transition, never a play/pause fade).
+  // Start the new current track. A crossfade (overlap) happens ONLY on an end-of-track auto-advance — the
+  // outgoing deck plays its tail and ramps down while the incoming ramps up. A MANUAL change (clicking a
+  // song, next/prev), the first play, play-after-stop, or a track change while paused all start instantly
+  // (a clean cut) — never a fade. crossfadeArmedRef is set by the near-end handler just before it advances,
+  // so it tells us which case this is.
   useEffect(() => {
     if (!track) return
     const sec = fadeSecRef.current
+    const autoAdvance = crossfadeArmedRef.current   // true only when the previous song ran into this one
+    crossfadeArmedRef.current = false
     const fromDeck = activeDeckRef.current
     const toDeck: Deck = fromDeck === 'a' ? 'b' : 'a'
     const toEl = deckEl(toDeck)
     const fromEl = deckEl(fromDeck)
     if (!toEl) return
-    crossfadeArmedRef.current = false
     clearRetire()
     toEl.src = trackUrl(track.path)
     toEl.load()
     toEl.playbackRate = speedRef.current      // el.load() resets the rate; re-assert it
     if (isPlaying) {
-      const blend = sec > 0 && !!fromEl && !fromEl.paused   // a song is sounding → overlap it with the new one
+      const blend = autoAdvance && sec > 0 && !!fromEl && !fromEl.paused   // overlap only on an end-of-track hand-off
       resumeContext()
       rampDeck(toDeck, 0, 0)
       toEl.play().catch(() => {})
