@@ -1,6 +1,6 @@
 {
   "name": "terra-player",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Offline desktop media player",
   "author": "TerraByte Solutions LLC",
   "main": "./out/main/main.js",

@@ -1,3 +1,7 @@
+/* Locally-vendored fonts (see scripts/fetch-fonts.mjs) — bundled, never fetched,
+   so the app makes zero network requests on launch. Must precede @tailwind. */
+@import './fonts.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
