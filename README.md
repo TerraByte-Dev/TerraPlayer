@@ -43,7 +43,8 @@ music downloader, and only when you ask it to.
 
 1. **[Download the latest release](https://github.com/TerraByte-Dev/TerraPlayer/releases/latest)** and run the
    installer.
-2. Click **Add folder**, point it at your music, and hit play.
+2. **Drag a folder of music onto the window** — that's the whole setup. It scans on the spot and adopts it as
+   your library. (Prefer a button? **Add folder** does the same.) Hit play.
 
 That's it — no account, no command line, nothing to configure. The app installs and opens straight into your
 library, and you can **check for updates** from GitHub Releases in one click (Settings → Updates). Everything
@@ -56,12 +57,12 @@ else (EQ, crossfade, themes, the fullscreen visualizer) lives behind the gear ic
 
 ## Features
 
-- **Your library, your files** — point it at folders; a recursive scan indexes your `.mp3` / `.m4a` into SQLite. Instant search, playlists, a genre / mood / custom **tag** system, and a built-in metadata + cover-art editor (procedural cover art for files without embedded art).
+- **Your library, your files** — **drag a folder onto the window** (or use the picker) and a recursive scan indexes your `.mp3` / `.m4a` into SQLite. Instant search, playlists, a genre / mood / custom **tag** system, and a built-in metadata + cover-art editor (procedural cover art for files without embedded art).
 - **A real audio chain** — a **10-band graphic EQ** with a dozen presets, pre-amp, true mono downmix, **crossfade between songs**, and pitch-preserved **playback speed** — all native Web Audio ([`AUDIO.md`](AUDIO.md)).
 - **A visualizer worth a second monitor** — a live spectrum in the player bar plus a **fullscreen visualizer** (a rotating frequency ring, spectrum bars, particles, shockwaves) that **recolors with your theme** and pops out to a second display ([`VISUALIZER.md`](VISUALIZER.md)).
 - **100% offline & private** — no account, no telemetry, no listening sockets; fonts are vendored locally. Your data is a local SQLite database that never leaves your machine.
 - **Optional in-app downloader** — paste `Artist - Track` (or a URL) and pull new songs straight into your library, preferring the original/explicit master. Wraps `yt-dlp`, previews each match, and lets you swap the exact version before downloading. The *only* networked feature — opt-in; see [`DOWNLOADER.md`](DOWNLOADER.md).
-- **A whole toolbox** — a dock of mini-tools and games: calculator, notes, whiteboard, metronome, world clock, timer, random number — plus Snake, 2048, Minesweeper, and Tic-Tac-Toe ([`TOOLS.md`](TOOLS.md)).
+- **It's hiding more than music** — poke around and you'll turn up a little dock of tools… and a few games to lose an afternoon to. Half the fun is finding them. _(Spoilers in [`TOOLS.md`](TOOLS.md), if you really must.)_
 - **12 themes, whole-app** — a CRT phosphor-green default plus 11 recolors (Matrix, Ice, Aqua, Ultraviolet, Synthwave, Vapor, Crimson, Tangerine…) that recolor the entire UI **and the visualizer**, applied **before first paint** so there's no flash; plus scanline + reduced-motion toggles ([`SETTINGS.md`](SETTINGS.md)).
 - **Keyboard-first, with a built-in updater** — global transport shortcuts (space · seek · prev/next · volume · mute), and a one-click in-app updater that pulls new versions from GitHub Releases on demand.
 
