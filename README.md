@@ -105,8 +105,8 @@ else (EQ, crossfade, themes, the fullscreen visualizer) lives behind the gear ic
       <sub><b>Downloader</b> — pull new songs into your library, preview &amp; pick the version (opt-in, needs Python).</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/assets/screenshots/library-ice.png" alt="The library in the Slate theme, showing the whole UI recolored" /><br/>
-      <sub><b>The whole UI recolors</b> — here the library in the <i>Ice</i> theme.</sub>
+      <img src="docs/assets/screenshots/library-slate.png" alt="The library in the Slate theme, showing the whole UI recolored" /><br/>
+      <sub><b>The whole UI recolors</b> — here the library in the <i>Slate</i> theme.</sub>
     </td>
   </tr>
 </table>
