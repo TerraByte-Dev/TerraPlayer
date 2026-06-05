@@ -45,9 +45,9 @@ music downloader, and only when you ask it to.
    installer.
 2. Click **Add folder**, point it at your music, and hit play.
 
-That's it — no account, no command line, nothing to configure. The app installs, opens straight into your
-library, and **updates itself** from then on. Everything else (EQ, crossfade, themes, the fullscreen
-visualizer) lives behind the gear icon and the player bar.
+That's it — no account, no command line, nothing to configure. The app installs and opens straight into your
+library, and you can **check for updates** from GitHub Releases in one click (Settings → Updates). Everything
+else (EQ, crossfade, themes, the fullscreen visualizer) lives behind the gear icon and the player bar.
 
 > **🎵 Want to download music from inside the app?** That single optional feature needs **[Python 3](https://www.python.org/)**
 > on your system (plus `yt-dlp` and `ffmpeg`). You don't have to set this up by hand — TerraPlayer checks what's
@@ -63,7 +63,7 @@ visualizer) lives behind the gear icon and the player bar.
 - **Optional in-app downloader** — paste `Artist - Track` (or a URL) and pull new songs straight into your library, preferring the original/explicit master. Wraps `yt-dlp`, previews each match, and lets you swap the exact version before downloading. The *only* networked feature — opt-in; see [`DOWNLOADER.md`](DOWNLOADER.md).
 - **A whole toolbox** — a dock of mini-tools and games: calculator, notes, whiteboard, metronome, world clock, timer, random number — plus Snake, 2048, Minesweeper, and Tic-Tac-Toe ([`TOOLS.md`](TOOLS.md)).
 - **12 themes, whole-app** — a CRT phosphor-green default plus 11 recolors (Matrix, Ice, Aqua, Ultraviolet, Synthwave, Vapor, Crimson, Tangerine…) that recolor the entire UI **and the visualizer**, applied **before first paint** so there's no flash; plus scanline + reduced-motion toggles ([`SETTINGS.md`](SETTINGS.md)).
-- **Keyboard-first & auto-updating** — global transport shortcuts (space · seek · prev/next · volume · mute), and a Windows installer that auto-updates from GitHub Releases.
+- **Keyboard-first, with a built-in updater** — global transport shortcuts (space · seek · prev/next · volume · mute), and a one-click in-app updater that pulls new versions from GitHub Releases on demand.
 
 ## Screenshots
 
