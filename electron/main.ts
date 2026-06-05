@@ -239,6 +239,12 @@ app.whenReady().then(() => {
       vizWindow.loadFile(join(__dirname, '../renderer/visualizer.html'))
     }
 
+    // Once the popout has loaded (and registered its theme listener), ask the main renderer to push the
+    // current theme so it recolors immediately even when opened mid-session.
+    vizWindow.webContents.once('did-finish-load', () => {
+      mainWindow?.webContents.send('viz:request-theme')
+    })
+
     vizWindow.on('closed', () => {
       vizWindow = null
       mainWindow?.webContents.send('viz:popout-closed')
@@ -314,6 +320,12 @@ app.whenReady().then(() => {
 
   ipcMain.on('viz:control', (_event, command: unknown) => {
     mainWindow?.webContents.send('viz:control', command)
+  })
+
+  // Relay the app theme from the main renderer → viz window so the popout recolors live. One-directional;
+  // never echoed back to mainWindow (unlike viz:control), so there's no feedback loop.
+  ipcMain.on('viz:theme', (_event, id: string) => {
+    if (vizWindow && !vizWindow.isDestroyed()) vizWindow.webContents.send('viz:theme', id)
   })
 
   createWindow()
