@@ -5,15 +5,19 @@ TerraPlayer's audio runs entirely on the Web Audio graph, so every control here 
 by the EQ, fades, or speed. The graph is built once in `src/lib/audio.ts`:
 
 ```
-<audio> → MediaElementSource → preamp → EQ b0…b9 → mono → fade → analyser → destination
+deck A (<audio>→source→gainA) ┐
+                              ├→ preamp → EQ b0…b9 → mono → analyser → destination
+deck B (<audio>→source→gainB) ┘
 ```
 
+- **Two decks** — each an `<audio>` element with its own source + gain, summed at
+  the preamp. Crossfading is just ramping one deck's gain up while the other's
+  goes down, so two songs can overlap. The EQ/preamp/mono/visualizer are shared.
 - `preamp` — overall level trim (dB), ahead of the EQ.
 - `b0…b9` — the **10-band graphic EQ** (peaking biquads at ISO octave centers).
 - `mono` — optional true L+R downmix.
-- `fade` — the gain node the fade-in/out automates.
 - `analyser` — the single edge into `destination`; it also feeds the visualizer,
-  so the spectrum fades together with the audible output.
+  so the spectrum reflects whatever you hear (including both tracks mid-crossfade).
 
 Pure, unit-tested math (band tables, presets, migration, clamps, fade timing)
 lives in `src/lib/audio-math.ts`.
@@ -41,24 +45,27 @@ mapped to the 10-band shape — low → 31/62/125, mid → 250/500/1k/2k, high �
 so old exported settings files (`EXPORT_VERSION` bumped 1 → 2) still import cleanly.
 The migration is idempotent.
 
-## Fade in / out (Settings → Playback)
+## Crossfade (Settings → Playback)
 
-A 0–6 s fade (`fadeSec`, 0 = off) applied by ramping the fade gain:
+A 0–6 s **crossfade between songs** (`fadeSec`, 0 = off) — a real overlap, not a
+fade-to-silence. It is strictly a *song→song* transition: play/pause is always
+instant and never fades.
 
-- **Play / resume** → fade in. **Pause / stop** → fade out, then the `<audio>`
-  element is paused only *after* the ramp (so audio stays audible through the fade).
-- **Track change** → the new track starts from silence and fades in.
-- **End of track** → fades out over the last `fadeSec` seconds (armed via
-  `onTimeUpdate`), then advances.
+- **Track change** (manual skip or natural end) → the incoming song starts on the
+  idle deck and ramps **up** while the outgoing song keeps playing its tail and
+  ramps **down** — the two overlap for `fadeSec` seconds. The outgoing deck is
+  paused once its ramp completes.
+- **Natural end** → near the tail (`duration − fadeSec`), `next()` is called early
+  (armed once via `onTimeUpdate`) so the overlap happens *before* the song ends —
+  no gap. Only when there's a next song; the last song just ends.
+- **First play / play-after-stop / track change while paused** → instant, no
+  fade-in (there's no outgoing song to blend from).
+- `fadeSec = 0` → instant cut between songs.
 
-`rampFade` cancels any in-flight ramp, pins the live value, and uses a
-definite-endpoint linear ramp, so rapid play/pause can't click or strand the gain
-at 0. Re-arm logic covers seeking back out of the end-fade window and repeat-one.
-With `fadeSec = 0` the behavior is identical to before (instant, immediate pause).
-
-> Note: this is fade-to-silence-then-in (single audio element), not an overlapping
-> crossfade. True gapless crossfade would need a second audio element + source node
-> — a deliberate non-goal here to keep the core playback path simple and stable.
+`rampDeck` cancels any in-flight ramp, pins the live value, and uses a
+definite-endpoint linear ramp, so rapid skips can't click or strand a gain. Very
+short tracks (≤ `fadeSec`) don't crossfade (they'd skip immediately); repeat-one
+restarts cleanly without a crossfade.
 
 ## Playback speed (Settings → Playback)
 

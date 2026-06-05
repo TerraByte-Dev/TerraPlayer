@@ -23,7 +23,7 @@ export default function Playback() {
         title="Playback"
         description="Applied to the audio engine live and remembered across restarts."
       >
-        <SettingRow label="Fade in / out" help="Ease in/out on play, pause, and track changes">
+        <SettingRow label="Crossfade" help="Blend the end of each song into the start of the next">
           <Slider
             value={fadeSec}
             min={0}
