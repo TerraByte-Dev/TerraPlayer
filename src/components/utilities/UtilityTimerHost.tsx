@@ -11,26 +11,31 @@ export default function UtilityTimerHost({ onOpenTimer }: { onOpenTimer: () => v
   const tracks = useLibraryStore((s) => s.tracks)
   const setPlaying = usePlayerStore((s) => s.setPlaying)
   const volume = usePlayerStore((s) => s.volume)
-  const {
-    running,
-    ringing,
-    alarmAction,
-    alarmPath,
-    setNow,
-    markExpired,
-    dismiss,
-    remaining,
-  } = useUtilityTimerStore()
+  // Narrow selectors: this host is mounted for the whole app lifetime, so a
+  // selector-less subscription would re-render it ~4×/sec forever (setNow fires
+  // every 250ms). remainingSecs is the ceil-seconds value, so it re-renders the
+  // floating label only when the displayed second changes (~1×/sec, and only
+  // while running — remaining() is constant when paused).
+  const running = useUtilityTimerStore((s) => s.running)
+  const ringing = useUtilityTimerStore((s) => s.ringing)
+  const alarmAction = useUtilityTimerStore((s) => s.alarmAction)
+  const alarmPath = useUtilityTimerStore((s) => s.alarmPath)
+  const setNow = useUtilityTimerStore((s) => s.setNow)
+  const dismiss = useUtilityTimerStore((s) => s.dismiss)
+  const remainingSecs = useUtilityTimerStore((s) => s.remaining())
 
+  // Only tick while a timer is actually running. When idle there's nothing to
+  // count down, so this drops a permanent 4×/sec background wakeup + re-render
+  // to zero. markExpired flips running→false, which tears the interval down.
   useEffect(() => {
+    if (!running) return
     const id = window.setInterval(() => {
-      const now = Date.now()
-      useUtilityTimerStore.getState().setNow(now)
       const state = useUtilityTimerStore.getState()
+      state.setNow(Date.now())
       if (state.running && state.remaining() <= 0) state.markExpired()
     }, 250)
     return () => window.clearInterval(id)
-  }, [])
+  }, [running])
 
   useEffect(() => {
     setNow(Date.now())
@@ -71,7 +76,7 @@ export default function UtilityTimerHost({ onOpenTimer }: { onOpenTimer: () => v
 
   if (!running && !ringing) return <audio ref={audioRef} />
 
-  const label = ringing ? 'TIMER DONE' : formatTimer(remaining())
+  const label = ringing ? 'TIMER DONE' : formatTimer(remainingSecs)
 
   return (
     <>

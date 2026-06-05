@@ -1,7 +1,7 @@
 import { protocol } from 'electron'
 import { createReadStream, statSync } from 'fs'
-import { extname } from 'path'
 import { Readable } from 'stream'
+import { contentTypeFor, parseRange, cacheControlFor } from './stream-core'
 
 export function registerHubProtocol(): void {
   protocol.registerSchemesAsPrivileged([
@@ -18,43 +18,8 @@ export function registerHubProtocol(): void {
   ])
 }
 
-function contentTypeFor(filePath: string): string {
-  const ext = extname(filePath).toLowerCase()
-  if (ext === '.m4a' || ext === '.mp4') return 'audio/mp4'
-  if (ext === '.mp3') return 'audio/mpeg'
-  if (ext === '.wav') return 'audio/wav'
-  if (ext === '.flac') return 'audio/flac'
-  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg'
-  if (ext === '.png') return 'image/png'
-  if (ext === '.gif') return 'image/gif'
-  if (ext === '.webp') return 'image/webp'
-  return 'application/octet-stream'
-}
-
-function parseRange(range: string | null, size: number): { start: number; end: number } | null {
-  if (!range) return null
-
-  const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
-  if (!match) return null
-
-  const [, rawStart, rawEnd] = match
-  if (!rawStart && !rawEnd) return null
-
-  if (!rawStart) {
-    const suffixLength = Number(rawEnd)
-    if (!Number.isFinite(suffixLength) || suffixLength <= 0) return null
-    const start = Math.max(size - suffixLength, 0)
-    return { start, end: size - 1 }
-  }
-
-  const start = Number(rawStart)
-  const end = rawEnd ? Number(rawEnd) : size - 1
-
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) return null
-  if (start >= size) return null
-
-  return { start, end: Math.min(end, size - 1) }
-}
+// contentTypeFor / parseRange / cacheControlFor live in stream-core.ts (pure +
+// unit-tested). This module wires them into protocol.handle.
 
 function streamToWeb(stream: Readable): ReadableStream<Uint8Array> {
   return Readable.toWeb(stream) as ReadableStream<Uint8Array>
@@ -75,6 +40,10 @@ export function handleHubProtocol(): void {
 
       const size = stat.size
       const contentType = contentTypeFor(filePath)
+      // Immutable caching for content-addressed cover images so a virtualized
+      // scroll doesn't re-statSync/re-stream every cover; null (no header) for
+      // audio so range/seek behavior is unchanged.
+      const cacheControl = cacheControlFor(contentType)
       const range = parseRange(request.headers.get('range'), size)
 
       if (request.headers.has('range') && !range) {
@@ -92,25 +61,23 @@ export function handleHubProtocol(): void {
         const contentLength = end - start + 1
         const stream = createReadStream(filePath, { start, end })
 
-        return new Response(streamToWeb(stream), {
-          status: 206,
-          headers: {
-            'Accept-Ranges': 'bytes',
-            'Content-Type': contentType,
-            'Content-Length': String(contentLength),
-            'Content-Range': `bytes ${start}-${end}/${size}`,
-          },
-        })
-      }
-
-      return new Response(streamToWeb(createReadStream(filePath)), {
-        status: 200,
-        headers: {
+        const headers: Record<string, string> = {
           'Accept-Ranges': 'bytes',
           'Content-Type': contentType,
-          'Content-Length': String(size),
-        },
-      })
+          'Content-Length': String(contentLength),
+          'Content-Range': `bytes ${start}-${end}/${size}`,
+        }
+        if (cacheControl) headers['Cache-Control'] = cacheControl
+        return new Response(streamToWeb(stream), { status: 206, headers })
+      }
+
+      const headers: Record<string, string> = {
+        'Accept-Ranges': 'bytes',
+        'Content-Type': contentType,
+        'Content-Length': String(size),
+      }
+      if (cacheControl) headers['Cache-Control'] = cacheControl
+      return new Response(streamToWeb(createReadStream(filePath)), { status: 200, headers })
     } catch {
       return new Response('Not found', { status: 404 })
     }
