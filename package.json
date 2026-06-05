@@ -73,7 +73,7 @@
         "to": "tag_writer.py"
       },
       {
-        "from": "C:/Users/tatew/Desktop/Media/Tools/MusicDownloader/download_music.py",
+        "from": "${env.USERPROFILE}/Desktop/Media/Tools/MusicDownloader/download_music.py",
         "to": "download_music.py"
       }
     ]

@@ -18,7 +18,7 @@ import { app } from 'electron'
 import type { WebContents } from 'electron'
 import { join } from 'path'
 import { existsSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { tmpdir, homedir } from 'os'
 import {
   LineBuffer,
   parseNdjson,
@@ -49,8 +49,8 @@ export interface PreflightCheck {
 // Canonical home of the backend + library (single source of truth in the Media
 // project). Used as the final fallback so the integration works out-of-the-box
 // on the dev machine; override per-machine via env vars or downloader.local.json.
-const CANONICAL_SCRIPT = 'C:\\Users\\tatew\\Desktop\\Media\\Tools\\MusicDownloader\\download_music.py'
-const CANONICAL_OUT = 'C:\\Users\\tatew\\Desktop\\Media\\Music'
+const CANONICAL_SCRIPT = join(homedir(), 'Desktop', 'Media', 'Tools', 'MusicDownloader', 'download_music.py')
+const CANONICAL_OUT = join(homedir(), 'Desktop', 'Media', 'Music')
 
 interface LocalConfig {
   script?: string
