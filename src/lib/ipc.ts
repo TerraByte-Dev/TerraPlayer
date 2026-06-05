@@ -229,6 +229,9 @@ declare global {
       onPlaybackState(cb: (state: PlaybackSnapshot) => void): () => void
       sendVisualizerCommand(command: VisualizerCommand): void
       onVisualizerCommand(cb: (command: VisualizerCommand) => void): () => void
+      publishTheme(id: string): void
+      onThemeChange(cb: (id: string) => void): () => void
+      onRequestTheme(cb: () => void): () => void
       // Updater
       getAppVersion(): Promise<string>
       checkForUpdate(): Promise<{ available: boolean; devMode?: boolean }>
