@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type AlarmAction = 'song' | 'stop'
 
-const STORAGE_KEY = 'hamilton.utilityTimer.v1'
+const STORAGE_KEY = 'tplay.utilityTimer.v1'
 const DEFAULT_SECONDS = 5 * 60
 
 interface PersistedTimerState {
