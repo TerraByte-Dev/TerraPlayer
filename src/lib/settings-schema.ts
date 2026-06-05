@@ -69,7 +69,7 @@ export function normalizeSettings(raw: unknown): SettingsPayload {
       shuffle: bool(playback.shuffle, DEFAULT_SETTINGS.playback.shuffle),
       repeat: REPEATS.has(playback.repeat as string) ? (playback.repeat as RepeatMode) : 'off',
       fadeSec: clampFadeSec(Number(playback.fadeSec) || 0),
-      speed: clampSpeed(Number(playback.speed)),
+      speed: clampSpeed(Number(playback.speed) || 1),
     },
   }
 }
