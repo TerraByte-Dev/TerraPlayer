@@ -10,7 +10,7 @@ import { usePlayerStore } from '@/store/player'
 import { useLibraryStore } from '@/store/library'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { trackUrl, fmtDuration } from '@/lib/ipc'
-import { connectAudioElement, resumeContext, rampFade, setEqBands, setPreampDb, setMono, startPublishing, stopPublishing } from '@/lib/audio'
+import { connectDeck, resumeContext, rampDeck, setEqBands, setPreampDb, setMono, startPublishing, stopPublishing, type Deck } from '@/lib/audio'
 import { useSettingsStore } from '@/store/settings'
 import { useUiStore } from '@/store/ui'
 import { EQ_PRESETS, EQ_PRESET_ORDER, fadeStartTime } from '@/lib/audio-math'
@@ -60,74 +60,112 @@ export default function PlayerBar() {
   const { openPanel, rightPanelOpen, panelMode, selectTrack } = useLibraryStore()
   const { openMenu } = useContextMenuStore()
 
-  const audioRef = useRef<HTMLAudioElement>(null)
+  // Two playback decks so songs can overlap during a crossfade; activeDeckRef points at the current song.
+  const deckARef = useRef<HTMLAudioElement>(null)
+  const deckBRef = useRef<HTMLAudioElement>(null)
+  const activeDeckRef = useRef<Deck>('a')
   const connectedRef = useRef(false)
   const [showVolume, setShowVolume] = useState(false)
   const [showEnhance, setShowEnhance] = useState(false)
   const [showDisplayPicker, setShowDisplayPicker] = useState(false)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
   const [popoutOpen, setPopoutOpen] = useState(false)
-  // Fade + speed prefs (settings store) + live refs handlers read without re-subscribing/re-binding.
+  // Crossfade + speed prefs + live refs handlers read without re-subscribing/re-binding.
   const fadeSec = useSettingsStore((s) => s.fadeSec)
   const speed = useSettingsStore((s) => s.speed)
   const fadeSecRef = useRef(fadeSec); fadeSecRef.current = fadeSec
   const speedRef = useRef(speed); speedRef.current = speed
-  const fadeArmedRef = useRef(false)                     // end-of-track fade-out fired for the current track?
-  const fadePauseTimerRef = useRef<number | null>(null)  // pending el.pause() scheduled after a fade-out
+  const crossfadeArmedRef = useRef(false)                // end-of-track crossfade triggered for this track?
+  const retireTimerRef = useRef<number | null>(null)     // pending pause() of the outgoing deck after a crossfade
   const preMuteVolRef = useRef(0.8)                      // volume to restore when un-muting (keyboard 'm')
   const track = currentTrack()
 
-  // Cancel a pending deferred pause so a quick resume isn't paused mid-fade-in.
-  function clearFadePause() {
-    if (fadePauseTimerRef.current !== null) {
-      window.clearTimeout(fadePauseTimerRef.current)
-      fadePauseTimerRef.current = null
+  const deckEl = (deck: Deck) => (deck === 'a' ? deckARef.current : deckBRef.current)
+  const activeEl = () => deckEl(activeDeckRef.current)
+
+  function clearRetire() {
+    if (retireTimerRef.current !== null) {
+      window.clearTimeout(retireTimerRef.current)
+      retireTimerRef.current = null
     }
+  }
+  // Is there a NEXT song to crossfade into? (repeat-one excluded — it just restarts the same track.)
+  function hasNextTrack(state = usePlayerStore.getState()): boolean {
+    if (state.repeat === 'one') return false
+    if (state.upNext.length > 0) return true
+    if (state.queueIndex < state.activeQueue().length - 1) return true
+    return state.repeat === 'all' && state.activeQueue().length > 1   // repeat-all wraps to a NEW track only with >1
   }
 
   useEffect(() => {
-    const el = audioRef.current
-    if (!el || connectedRef.current) return
-    connectAudioElement(el)
+    const a = deckARef.current, b = deckBRef.current
+    if (!a || !b || connectedRef.current) return
+    connectDeck(a, 'a')
+    connectDeck(b, 'b')
+    a.volume = b.volume = usePlayerStore.getState().volume
     connectedRef.current = true
   }, [])
 
+  // Crossfade to the new current track: the outgoing deck keeps playing its tail while its gain ramps down,
+  // and the incoming deck starts silent and ramps up — so the songs overlap. Only blends when a song is
+  // actually playing, so the first play / play-after-stop / a track change while paused is an instant,
+  // fade-free start (the crossfade is a *between-songs* transition, never a play/pause fade).
   useEffect(() => {
-    const el = audioRef.current
-    if (!el || !track) return
-    clearFadePause()
-    fadeArmedRef.current = false              // new track — re-arm the end-of-track fade
-    el.src = trackUrl(track.path)
-    el.load()
-    el.playbackRate = speedRef.current        // el.load() resets the rate; re-assert it
+    if (!track) return
+    const sec = fadeSecRef.current
+    const fromDeck = activeDeckRef.current
+    const toDeck: Deck = fromDeck === 'a' ? 'b' : 'a'
+    const toEl = deckEl(toDeck)
+    const fromEl = deckEl(fromDeck)
+    if (!toEl) return
+    crossfadeArmedRef.current = false
+    clearRetire()
+    toEl.src = trackUrl(track.path)
+    toEl.load()
+    toEl.playbackRate = speedRef.current      // el.load() resets the rate; re-assert it
     if (isPlaying) {
+      const blend = sec > 0 && !!fromEl && !fromEl.paused   // a song is sounding → overlap it with the new one
       resumeContext()
-      rampFade(0, 0)                           // start from silence...
-      el.play().catch(() => {})
-      rampFade(1, fadeSecRef.current)          // ...then fade in (instant when fadeSec is 0)
+      rampDeck(toDeck, 0, 0)
+      toEl.play().catch(() => {})
+      rampDeck(toDeck, 1, blend ? sec : 0)
+      if (blend && fromEl) {
+        rampDeck(fromDeck, 0, sec)
+        retireTimerRef.current = window.setTimeout(() => { fromEl.pause(); retireTimerRef.current = null }, sec * 1000 + 60)
+      } else if (fromEl) {
+        rampDeck(fromDeck, 0, 0)
+        fromEl.pause()
+      }
+    } else {
+      rampDeck(toDeck, 1, 0)                   // staged but silent until play
+      rampDeck(fromDeck, 0, 0)
+      if (fromEl) fromEl.pause()
     }
+    activeDeckRef.current = toDeck
   }, [track?.id])
 
   useEffect(() => {
-    const el = audioRef.current
+    const el = activeEl()
     if (!el) return
-    const sec = fadeSecRef.current
     if (isPlaying) {
-      clearFadePause()
-      fadeArmedRef.current = false             // resuming re-arms the end fade (a resume inside the window must re-fade)
       resumeContext()
       el.play().catch(() => {})
-      rampFade(1, sec)                         // fade in (instant when 0)
+      // Settle gains in case a pause landed mid-crossfade: active song at full level, the other silenced.
+      const other: Deck = activeDeckRef.current === 'a' ? 'b' : 'a'
+      rampDeck(activeDeckRef.current, 1, 0)
+      rampDeck(other, 0, 0)
     } else {
-      rampFade(0, sec)                         // fade out, then pause once silent so audio stays through the fade
-      clearFadePause()
-      if (sec <= 0.005) el.pause()
-      else fadePauseTimerRef.current = window.setTimeout(() => { el.pause(); fadePauseTimerRef.current = null }, sec * 1000 + 30)
+      // Pause whatever is sounding — the active deck and any still-retiring outgoing deck. No fade: play/pause
+      // is instant (the crossfade is strictly a song→song transition).
+      deckARef.current?.pause()
+      deckBRef.current?.pause()
+      clearRetire()
     }
   }, [isPlaying])
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume
+    if (deckARef.current) deckARef.current.volume = volume
+    if (deckBRef.current) deckBRef.current.volume = volume
   }, [volume])
 
   useEffect(() => {
@@ -189,7 +227,10 @@ export default function PlayerBar() {
   const mono = useSettingsStore((s) => s.mono)
   useEffect(() => { setPreampDb(preampDb) }, [preampDb])
   useEffect(() => { setMono(mono) }, [mono])
-  useEffect(() => { if (audioRef.current) audioRef.current.playbackRate = speed }, [speed])
+  useEffect(() => {
+    if (deckARef.current) deckARef.current.playbackRate = speed
+    if (deckBRef.current) deckBRef.current.playbackRate = speed
+  }, [speed])
 
   // Global keyboard transport. Ignored while typing in a field or with a modifier held, so it never fights
   // the search box or app shortcuts. Reads live state via getState() so the handler binds once.
@@ -217,21 +258,21 @@ export default function PlayerBar() {
     return () => window.removeEventListener('keydown', onKey)
   }, [next, prev, setPlaying, setVolume])
 
-  // Cancel any pending deferred pause if the bar tears down (HMR / unmount) so it can't fire on a dead element.
+  // Cancel a pending deck-retire pause if the bar tears down (HMR / unmount) so it can't fire on a dead element.
   useEffect(() => () => {
-    if (fadePauseTimerRef.current !== null) window.clearTimeout(fadePauseTimerRef.current)
+    if (retireTimerRef.current !== null) window.clearTimeout(retireTimerRef.current)
   }, [])
 
   function seekTo(t: number) {
-    const liveDuration = usePlayerStore.getState().duration || audioRef.current?.duration || duration || 0
+    const el = activeEl()
+    const liveDuration = usePlayerStore.getState().duration || el?.duration || duration || 0
     const bounded = Math.max(0, Math.min(liveDuration, t))
     setCurrentTime(bounded)
-    if (audioRef.current) audioRef.current.currentTime = bounded
-    // Seeking back out of the end-of-track fade window re-arms it and restores volume (we may have faded down).
-    const fadeStart = fadeStartTime(liveDuration, fadeSecRef.current)
-    if (fadeArmedRef.current && (fadeStart === null || bounded < fadeStart)) {
-      fadeArmedRef.current = false
-      if (usePlayerStore.getState().isPlaying) rampFade(1, 0.08)
+    if (el) el.currentTime = bounded
+    // Seeking back out of the crossfade window re-arms the end-of-track crossfade.
+    const cfStart = fadeStartTime(liveDuration, fadeSecRef.current)
+    if (crossfadeArmedRef.current && (cfStart === null || bounded < cfStart)) {
+      crossfadeArmedRef.current = false
     }
   }
 
@@ -249,18 +290,37 @@ export default function PlayerBar() {
     seekTo(ratio * duration)
   }
 
-  function handleEnded() {
-    if (repeat === 'one') {
-      const el = audioRef.current
+  function handleEnded(deck: Deck) {
+    if (deck !== activeDeckRef.current) return     // an outgoing deck finished its tail after a crossfade — ignore
+    const state = usePlayerStore.getState()
+    // Loop the current track for repeat-one, or single-track repeat-all (where next() wouldn't change the track).
+    if (state.repeat === 'one' || (state.repeat === 'all' && !hasNextTrack(state))) {
+      const el = activeEl()
+      crossfadeArmedRef.current = false
       setCurrentTime(0)
-      fadeArmedRef.current = false            // replaying same track — re-arm + restore from the end fade
-      if (el) { el.currentTime = 0; resumeContext(); el.play().catch(() => {}); rampFade(1, fadeSecRef.current) }
-    } else {
-      const state = usePlayerStore.getState()
-      const atEndOfQueue = state.queueIndex >= state.activeQueue().length - 1
-      if (state.repeat === 'off' && state.upNext.length === 0 && atEndOfQueue) { fadeArmedRef.current = false; setPlaying(false); return }
-      next()
+      if (el) { el.currentTime = 0; resumeContext(); el.play().catch(() => {}) }
+      return
     }
+    if (hasNextTrack(state)) { next(); return }    // reached when fadeSec=0 or the crossfade window was skipped
+    setPlaying(false)                               // end of queue, repeat off → stop
+  }
+
+  function handleTimeUpdate(deck: Deck, el: HTMLAudioElement) {
+    if (deck !== activeDeckRef.current) return     // ignore the outgoing deck's tail while it fades out
+    setCurrentTime(el.currentTime)
+    const sec = fadeSecRef.current
+    if (sec <= 0 || crossfadeArmedRef.current) return
+    const cfStart = fadeStartTime(el.duration, sec)
+    // Begin the crossfade once we reach the tail — but only on tracks meaningfully longer than the fade,
+    // and only when there's a next song to blend into (the last song just ends).
+    if (cfStart !== null && cfStart >= 1 && el.currentTime >= cfStart && hasNextTrack()) {
+      crossfadeArmedRef.current = true
+      next()    // advance now; the track-change effect crossfades while this deck plays out its tail
+    }
+  }
+
+  function handleLoadedMeta(deck: Deck, el: HTMLAudioElement) {
+    if (deck === activeDeckRef.current) setDuration(el.duration)
   }
 
   async function handleToggleFullscreen() {
@@ -332,23 +392,22 @@ export default function PlayerBar() {
       <div className="pb-scanline absolute inset-0 pointer-events-none" />
 
 
+      {/* Two decks so songs overlap during a crossfade; the active deck drives the store + UI. */}
       <audio
-        ref={audioRef}
-        onTimeUpdate={(e) => {
-          const el = e.currentTarget
-          setCurrentTime(el.currentTime)
-          // Arm the end-of-track fade-out once we cross into the fade window.
-          const fadeStart = fadeStartTime(el.duration, fadeSecRef.current)
-          if (fadeStart !== null && !fadeArmedRef.current && el.currentTime >= fadeStart) {
-            fadeArmedRef.current = true
-            // Fade over whatever is actually left (a late arm, e.g. after seeking forward, shouldn't get cut off).
-            rampFade(0, Math.min(fadeSecRef.current, Math.max(0, el.duration - el.currentTime)))
-          }
-        }}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onEnded={handleEnded}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        ref={deckARef}
+        onTimeUpdate={(e) => handleTimeUpdate('a', e.currentTarget)}
+        onLoadedMetadata={(e) => handleLoadedMeta('a', e.currentTarget)}
+        onEnded={() => handleEnded('a')}
+        onPlay={() => { if (activeDeckRef.current === 'a') setPlaying(true) }}
+        onPause={() => { if (activeDeckRef.current === 'a') setPlaying(false) }}
+      />
+      <audio
+        ref={deckBRef}
+        onTimeUpdate={(e) => handleTimeUpdate('b', e.currentTarget)}
+        onLoadedMetadata={(e) => handleLoadedMeta('b', e.currentTarget)}
+        onEnded={() => handleEnded('b')}
+        onPlay={() => { if (activeDeckRef.current === 'b') setPlaying(true) }}
+        onPause={() => { if (activeDeckRef.current === 'b') setPlaying(false) }}
       />
 
       {/* === LEFT: Cover + meta (240px) === */}
