@@ -23,7 +23,7 @@ export default function Playback() {
         title="Playback"
         description="Applied to the audio engine live and remembered across restarts."
       >
-        <SettingRow label="Crossfade" help="Blend the end of each song into the start of the next">
+        <SettingRow label="Crossfade" help="Blend each song into the next as it ends (manual skips cut instantly)">
           <Slider
             value={fadeSec}
             min={0}

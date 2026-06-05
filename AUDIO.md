@@ -51,16 +51,16 @@ A 0–6 s **crossfade between songs** (`fadeSec`, 0 = off) — a real overlap, n
 fade-to-silence. It is strictly a *song→song* transition: play/pause is always
 instant and never fades.
 
-- **Track change** (manual skip or natural end) → the incoming song starts on the
-  idle deck and ramps **up** while the outgoing song keeps playing its tail and
-  ramps **down** — the two overlap for `fadeSec` seconds. The outgoing deck is
-  paused once its ramp completes.
-- **Natural end** → near the tail (`duration − fadeSec`), `next()` is called early
-  (armed once via `onTimeUpdate`) so the overlap happens *before* the song ends —
-  no gap. Only when there's a next song; the last song just ends.
-- **First play / play-after-stop / track change while paused** → instant, no
-  fade-in (there's no outgoing song to blend from).
-- `fadeSec = 0` → instant cut between songs.
+- **Natural end only** → near the tail (`duration − fadeSec`) `next()` is called
+  early (armed once via `onTimeUpdate`), so the incoming song starts on the idle
+  deck and ramps **up** while the outgoing plays its tail and ramps **down** — the
+  two overlap for `fadeSec` seconds with no gap. The outgoing deck is paused once
+  its ramp completes. Only fires when there's a next song; the last song just ends.
+- **Manual changes are instant cuts** — clicking a song, next/prev, the first play,
+  play-after-stop, or a track change while paused all start the new song
+  immediately with no fade. The overlap is reserved for the automatic hand-off
+  (tracked by `crossfadeArmedRef`, set just before the near-end auto-advance).
+- `fadeSec = 0` → instant cut everywhere.
 
 `rampDeck` cancels any in-flight ramp, pins the live value, and uses a
 definite-endpoint linear ramp, so rapid skips can't click or strand a gain. Very
