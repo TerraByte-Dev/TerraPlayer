@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>An offline music player that lives in the terminal.</strong><br/>
+  <strong>An offline music player like no other.</strong><br/>
   A local-first desktop player with a y2k phosphor-CRT soul — your folders, your files, no internet required.
 </p>
 
