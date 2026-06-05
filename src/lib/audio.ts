@@ -1,4 +1,4 @@
-import { dbToGain } from './audio-math'
+import { dbToGain, clampEqBand, EQ_FREQUENCIES, EQ_Q } from './audio-math'
 import { createFrameThrottle } from './perf'
 
 // The popout visualizer reads frames on its own rAF and smooths them (analyser
@@ -6,14 +6,20 @@ import { createFrameThrottle } from './perf'
 // identical while halving the cross-process structured-clone IPC traffic.
 const PUBLISH_FPS = 30
 
+export type Deck = 'a' | 'b'
+
 let ctx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
-let sourceNode: MediaElementAudioSourceNode | null = null
 let preampGain: GainNode | null = null
-let lowFilter: BiquadFilterNode | null = null
-let midFilter: BiquadFilterNode | null = null
-let highFilter: BiquadFilterNode | null = null
+let eqBands: BiquadFilterNode[] | null = null
 let monoGain: GainNode | null = null
+// Two playback "decks" so songs can overlap during a crossfade. Each <audio> element gets its own source +
+// gain; both gains sum into the shared preamp → EQ → mono → analyser → destination chain. Crossfading is
+// just ramping one deck's gain up while the other's goes down — the EQ/preamp/mono/visualizer are shared.
+let deckSourceA: MediaElementAudioSourceNode | null = null
+let deckSourceB: MediaElementAudioSourceNode | null = null
+let deckGainA: GainNode | null = null
+let deckGainB: GainNode | null = null
 let publishRaf: number | null = null
 
 export function getAudioContext(): AudioContext {
@@ -31,57 +37,107 @@ export function getAnalyser(): AnalyserNode {
   return analyser
 }
 
-// Builds (once) the processing graph and returns its entry node. Signal path:
-//   source → preamp(gain) → low → mid → high → mono(downmix) → analyser → destination
-function getEqChain(): { input: GainNode } {
+// Builds (once) the shared processing chain. Signal path (deck gains feed the preamp):
+//   deckA ┐
+//         ├→ preamp → b0(31Hz)…b9(16kHz) → mono(downmix) → analyser → destination
+//   deckB ┘
+// analyser is the single edge into destination (set in getAnalyser); it sees the summed decks, so the
+// visualizer reflects whatever you hear — including both tracks mid-crossfade.
+function getEqChain(): GainNode {
   const context = getAudioContext()
-  if (!preampGain || !lowFilter || !midFilter || !highFilter || !monoGain) {
+  if (!preampGain || !eqBands || !monoGain) {
     preampGain = context.createGain()
     preampGain.gain.value = 1 // 0 dB
 
-    lowFilter = context.createBiquadFilter()
-    lowFilter.type = 'lowshelf'
-    lowFilter.frequency.value = 120
-    lowFilter.gain.value = 0
+    // 10 peaking biquads at ISO octave centers — a flat-by-default graphic EQ. All native, so the EQ costs
+    // nothing per frame on the JS side regardless of how many bands are nudged.
+    eqBands = EQ_FREQUENCIES.map((freq) => {
+      const f = context.createBiquadFilter()
+      f.type = 'peaking'
+      f.frequency.value = freq
+      f.Q.value = EQ_Q
+      f.gain.value = 0
+      return f
+    })
 
-    midFilter = context.createBiquadFilter()
-    midFilter.type = 'peaking'
-    midFilter.frequency.value = 1200
-    midFilter.Q.value = 0.9
-    midFilter.gain.value = 0
-
-    highFilter = context.createBiquadFilter()
-    highFilter.type = 'highshelf'
-    highFilter.frequency.value = 7200
-    highFilter.gain.value = 0
-
-    // Mono node: when channelCount=1 + 'explicit', it sums L+R to a single channel (true mono downmix);
-    // the destination then upmixes it back to both speakers. 'max'/2 leaves stereo untouched.
+    // Mono node: channelCount=1 + 'explicit' down-mixes stereo to mono (≈0.5·(L+R), per Web Audio); the
+    // destination upmixes it back to both speakers. 'max' leaves stereo untouched.
     monoGain = context.createGain()
     monoGain.gain.value = 1
     monoGain.channelCountMode = 'max'
 
-    preampGain.connect(lowFilter)
-    lowFilter.connect(midFilter)
-    midFilter.connect(highFilter)
-    highFilter.connect(monoGain)
+    preampGain.connect(eqBands[0])
+    for (let i = 0; i < eqBands.length - 1; i++) eqBands[i].connect(eqBands[i + 1])
+    eqBands[eqBands.length - 1].connect(monoGain)
     monoGain.connect(getAnalyser())
   }
-  return { input: preampGain }
+  return preampGain
 }
 
-export function connectAudioElement(el: HTMLAudioElement): void {
+// Lazily create the two deck gains and wire them into the shared chain. Deck A starts audible, B silent.
+function ensureDecks(): void {
   const context = getAudioContext()
-  if (sourceNode && sourceNode.mediaElement === el) return
-  sourceNode = context.createMediaElementSource(el)
-  sourceNode.connect(getEqChain().input)
+  const input = getEqChain()
+  if (!deckGainA) {
+    deckGainA = context.createGain()
+    deckGainA.gain.value = 1
+    deckGainA.connect(input)
+  }
+  if (!deckGainB) {
+    deckGainB = context.createGain()
+    deckGainB.gain.value = 0
+    deckGainB.connect(input)
+  }
+}
+
+function deckGainNode(deck: Deck): GainNode {
+  ensureDecks()
+  return deck === 'a' ? deckGainA! : deckGainB!
+}
+
+/** Route an <audio> element through the given deck (once per element). Pitch is preserved on rate change. */
+export function connectDeck(el: HTMLAudioElement, deck: Deck): void {
+  const context = getAudioContext()
+  ensureDecks()
+  ;(el as HTMLMediaElement & { preservesPitch?: boolean }).preservesPitch = true
+  if (deck === 'a') {
+    if (deckSourceA && deckSourceA.mediaElement === el) return
+    if (deckSourceA) deckSourceA.disconnect() // stale element from an HMR remount — drop the orphan node
+    deckSourceA = context.createMediaElementSource(el)
+    deckSourceA.connect(deckGainA!)
+  } else {
+    if (deckSourceB && deckSourceB.mediaElement === el) return
+    if (deckSourceB) deckSourceB.disconnect()
+    deckSourceB = context.createMediaElementSource(el)
+    deckSourceB.connect(deckGainB!)
+  }
+}
+
+/**
+ * Ramp a deck's gain to `target` (0–1) over `seconds`. Click-free and robust to rapid transitions: cancels
+ * any in-flight ramp, pins the LIVE value, then schedules a definite-endpoint linear ramp (NOT
+ * setTargetAtTime, whose asymptote never reaches 0). seconds≈0 hard-sets. This is the crossfade primitive.
+ */
+export function rampDeck(deck: Deck, target: number, seconds: number): void {
+  const context = getAudioContext()
+  const g = deckGainNode(deck).gain
+  const t = context.currentTime
+  g.cancelScheduledValues(t)
+  g.setValueAtTime(g.value, t)
+  // A ramp while the context is suspended is meaningless (currentTime is frozen) — hard-set instead.
+  if (seconds <= 0.005 || context.state === 'suspended') g.setValueAtTime(target, t)
+  else g.linearRampToValueAtTime(target, t + seconds)
 }
 
 /** Set the pre-amp level in dB (clamped + converted in audio-math). Smoothed to avoid zipper noise. */
 export function setPreampDb(db: number): void {
   const context = getAudioContext()
   getEqChain()
-  preampGain!.gain.setTargetAtTime(dbToGain(db), context.currentTime, 0.02)
+  const t = context.currentTime
+  // Match rampDeck: a ramp while the context is suspended is meaningless (currentTime is frozen) — hard-set so
+  // a persisted non-zero preamp is correct from sample zero rather than gliding in at the first instant of play.
+  if (context.state === 'suspended') preampGain!.gain.setValueAtTime(dbToGain(db), t)
+  else preampGain!.gain.setTargetAtTime(dbToGain(db), t, 0.02)
 }
 
 /** Toggle a true mono downmix (L+R summed to both speakers) vs. untouched stereo. */
@@ -91,13 +147,18 @@ export function setMono(mono: boolean): void {
   monoGain!.channelCountMode = mono ? 'explicit' : 'max'
 }
 
-export function setEqGains(low: number, mid: number, high: number): void {
+/** Apply the 10 band gains (dB) to the graphic EQ. Smoothed (setTargetAtTime) so dragging is click-free. */
+export function setEqBands(gains: number[]): void {
   const context = getAudioContext()
   getEqChain()
   const t = context.currentTime
-  lowFilter!.gain.setTargetAtTime(low, t, 0.015)
-  midFilter!.gain.setTargetAtTime(mid, t, 0.015)
-  highFilter!.gain.setTargetAtTime(high, t, 0.015)
+  const suspended = context.state === 'suspended'
+  for (let i = 0; i < eqBands!.length; i++) {
+    const g = clampEqBand(gains[i] ?? 0)
+    // See setPreampDb: hard-set on a suspended (frozen) clock, smooth otherwise.
+    if (suspended) eqBands![i].gain.setValueAtTime(g, t)
+    else eqBands![i].gain.setTargetAtTime(g, t, 0.015)
+  }
 }
 
 export function resumeContext(): void {
