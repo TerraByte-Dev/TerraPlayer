@@ -9,14 +9,17 @@ import {
   listTags,
   createTag,
   deleteTag,
+  renameTag,
   getTrackTags,
   setTrackTags,
   getTracksForTag,
   listPlaylists,
   createPlaylist,
   deletePlaylist,
+  renamePlaylist,
   getTracksForPlaylist,
   addTrackToPlaylist,
+  getPlaylistIdsForTrack,
   removeTrackFromPlaylist,
   listLibraryFolders,
   addLibraryFolder,
@@ -173,6 +176,7 @@ app.whenReady().then(() => {
   ipcMain.handle('tag:list', () => listTags())
   ipcMain.handle('tag:create', (_, name: string, kind: string) => createTag(name, kind))
   ipcMain.handle('tag:delete', (_, tagId: number) => deleteTag(tagId))
+  ipcMain.handle('tag:rename', (_, tagId: number, name: string) => renameTag(tagId, name))
   ipcMain.handle('tag:getForTrack', (_, trackId: number) => getTrackTags(trackId))
   ipcMain.handle('tag:setForTrack', (_, trackId: number, tagIds: number[]) =>
     setTrackTags(trackId, tagIds)
@@ -183,10 +187,14 @@ app.whenReady().then(() => {
   ipcMain.handle('playlist:list', () => listPlaylists())
   ipcMain.handle('playlist:create', (_, name: string) => createPlaylist(name))
   ipcMain.handle('playlist:delete', (_, playlistId: number) => deletePlaylist(playlistId))
+  ipcMain.handle('playlist:rename', (_, playlistId: number, name: string) =>
+    renamePlaylist(playlistId, name)
+  )
   ipcMain.handle('playlist:getTracks', (_, playlistId: number) => getTracksForPlaylist(playlistId))
   ipcMain.handle('playlist:addTrack', (_, playlistId: number, trackId: number) =>
     addTrackToPlaylist(playlistId, trackId)
   )
+  ipcMain.handle('playlist:idsForTrack', (_, trackId: number) => getPlaylistIdsForTrack(trackId))
   ipcMain.handle('playlist:removeTrack', (_, playlistId: number, trackId: number) =>
     removeTrackFromPlaylist(playlistId, trackId)
   )
