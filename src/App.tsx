@@ -5,6 +5,7 @@ import TrackList from './components/TrackList'
 import PlayerBar from './components/PlayerBar'
 import MetadataEditor from './components/MetadataEditor'
 import TagPanel from './components/TagPanel'
+import AddToPlaylist from './components/AddToPlaylist'
 import FullscreenVisualizer from './components/FullscreenVisualizer'
 import TitleBar from './components/TitleBar'
 import ContextMenu from './components/ContextMenu'
@@ -157,6 +158,8 @@ export default function App() {
             <MetadataEditor />
             <div className="mx-4" style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.08)' }} />
             <TagPanel />
+            <div className="mx-4" style={{ borderTop: '1px solid rgb(var(--accent-rgb) / 0.08)' }} />
+            <AddToPlaylist />
           </aside>
         )}
 

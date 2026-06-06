@@ -70,6 +70,16 @@ function normalizeName(name: string): string {
 function ensurePlaylist(db: Db, name: string): number {
   const clean = normalizeName(name)
   if (!clean) throw new Error('Playlist name is required')
+  // Reuse a case-insensitive match so "rock" and "Rock" resolve to ONE playlist,
+  // matching renamePlaylist's uniqueness contract. A bare INSERT OR IGNORE on the
+  // BINARY-collated UNIQUE(name) would instead spawn a case-variant duplicate that
+  // rename then refuses to merge.
+  const existing = dbGet<{ id: number }>(
+    db,
+    'SELECT id FROM playlists WHERE lower(name) = lower(?)',
+    [clean]
+  )
+  if (existing) return existing.id
   dbRun(db, 'INSERT OR IGNORE INTO playlists (name, created_at) VALUES (?, ?)', [
     clean,
     Math.floor(Date.now() / 1000),
@@ -357,6 +367,30 @@ export function deletePlaylist(playlistId: number): void {
   dbRun(db, 'DELETE FROM playlists WHERE id = ?', [playlistId])
 }
 
+export function renamePlaylist(playlistId: number, name: string): PlaylistSummary {
+  const db = getDb()
+  const clean = normalizeName(name)
+  if (!clean) throw new Error('Playlist name is required')
+  // Case-insensitive collision check (excluding self) — friendlier than the
+  // case-sensitive UNIQUE(name) constraint, which is the final backstop.
+  const clash = dbGet<{ id: number }>(
+    db,
+    'SELECT id FROM playlists WHERE lower(name) = lower(?) AND id <> ?',
+    [clean, playlistId]
+  )
+  if (clash) throw new Error('A playlist with that name already exists')
+  dbRun(db, 'UPDATE playlists SET name = ? WHERE id = ?', [clean, playlistId])
+  return dbGet<PlaylistSummary>(
+    db,
+    `SELECT p.id, p.name, COUNT(pt.track_id) AS count
+     FROM playlists p
+     LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+     WHERE p.id = ?
+     GROUP BY p.id, p.name`,
+    [playlistId]
+  )!
+}
+
 export function getTracksForPlaylist(playlistId: number): TrackRow[] {
   const db = getDb()
   const rows = dbAll(
@@ -380,6 +414,15 @@ export function addTrackToPlaylist(playlistId: number, trackId: number): void {
   )
 }
 
+export function getPlaylistIdsForTrack(trackId: number): number[] {
+  const db = getDb()
+  return dbAll<{ playlist_id: number }>(
+    db,
+    'SELECT playlist_id FROM playlist_tracks WHERE track_id = ?',
+    [trackId]
+  ).map((r) => r.playlist_id)
+}
+
 export function removeTrackFromPlaylist(playlistId: number, trackId: number): void {
   const db = getDb()
   dbRun(db, 'DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?', [playlistId, trackId])
@@ -387,13 +430,34 @@ export function removeTrackFromPlaylist(playlistId: number, trackId: number): vo
 
 export function createTag(name: string, kind: string): TagRow {
   const db = getDb()
-  dbRun(db, 'INSERT OR IGNORE INTO tags (name, kind) VALUES (?, ?)', [name, kind])
-  return dbGet<TagRow>(db, 'SELECT * FROM tags WHERE name = ?', [name])!
+  const clean = normalizeName(name)
+  if (!clean) throw new Error('Tag name is required')
+  // Reuse a case-insensitive match so "rock"/"Rock" collapse to one tag, matching
+  // renameTag's contract (same reasoning as ensurePlaylist).
+  const existing = dbGet<TagRow>(db, 'SELECT * FROM tags WHERE lower(name) = lower(?)', [clean])
+  if (existing) return existing
+  dbRun(db, 'INSERT OR IGNORE INTO tags (name, kind) VALUES (?, ?)', [clean, kind])
+  return dbGet<TagRow>(db, 'SELECT * FROM tags WHERE name = ?', [clean])!
 }
 
 export function deleteTag(tagId: number): void {
   const db = getDb()
   dbRun(db, 'DELETE FROM tags WHERE id = ?', [tagId])
+}
+
+export function renameTag(tagId: number, name: string): TagRow {
+  const db = getDb()
+  const clean = normalizeName(name)
+  if (!clean) throw new Error('Tag name is required')
+  // Case-insensitive collision check (excluding self); UNIQUE(name) is the backstop.
+  const clash = dbGet<{ id: number }>(
+    db,
+    'SELECT id FROM tags WHERE lower(name) = lower(?) AND id <> ?',
+    [clean, tagId]
+  )
+  if (clash) throw new Error('A tag with that name already exists')
+  dbRun(db, 'UPDATE tags SET name = ? WHERE id = ?', [clean, tagId])
+  return dbGet<TagRow>(db, 'SELECT * FROM tags WHERE id = ?', [tagId])!
 }
 
 export function getTrackTags(trackId: number): TagRow[] {

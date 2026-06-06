@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('hub', {
   listTags: () => ipcRenderer.invoke('tag:list'),
   createTag: (name: string, kind: string) => ipcRenderer.invoke('tag:create', name, kind),
   deleteTag: (tagId: number) => ipcRenderer.invoke('tag:delete', tagId),
+  renameTag: (tagId: number, name: string) => ipcRenderer.invoke('tag:rename', tagId, name),
   getTrackTags: (trackId: number) => ipcRenderer.invoke('tag:getForTrack', trackId),
   setTrackTags: (trackId: number, tagIds: number[]) =>
     ipcRenderer.invoke('tag:setForTrack', trackId, tagIds),
@@ -23,9 +24,13 @@ contextBridge.exposeInMainWorld('hub', {
   listPlaylists: () => ipcRenderer.invoke('playlist:list'),
   createPlaylist: (name: string) => ipcRenderer.invoke('playlist:create', name),
   deletePlaylist: (playlistId: number) => ipcRenderer.invoke('playlist:delete', playlistId),
+  renamePlaylist: (playlistId: number, name: string) =>
+    ipcRenderer.invoke('playlist:rename', playlistId, name),
   getTracksForPlaylist: (playlistId: number) => ipcRenderer.invoke('playlist:getTracks', playlistId),
   addTrackToPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:addTrack', playlistId, trackId),
+  getPlaylistIdsForTrack: (trackId: number) =>
+    ipcRenderer.invoke('playlist:idsForTrack', trackId),
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:removeTrack', playlistId, trackId),
 

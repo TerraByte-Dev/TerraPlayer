@@ -181,14 +181,17 @@ declare global {
       listTags(): Promise<Tag[]>
       createTag(name: string, kind: TagKind): Promise<Tag>
       deleteTag(tagId: number): Promise<void>
+      renameTag(tagId: number, name: string): Promise<Tag>
       getTrackTags(trackId: number): Promise<Tag[]>
       setTrackTags(trackId: number, tagIds: number[]): Promise<void>
       getTracksForTag(tagId: number): Promise<Track[]>
       listPlaylists(): Promise<PlaylistSummary[]>
       createPlaylist(name: string): Promise<PlaylistSummary>
       deletePlaylist(playlistId: number): Promise<void>
+      renamePlaylist(playlistId: number, name: string): Promise<PlaylistSummary>
       getTracksForPlaylist(playlistId: number): Promise<Track[]>
       addTrackToPlaylist(playlistId: number, trackId: number): Promise<void>
+      getPlaylistIdsForTrack(trackId: number): Promise<number[]>
       removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void>
       // App utilities
       uninstallApp(): Promise<{ ok: boolean; reason?: string }>
@@ -260,15 +263,19 @@ export const hub = {
   listTags: () => window.hub.listTags(),
   createTag: (name: string, kind: TagKind) => window.hub.createTag(name, kind),
   deleteTag: (tagId: number) => window.hub.deleteTag(tagId),
+  renameTag: (tagId: number, name: string) => window.hub.renameTag(tagId, name),
   getTrackTags: (trackId: number) => window.hub.getTrackTags(trackId),
   setTrackTags: (trackId: number, tagIds: number[]) => window.hub.setTrackTags(trackId, tagIds),
   getTracksForTag: (tagId: number) => window.hub.getTracksForTag(tagId),
   listPlaylists: () => window.hub.listPlaylists(),
   createPlaylist: (name: string) => window.hub.createPlaylist(name),
   deletePlaylist: (playlistId: number) => window.hub.deletePlaylist(playlistId),
+  renamePlaylist: (playlistId: number, name: string) =>
+    window.hub.renamePlaylist(playlistId, name),
   getTracksForPlaylist: (playlistId: number) => window.hub.getTracksForPlaylist(playlistId),
   addTrackToPlaylist: (playlistId: number, trackId: number) =>
     window.hub.addTrackToPlaylist(playlistId, trackId),
+  getPlaylistIdsForTrack: (trackId: number) => window.hub.getPlaylistIdsForTrack(trackId),
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     window.hub.removeTrackFromPlaylist(playlistId, trackId),
   saveImage: (dataUrl: string, defaultName: string) =>
