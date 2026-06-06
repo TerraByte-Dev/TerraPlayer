@@ -25,6 +25,8 @@ interface LibraryState {
   refreshTrack: (path: string) => Promise<void>
   loadPlaylists: () => Promise<void>
   loadTags: () => Promise<void>
+  renamePlaylist: (id: number, name: string) => Promise<void>
+  renameTag: (id: number, name: string) => Promise<void>
   addFolder: () => Promise<void>
   addFolderByPath: (path: string) => Promise<void>
   removeFolder: (path: string) => Promise<void>
@@ -91,6 +93,27 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   loadPlaylists: async () => {
     const playlists = await hub.listPlaylists()
     set({ playlists })
+  },
+
+  // Rename throws (rejects) on an empty/duplicate name — the DB guards too — so
+  // callers can surface the message inline. On success we refresh the sidebar
+  // list and patch the active view so its header retitles to the new name.
+  renamePlaylist: async (id, name) => {
+    const updated = await hub.renamePlaylist(id, name)
+    await get().loadPlaylists()
+    const { sidebarView } = get()
+    if (sidebarView.kind === 'playlist' && sidebarView.playlistId === id) {
+      set({ sidebarView: { ...sidebarView, name: updated.name } })
+    }
+  },
+
+  renameTag: async (id, name) => {
+    const updated = await hub.renameTag(id, name)
+    await get().loadTags()
+    const { sidebarView } = get()
+    if (sidebarView.kind === 'tag' && sidebarView.tagId === id) {
+      set({ sidebarView: { ...sidebarView, tagName: updated.name } })
+    }
   },
 
   addFolder: async () => {

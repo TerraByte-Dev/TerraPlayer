@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Music2,
   ListMusic,
@@ -7,12 +7,14 @@ import {
   Shuffle,
   Trash2,
   Plus,
+  Pencil,
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
 import { useContextMenuStore } from '@/store/contextMenu'
 import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
+import { validateRename } from '@/lib/library-core'
 import UtilityDock, { type UtilityMode } from './utilities/UtilityDock'
 
 // Isolated uptime component — only this re-renders every second, not the whole Sidebar
@@ -33,7 +35,7 @@ function UptimeClock() {
 }
 
 export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
-  const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, loading, tracks, driveBytes } =
+  const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, renamePlaylist, renameTag, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
   const { openMenu } = useContextMenuStore()
@@ -41,6 +43,52 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
   const [showTagInput, setShowTagInput] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
   const [showPlaylistInput, setShowPlaylistInput] = useState(false)
+
+  // Inline rename — one item at a time, keyed by kind+id.
+  const [editing, setEditing] = useState<{ kind: 'playlist' | 'tag'; id: number } | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  const savingRef = useRef(false)
+
+  function beginEdit(kind: 'playlist' | 'tag', id: number, currentName: string) {
+    setEditing({ kind, id })
+    setEditValue(currentName)
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditing(null)
+    setEditValue('')
+    setEditError(null)
+    savingRef.current = false
+  }
+
+  async function commitEdit(fromBlur: boolean) {
+    if (!editing || savingRef.current) return
+    // Validate against the OTHER items' names so a no-op / case-only edit passes.
+    const others =
+      editing.kind === 'playlist'
+        ? playlists.filter((p) => p.id !== editing.id).map((p) => p.name)
+        : tags.filter((t) => t.id !== editing.id).map((t) => t.name)
+    const check = validateRename(editValue, others)
+    if (!check.ok) {
+      // Losing focus with an invalid name abandons the edit rather than trapping the user.
+      if (fromBlur) cancelEdit()
+      else setEditError(check.message)
+      return
+    }
+    savingRef.current = true
+    try {
+      if (editing.kind === 'playlist') await renamePlaylist(editing.id, check.name)
+      else await renameTag(editing.id, check.name)
+      cancelEdit()
+    } catch (e) {
+      savingRef.current = false
+      const msg = e instanceof Error ? e.message : String(e)
+      if (fromBlur) cancelEdit()
+      else setEditError(msg)
+    }
+  }
 
   async function handleCreateTag() {
     if (!newTagName.trim()) return
@@ -92,6 +140,11 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       },
       { separator: true },
       {
+        label: 'Rename playlist',
+        icon: <Pencil size={12} />,
+        onClick: () => beginEdit('playlist', playlistId, playlistName),
+      },
+      {
         label: 'Delete playlist',
         icon: <Trash2 size={12} />,
         danger: true,
@@ -121,8 +174,8 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       { separator: true },
       {
         label: 'Rename tag',
-        icon: <Tag size={12} />,
-        disabled: true,
+        icon: <Pencil size={12} />,
+        onClick: () => beginEdit('tag', tagId, tagName),
       },
       {
         label: 'Delete tag',
@@ -203,17 +256,30 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
           </button>
         </div>
       )}
-      {playlists.map((p) => (
-        <NavItem
-          key={p.id}
-          label={p.name}
-          count={p.count}
-          active={isActive('playlist', p.id)}
-          onClick={() => setSidebarView({ kind: 'playlist', playlistId: p.id, name: p.name })}
-          onContextMenu={(e) => handlePlaylistContextMenu(e, p.id, p.name)}
-          icon={<ListMusic size={12} />}
-        />
-      ))}
+      {playlists.map((p) =>
+        editing?.kind === 'playlist' && editing.id === p.id ? (
+          <RenameRow
+            key={p.id}
+            icon={<ListMusic size={12} />}
+            value={editValue}
+            error={editError}
+            onChange={(v) => { setEditValue(v); if (editError) setEditError(null) }}
+            onCommit={commitEdit}
+            onCancel={cancelEdit}
+          />
+        ) : (
+          <NavItem
+            key={p.id}
+            label={p.name}
+            count={p.count}
+            active={isActive('playlist', p.id)}
+            onClick={() => setSidebarView({ kind: 'playlist', playlistId: p.id, name: p.name })}
+            onDoubleClick={() => beginEdit('playlist', p.id, p.name)}
+            onContextMenu={(e) => handlePlaylistContextMenu(e, p.id, p.name)}
+            icon={<ListMusic size={12} />}
+          />
+        )
+      )}
       {playlists.length === 0 && !showPlaylistInput && (
         <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           no playlists
@@ -254,16 +320,29 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
           </button>
         </div>
       )}
-      {tags.map((tag) => (
-        <NavItem
-          key={tag.id}
-          label={`#${tag.name}`}
-          active={isActive('tag', tag.id)}
-          onClick={() => setSidebarView({ kind: 'tag', tagId: tag.id, tagName: tag.name })}
-          onContextMenu={(e) => handleTagContextMenu(e, tag.id, tag.name)}
-          icon={<Tag size={12} />}
-        />
-      ))}
+      {tags.map((tag) =>
+        editing?.kind === 'tag' && editing.id === tag.id ? (
+          <RenameRow
+            key={tag.id}
+            icon={<Tag size={12} />}
+            value={editValue}
+            error={editError}
+            onChange={(v) => { setEditValue(v); if (editError) setEditError(null) }}
+            onCommit={commitEdit}
+            onCancel={cancelEdit}
+          />
+        ) : (
+          <NavItem
+            key={tag.id}
+            label={`#${tag.name}`}
+            active={isActive('tag', tag.id)}
+            onClick={() => setSidebarView({ kind: 'tag', tagId: tag.id, tagName: tag.name })}
+            onDoubleClick={() => beginEdit('tag', tag.id, tag.name)}
+            onContextMenu={(e) => handleTagContextMenu(e, tag.id, tag.name)}
+            icon={<Tag size={12} />}
+          />
+        )
+      )}
       {tags.length === 0 && !showTagInput && (
         <p className="px-[14px] pb-2 font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           no tags
@@ -376,10 +455,59 @@ function AddButton({ onClick, title, active }: { onClick: () => void; title: str
   )
 }
 
+// Inline editor that replaces a NavItem while its playlist/tag is being renamed.
+// Enter saves, Escape reverts, blur saves (or reverts on an invalid name).
+function RenameRow({
+  value,
+  error,
+  icon,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string
+  error: string | null
+  icon?: React.ReactNode
+  onChange: (v: string) => void
+  onCommit: (fromBlur: boolean) => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="px-[14px] py-[4px]">
+      <div className="flex items-center gap-2">
+        <span className="font-term text-[14px] w-3 flex-shrink-0 select-none" style={{ color: 'var(--accent)' }}>›</span>
+        <span className="flex-shrink-0" style={{ color: 'var(--accent)' }}>{icon}</span>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); onCommit(false) }
+            else if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+          }}
+          onBlur={() => onCommit(true)}
+          className="flex-1 min-w-0 font-term text-[14px] px-1.5 py-0.5 outline-none"
+          style={{
+            background: '#000',
+            border: error ? '1px solid #FF3030' : '1px solid rgb(var(--accent-rgb) / 0.55)',
+            color: 'var(--accent)',
+            borderRadius: 0,
+          }}
+        />
+      </div>
+      {error && (
+        <p className="font-term text-[11px] mt-1 pl-7" style={{ color: '#FF3030' }}>{error}</p>
+      )}
+    </div>
+  )
+}
+
 function NavItem({
   label,
   active,
   onClick,
+  onDoubleClick,
   onContextMenu,
   icon,
   count,
@@ -387,6 +515,7 @@ function NavItem({
   label: string
   active: boolean
   onClick: () => void
+  onDoubleClick?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
   icon?: React.ReactNode
   count?: number
@@ -394,6 +523,7 @@ function NavItem({
   return (
     <button
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
       className="w-full flex items-center gap-2 px-[14px] py-[4px] text-left transition-colors"
       style={
