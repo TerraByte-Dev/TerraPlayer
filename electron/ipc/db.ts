@@ -111,7 +111,33 @@ function migrate(db: Database.Database): void {
     // Column already exists — ignore
   }
 
+  try {
+    db.exec('ALTER TABLE library_folders ADD COLUMN seeded_at INTEGER')
+  } catch {
+    // Column already exists — ignore
+  }
+
   migrateTrackUid(db)
+  markExistingFoldersSeeded(db)
+}
+
+/**
+ * One-time migration (guarded by app_meta 'folders_seeded_v1'): stamp every
+ * library_folders row that already exists as seeded. This is the upgrade path
+ * for the "import once, app owns" model — folders an existing user added before
+ * this feature already have their playlists (built by the old per-scan seeding
+ * + seedLegacyPlaylists), so they must never re-seed. Folders added *after* this
+ * runs keep seeded_at NULL and get seeded exactly once on their first scan.
+ */
+function markExistingFoldersSeeded(db: Database.Database): void {
+  const done = dbGet<{ value: string }>(
+    db, 'SELECT value FROM app_meta WHERE key = ?', ['folders_seeded_v1']
+  )
+  if (done) return
+  db.transaction(() => {
+    dbRun(db, "UPDATE library_folders SET seeded_at = strftime('%s','now') WHERE seeded_at IS NULL", [])
+    dbRun(db, 'INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)', ['folders_seeded_v1', '1'])
+  })()
 }
 
 /**
