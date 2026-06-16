@@ -1,6 +1,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { windowComingUp, COMING_UP_WINDOW } from '../queue.ts'
+import { windowComingUp, COMING_UP_WINDOW, purgeTrackFromQueue } from '../queue.ts'
+
+const T = (id) => ({ id })
+// queue [a,b,c,d] with c (index 2) playing, shuffle off, empty upNext.
+const base = () => ({
+  queue: [T(1), T(2), T(3), T(4)],
+  shuffledQueue: [],
+  upNext: [],
+  queueIndex: 2,
+  shuffle: false,
+})
 
 test('returns everything when under the limit', () => {
   const r = windowComingUp([1, 2, 3], 50)
@@ -41,4 +51,66 @@ test('expanding the limit grows the window (does not blow past the data)', () =>
 
 test('COMING_UP_WINDOW is a sane bounded default', () => {
   assert.ok(COMING_UP_WINDOW >= 10 && COMING_UP_WINDOW <= 200)
+})
+
+test('purge: deleting before the current track shifts the index left', () => {
+  const r = purgeTrackFromQueue(base(), 1) // remove a (index 0); current is c
+  assert.deepEqual(r.queue.map((t) => t.id), [2, 3, 4])
+  assert.equal(r.queueIndex, 1) // still points at c
+  assert.equal(r.clearedCurrent, false)
+})
+
+test('purge: deleting the current track points at the next (slid-in) track', () => {
+  const r = purgeTrackFromQueue(base(), 3) // remove c (current, index 2)
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 4])
+  assert.equal(r.queueIndex, 2) // d slid into the slot
+  assert.equal(r.clearedCurrent, true)
+})
+
+test('purge: deleting the current LAST track clamps to the new end', () => {
+  const r = purgeTrackFromQueue({ ...base(), queue: [T(1), T(2), T(3)], queueIndex: 2 }, 3)
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2])
+  assert.equal(r.queueIndex, 1)
+  assert.equal(r.clearedCurrent, true)
+})
+
+test('purge: deleting the only track empties the queue to index 0', () => {
+  const r = purgeTrackFromQueue({ ...base(), queue: [T(9)], queueIndex: 0 }, 9)
+  assert.deepEqual(r.queue, [])
+  assert.equal(r.queueIndex, 0)
+  assert.equal(r.clearedCurrent, true)
+})
+
+test('purge: deleting after the current track leaves the index unchanged', () => {
+  const r = purgeTrackFromQueue(base(), 4) // remove d (index 3); current c at 2
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 3])
+  assert.equal(r.queueIndex, 2)
+  assert.equal(r.clearedCurrent, false)
+})
+
+test('purge: deleting from upNext only leaves the play order + index untouched', () => {
+  const r = purgeTrackFromQueue({ ...base(), upNext: [T(5), T(6)] }, 5)
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 3, 4])
+  assert.deepEqual(r.upNext.map((t) => t.id), [6])
+  assert.equal(r.queueIndex, 2)
+  assert.equal(r.clearedCurrent, false)
+})
+
+test('purge: an absent id is a no-op', () => {
+  const r = purgeTrackFromQueue(base(), 999)
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 3, 4])
+  assert.equal(r.queueIndex, 2)
+  assert.equal(r.clearedCurrent, false)
+})
+
+test('purge: shuffle mode indexes the shuffled queue', () => {
+  // active = shuffledQueue [d,a,c,b]; current is index 1 (a). Remove a (current).
+  const r = purgeTrackFromQueue(
+    { queue: [T(1), T(2), T(3), T(4)], shuffledQueue: [T(4), T(1), T(3), T(2)], upNext: [], queueIndex: 1, shuffle: true },
+    1
+  )
+  assert.deepEqual(r.shuffledQueue.map((t) => t.id), [4, 3, 2])
+  assert.deepEqual(r.queue.map((t) => t.id), [2, 3, 4]) // removed from both lists
+  assert.equal(r.queueIndex, 1) // points at the track that slid in (id 3)
+  assert.equal(r.clearedCurrent, true)
 })
