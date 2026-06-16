@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createDedupeStorage } from '@/lib/perf'
+import { purgeTrackFromQueue } from '@/lib/queue'
 import type { Track } from '@/lib/ipc'
 import { eqPresetGains, clampEqBand, coerceEqSettings, type AudioPreset, type EqSettings } from '@/lib/audio-math'
 
@@ -45,6 +46,7 @@ interface PlayerState {
     to: { section: 'upNext' | 'comingUp'; index: number }
   ) => void
   clearUpNext: () => void
+  purgeTrack: (id: number) => void
 }
 
 function fisherYates<T>(arr: T[]): T[] {
@@ -227,6 +229,26 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
       return { [queueKey]: activeQueue, upNext }
     }),
   clearUpNext: () => set({ upNext: [] }),
+
+  // Splice a deleted track out of the play order + upNext and fix the index. If
+  // it was the now-playing track, currentTrack() resolves to the next song (or
+  // null when the queue empties) — that swaps the <audio> src, releasing the
+  // deleted file's handle before the main process trashes it. Called by the
+  // library store's deleteTrack BEFORE the IPC delete.
+  purgeTrack: (id) =>
+    set((s) => {
+      const { queue, shuffledQueue, upNext, queueIndex, clearedCurrent } = purgeTrackFromQueue(
+        { queue: s.queue, shuffledQueue: s.shuffledQueue, upNext: s.upNext, queueIndex: s.queueIndex, shuffle: s.shuffle },
+        id
+      )
+      const patch: Partial<PlayerState> = { queue, shuffledQueue, upNext, queueIndex }
+      if (clearedCurrent) {
+        patch.currentTime = 0
+        const active = s.shuffle ? shuffledQueue : queue
+        if (active.length === 0) patch.isPlaying = false // nothing left — stop
+      }
+      return patch
+    }),
 }), {
   name: 'tplay-player',
   // Dedupe writes: zustand's persist re-serializes + writes storage on EVERY

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Track, PlaylistSummary, Tag, LibraryFolder, ScanSummary } from '@/lib/ipc'
 import { hub } from '@/lib/ipc'
+import { usePlayerStore } from './player'
 
 export type SidebarView =
   | { kind: 'all' }
@@ -30,6 +31,7 @@ interface LibraryState {
   addFolder: () => Promise<void>
   addFolderByPath: (path: string) => Promise<void>
   removeFolder: (path: string) => Promise<void>
+  deleteTrack: (id: number) => Promise<void>
   clearError: () => void
   setSidebarView: (v: SidebarView) => void
   selectTrack: (id: number | null) => void
@@ -135,6 +137,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   removeFolder: async (path: string) => {
     await hub.removeFolder(path)
     await get().load()
+  },
+
+  deleteTrack: async (id: number) => {
+    // Purge from the player first (esp. if it's now-playing) so the <audio> src
+    // changes and the file handle is released before main trashes it.
+    usePlayerStore.getState().purgeTrack(id)
+    const res = await hub.deleteTrack(id)
+    if (res.cancelled) return
+    if (res.ok) {
+      set((s) => ({
+        tracks: s.tracks.filter((t) => t.id !== id),
+        selectedTrackId: s.selectedTrackId === id ? null : s.selectedTrackId,
+      }))
+      // Cascade removed playlist memberships — refresh the counts/views.
+      get().loadPlaylists()
+    } else {
+      set({ error: res.reason ?? 'Could not delete the song.' })
+    }
   },
 
   clearError: () => set({ error: null }),

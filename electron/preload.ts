@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('hub', {
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:removeTrack', playlistId, trackId),
   isPathInLibrary: (path: string) => ipcRenderer.invoke('lib:isPathInLibrary', path),
+  deleteTrack: (trackId: number) => ipcRenderer.invoke('lib:deleteTrack', trackId),
 
   // Music downloader
   downloaderPreflight: (opts?: { cookiesFromBrowser?: string; cookiesFile?: string; noAuthProbe?: boolean }) =>
