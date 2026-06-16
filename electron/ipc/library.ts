@@ -368,6 +368,17 @@ export async function refreshTrack(filePath: string): Promise<TrackRow | null> {
   return row ? rowToTrack(row as Record<string, unknown>) : null
 }
 
+export function getTrackPath(id: number): string | null {
+  const db = getDb()
+  return dbGet<{ path: string }>(db, 'SELECT path FROM tracks WHERE id = ?', [id])?.path ?? null
+}
+
+/** Delete a track row. ON DELETE CASCADE cleans its playlist + tag memberships. */
+export function deleteTrackRow(id: number): void {
+  const db = getDb()
+  dbRun(db, 'DELETE FROM tracks WHERE id = ?', [id])
+}
+
 export function listTags(): TagRow[] {
   const db = getDb()
   return dbAll<TagRow>(db, 'SELECT * FROM tags ORDER BY kind, name', [])
