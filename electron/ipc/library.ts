@@ -453,6 +453,32 @@ export function addTrackToPlaylist(playlistId: number, trackId: number): void {
   )
 }
 
+/**
+ * Add tracks (by file path) to a playlist by name, creating it if needed.
+ * Path-based so the downloader can drop a finished batch into the "Downloaded"
+ * bucket after the post-download rescan inserts the rows. INSERT OR IGNORE keeps
+ * repeat downloads idempotent (no duplicate memberships). Returns the count of
+ * memberships newly added.
+ */
+export function addPathsToPlaylist(playlistName: string, paths: string[]): { added: number } {
+  const db = getDb()
+  if (!paths.length) return { added: 0 }
+  let added = 0
+  db.transaction(() => {
+    const playlistId = ensurePlaylist(db, playlistName)
+    const now = Math.floor(Date.now() / 1000)
+    for (const path of paths) {
+      const track = dbGet<{ id: number }>(db, 'SELECT id FROM tracks WHERE path = ?', [path])
+      if (!track) continue
+      const res = db
+        .prepare('INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)')
+        .run(playlistId, track.id, now)
+      added += res.changes
+    }
+  })()
+  return { added }
+}
+
 export function getPlaylistIdsForTrack(trackId: number): number[] {
   const db = getDb()
   return dbAll<{ playlist_id: number }>(

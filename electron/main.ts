@@ -19,6 +19,7 @@ import {
   renamePlaylist,
   getTracksForPlaylist,
   addTrackToPlaylist,
+  addPathsToPlaylist,
   getPlaylistIdsForTrack,
   removeTrackFromPlaylist,
   listLibraryFolders,
@@ -26,6 +27,7 @@ import {
   removeLibraryFolder,
   getDriveStats,
 } from './ipc/library'
+import { isPathUnderAnyFolder } from './ipc/downloader-core'
 import { writeTags } from './ipc/metadata'
 import * as downloader from './ipc/downloader'
 import * as ytauth from './ipc/ytauth'
@@ -128,6 +130,9 @@ app.whenReady().then(() => {
     return { path, exists }
   })
   ipcMain.handle('lib:getDriveStats', () => getDriveStats())
+  ipcMain.handle('lib:isPathInLibrary', (_, path: string) =>
+    isPathUnderAnyFolder(path, listLibraryFolders().map((f) => f.path))
+  )
 
   // Music downloader (wraps download_music.py --json)
   ipcMain.handle('dl:preflight', (_, opts?: downloader.CookieOpts & { noAuthProbe?: boolean }) =>
@@ -144,9 +149,7 @@ app.whenReady().then(() => {
     downloader.download(event.sender, rows, outDir, cookieOpts)
   )
   ipcMain.handle('dl:cancel', () => downloader.cancelDownload())
-  ipcMain.handle('dl:resolveOutDir', (_, preferred?: string) =>
-    downloader.resolveOutputDir(preferred)
-  )
+  ipcMain.handle('dl:resolveOutDir', () => downloader.resolveOutputDir())
   ipcMain.handle('dl:readText', (_, path: string) => downloader.readTextFile(path))
 
   // YouTube auth (in-app login / browser / cookies.txt — see ytauth.ts)
@@ -193,6 +196,9 @@ app.whenReady().then(() => {
   ipcMain.handle('playlist:getTracks', (_, playlistId: number) => getTracksForPlaylist(playlistId))
   ipcMain.handle('playlist:addTrack', (_, playlistId: number, trackId: number) =>
     addTrackToPlaylist(playlistId, trackId)
+  )
+  ipcMain.handle('playlist:addPaths', (_, playlistName: string, paths: string[]) =>
+    addPathsToPlaylist(playlistName, paths)
   )
   ipcMain.handle('playlist:idsForTrack', (_, trackId: number) => getPlaylistIdsForTrack(trackId))
   ipcMain.handle('playlist:removeTrack', (_, playlistId: number, trackId: number) =>

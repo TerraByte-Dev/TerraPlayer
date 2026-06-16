@@ -29,10 +29,13 @@ contextBridge.exposeInMainWorld('hub', {
   getTracksForPlaylist: (playlistId: number) => ipcRenderer.invoke('playlist:getTracks', playlistId),
   addTrackToPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:addTrack', playlistId, trackId),
+  addPathsToPlaylist: (playlistName: string, paths: string[]) =>
+    ipcRenderer.invoke('playlist:addPaths', playlistName, paths),
   getPlaylistIdsForTrack: (trackId: number) =>
     ipcRenderer.invoke('playlist:idsForTrack', trackId),
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     ipcRenderer.invoke('playlist:removeTrack', playlistId, trackId),
+  isPathInLibrary: (path: string) => ipcRenderer.invoke('lib:isPathInLibrary', path),
 
   // Music downloader
   downloaderPreflight: (opts?: { cookiesFromBrowser?: string; cookiesFile?: string; noAuthProbe?: boolean }) =>
@@ -55,8 +58,7 @@ contextBridge.exposeInMainWorld('hub', {
     cookieOpts?: { cookiesFromBrowser?: string; cookiesFile?: string }
   ) => ipcRenderer.invoke('dl:download', rows, outDir, cookieOpts),
   downloaderCancel: () => ipcRenderer.invoke('dl:cancel'),
-  downloaderResolveOutDir: (preferred?: string) =>
-    ipcRenderer.invoke('dl:resolveOutDir', preferred),
+  downloaderResolveOutDir: () => ipcRenderer.invoke('dl:resolveOutDir'),
   downloaderReadText: (path: string) => ipcRenderer.invoke('dl:readText', path),
   onDownloaderEvent: (cb: (e: Record<string, unknown>) => void) => {
     const handler = (_: IpcRendererEvent, e: Record<string, unknown>) => cb(e)

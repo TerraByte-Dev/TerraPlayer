@@ -75,6 +75,8 @@ interface DownloaderState {
   busy: boolean
   rows: PreviewRow[]
   downloadOrder: number[]
+  /** Output paths of files that downloaded OK this run — added to the Downloaded playlist when the run settles. */
+  downloadedPaths: string[]
   summary: DownloadSummary | null
   reindexed: boolean
   error: string | null
@@ -140,6 +142,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   busy: false,
   rows: [],
   downloadOrder: [],
+  downloadedPaths: [],
   summary: null,
   reindexed: false,
   error: null,
@@ -152,12 +155,11 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     set({ view: 'modal' })
     get().loadAuth()
     get().loadPreflight()
-    // Default the output dir to the library folder the user is currently viewing.
+    // Default to <root>/Downloaded; "+ add to library" hides when the dir is
+    // already under a library folder (prefix match, computed in main).
     try {
-      const folders = useLibraryStore.getState().folders
-      const preferred = folders[0]?.path
-      const outDir = await hub.downloaderResolveOutDir(preferred)
-      const outDirIsLibrary = folders.some((f) => f.path === outDir)
+      const outDir = await hub.downloaderResolveOutDir()
+      const outDirIsLibrary = await hub.isPathInLibrary(outDir)
       set({ outDir, outDirIsLibrary })
     } catch {
       /* leave outDir empty; backend still has its own default */
@@ -179,6 +181,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
       phase: 'input',
       rows: [],
       downloadOrder: [],
+      downloadedPaths: [],
       summary: null,
       reindexed: false,
       error: null,
@@ -284,8 +287,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   pickOutDir: async () => {
     const picked = await hub.pickFolder()
     if (!picked) return
-    const folders = useLibraryStore.getState().folders
-    set({ outDir: picked, outDirIsLibrary: folders.some((f) => f.path === picked) })
+    set({ outDir: picked, outDirIsLibrary: await hub.isPathInLibrary(picked) })
   },
 
   addOutDirToLibrary: async () => {
@@ -429,6 +431,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
       summary: null,
       reindexed: false,
       downloadOrder,
+      downloadedPaths: [],
       rows: s.rows.map((r) =>
         downloadOrder.includes(r.i) ? { ...r, dlStage: 'queued', pct: 0 } : r
       ),
@@ -468,8 +471,8 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
         },
       }
     })
-    // Songs that finished before the cancel are real files — refresh the library.
-    useLibraryStore.getState().load().then(() => set({ reindexed: true })).catch(() => {})
+    // Songs that finished before the cancel are real files — index + bucket them.
+    void finishRun()
   },
 
   handleEvent: (e) => {
@@ -497,6 +500,11 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
             e.status === 'ok' ? 'done' : e.status === 'skipped' ? 'skipped' : 'failed'
           set((s) => ({ rows: patchRow(s.rows, ri, { dlStage: stage, pct: stage === 'done' ? 100 : undefined }) }))
         }
+        // Capture each newly-downloaded file's path for the Downloaded bucket.
+        if (e.status === 'ok' && e.path) {
+          const p = e.path // narrow to string outside the set() closure
+          set((s) => ({ downloadedPaths: [...s.downloadedPaths, p] }))
+        }
         break
       }
       case 'summary': {
@@ -505,12 +513,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
           phase: 'done',
           busy: false,
         })
-        // New files just landed in the library folder — rescan so they show up.
-        useLibraryStore
-          .getState()
-          .load()
-          .then(() => set({ reindexed: true }))
-          .catch(() => {})
+        void finishRun() // rescan, then drop the run's files into the Downloaded playlist
         break
       }
       case 'fatal': {
@@ -522,6 +525,27 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     }
   },
 }))
+
+/**
+ * Settle a finished/cancelled run: rescan the library so the new files appear,
+ * then add this run's downloaded files to the "Downloaded" playlist (path-based;
+ * INSERT OR IGNORE keeps repeats idempotent) and refresh playlist counts. The
+ * 'Downloaded' name matches the default download subfolder (downloader-core
+ * DOWNLOADED_DIR) but is fixed here so custom out-dirs still land in the bucket.
+ */
+async function finishRun(): Promise<void> {
+  await useLibraryStore.getState().load()
+  const paths = useDownloaderStore.getState().downloadedPaths
+  if (paths.length) {
+    try {
+      await hub.addPathsToPlaylist('Downloaded', paths)
+      await useLibraryStore.getState().loadPlaylists()
+    } catch {
+      /* non-fatal — the files are in the library regardless */
+    }
+  }
+  useDownloaderStore.setState({ reindexed: true })
+}
 
 /** Re-resolve a single row (after an inline query edit or a pin) and merge the result. */
 async function reresolveRow(
