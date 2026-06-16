@@ -16,6 +16,14 @@ const INSTALLABLE = new Set(['yt-dlp', 'ytmusicapi', 'ffmpeg', 'deno'])
 
 export type Phase = 'input' | 'preview' | 'downloading' | 'done'
 
+/**
+ * Where the downloader is currently shown:
+ *  - 'closed' — not mounted anywhere
+ *  - 'modal'  — full-screen popup (owns the keyboard; used to pick/preview songs)
+ *  - 'docked' — slim right-side progress monitor (app stays interactive)
+ */
+export type DownloaderView = 'closed' | 'modal' | 'docked'
+
 export interface PreviewRow extends ResolvedRow {
   confidence: Confidence
   // client-side augmentation
@@ -48,7 +56,7 @@ function extractVideoId(input: string): string | null {
 }
 
 interface DownloaderState {
-  open: boolean
+  view: DownloaderView
   phase: Phase
   preflight: DownloaderPreflight | null
   preflightLoading: boolean
@@ -73,6 +81,8 @@ interface DownloaderState {
 
   openPanel: () => Promise<void>
   closePanel: () => void
+  dock: () => void
+  popOut: () => void
   reset: () => void
   setInputText: (t: string) => void
   ingestFilePath: (path: string) => Promise<void>
@@ -111,7 +121,7 @@ function patchRow(rows: PreviewRow[], i: number, patch: Partial<PreviewRow>): Pr
 }
 
 export const useDownloaderStore = create<DownloaderState>((set, get) => ({
-  open: false,
+  view: 'closed',
   phase: 'input',
   preflight: null,
   preflightLoading: false,
@@ -135,7 +145,11 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   error: null,
 
   openPanel: async () => {
-    set({ open: true })
+    // Opening from Settings always lands in the full modal. A finished run starts
+    // fresh; an in-flight run is shown live (no reset) so re-opening mid-download
+    // just brings the popup back over the running job.
+    if (get().phase === 'done') get().reset()
+    set({ view: 'modal' })
     get().loadAuth()
     get().loadPreflight()
     // Default the output dir to the library folder the user is currently viewing.
@@ -151,9 +165,14 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   },
 
   closePanel: () => {
-    if (get().busy) return // don't close mid-download; user must cancel first
-    set({ open: false })
+    if (get().busy) return // dock-or-cancel: can't fully close mid-download
+    set({ view: 'closed' })
   },
+
+  // Minimize the modal into the slim right-side progress monitor — the download
+  // keeps running and the app stays interactive. popOut restores the full modal.
+  dock: () => set({ view: 'docked' }),
+  popOut: () => set({ view: 'modal' }),
 
   reset: () =>
     set({
