@@ -176,6 +176,7 @@ declare global {
       pickFolder(): Promise<string | null>
       suggestMusicFolder(): Promise<{ path: string; exists: boolean }>
       getDriveStats(): Promise<{ totalBytes: number }>
+      isPathInLibrary(path: string): Promise<boolean>
       getPathForFile(file: File): string
       writeTags(path: string, tags: StandardTags): Promise<void>
       listTags(): Promise<Tag[]>
@@ -191,6 +192,7 @@ declare global {
       renamePlaylist(playlistId: number, name: string): Promise<PlaylistSummary>
       getTracksForPlaylist(playlistId: number): Promise<Track[]>
       addTrackToPlaylist(playlistId: number, trackId: number): Promise<void>
+      addPathsToPlaylist(playlistName: string, paths: string[]): Promise<{ added: number }>
       getPlaylistIdsForTrack(trackId: number): Promise<number[]>
       removeTrackFromPlaylist(playlistId: number, trackId: number): Promise<void>
       // App utilities
@@ -215,7 +217,7 @@ declare global {
       downloaderCandidates(query: string): Promise<DownloaderCandidate[]>
       downloaderDownload(rows: { stem: string; id: string }[], outDir: string, cookieOpts?: CookieOpts): Promise<{ summary: { new: number; skipped: number; failed: number; low_confidence: string[] } | null; error?: string }>
       downloaderCancel(): Promise<{ cancelled: boolean }>
-      downloaderResolveOutDir(preferred?: string): Promise<string>
+      downloaderResolveOutDir(): Promise<string>
       downloaderReadText(path: string): Promise<string>
       onDownloaderEvent(cb: (e: DownloaderEvent) => void): () => void
       onDownloaderInstallEvent(cb: (e: InstallEvent) => void): () => void
@@ -275,9 +277,12 @@ export const hub = {
   getTracksForPlaylist: (playlistId: number) => window.hub.getTracksForPlaylist(playlistId),
   addTrackToPlaylist: (playlistId: number, trackId: number) =>
     window.hub.addTrackToPlaylist(playlistId, trackId),
+  addPathsToPlaylist: (playlistName: string, paths: string[]) =>
+    window.hub.addPathsToPlaylist(playlistName, paths),
   getPlaylistIdsForTrack: (trackId: number) => window.hub.getPlaylistIdsForTrack(trackId),
   removeTrackFromPlaylist: (playlistId: number, trackId: number) =>
     window.hub.removeTrackFromPlaylist(playlistId, trackId),
+  isPathInLibrary: (path: string) => window.hub.isPathInLibrary(path),
   saveImage: (dataUrl: string, defaultName: string) =>
     window.hub.saveImage(dataUrl, defaultName),
   openExternal: (url: string) => window.hub.openExternal(url),
@@ -298,7 +303,7 @@ export const hub = {
   downloaderDownload: (rows: { stem: string; id: string }[], outDir: string, cookieOpts?: CookieOpts) =>
     window.hub.downloaderDownload(rows, outDir, cookieOpts),
   downloaderCancel: () => window.hub.downloaderCancel(),
-  downloaderResolveOutDir: (preferred?: string) => window.hub.downloaderResolveOutDir(preferred),
+  downloaderResolveOutDir: () => window.hub.downloaderResolveOutDir(),
   downloaderReadText: (path: string) => window.hub.downloaderReadText(path),
   onDownloaderEvent: (cb: (e: DownloaderEvent) => void) => window.hub.onDownloaderEvent(cb),
   onDownloaderInstallEvent: (cb: (e: InstallEvent) => void) => window.hub.onDownloaderInstallEvent(cb),

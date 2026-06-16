@@ -16,21 +16,22 @@
 import { spawn, execFileSync, type ChildProcessWithoutNullStreams } from 'child_process'
 import { app } from 'electron'
 import type { WebContents } from 'electron'
-import { join } from 'path'
-import { existsSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from 'fs'
+import { join, basename } from 'path'
+import { existsSync, mkdtempSync, writeFileSync, rmSync, readFileSync, mkdirSync } from 'fs'
 import { tmpdir, homedir } from 'os'
 import {
   LineBuffer,
   parseNdjson,
   buildTaskLines,
   orderedScriptCandidates,
-  orderedOutputCandidates,
   pickFirstExisting,
   installCommand,
   mergePath,
+  DOWNLOADED_DIR,
   type DownloadRow,
 } from './downloader-core'
 import { resolveCookieArgs } from './ytauth'
+import { listLibraryFolders, addLibraryFolder } from './library'
 
 export interface CookieOpts {
   cookiesFromBrowser?: string
@@ -46,11 +47,10 @@ export interface PreflightCheck {
   fix?: { kind: string; tool?: string; command?: string }
 }
 
-// Canonical home of the backend + library (single source of truth in the Media
-// project). Used as the final fallback so the integration works out-of-the-box
-// on the dev machine; override per-machine via env vars or downloader.local.json.
+// Canonical home of the backend (single source of truth in the Media project).
+// Final fallback so the integration works out-of-the-box on the dev machine;
+// override per-machine via env vars or downloader.local.json.
 const CANONICAL_SCRIPT = join(homedir(), 'Desktop', 'Media', 'Tools', 'MusicDownloader', 'download_music.py')
-const CANONICAL_OUT = join(homedir(), 'Desktop', 'Media', 'Music')
 
 interface LocalConfig {
   script?: string
@@ -87,17 +87,34 @@ export function resolveScriptPath(): string | null {
   return pickFirstExisting(candidates, existsSync)
 }
 
-export function resolveOutputDir(preferred?: string): string {
+/**
+ * The default download directory: the `Downloaded` subfolder of the primary
+ * (oldest-added) library root. With no library folder yet, bootstrap
+ * `<Music>/TerraPlayer` as the root and register it so the post-download scan
+ * indexes the new files, then drop them in its `Downloaded` subfolder.
+ */
+function resolveDownloadedDir(): string {
+  const root = listLibraryFolders()[0]?.path
+  if (root) {
+    // Defensive: if the primary root is itself a Downloaded folder, don't nest.
+    return basename(root).toLowerCase() === DOWNLOADED_DIR.toLowerCase()
+      ? root
+      : join(root, DOWNLOADED_DIR)
+  }
+  const base = join(app.getPath('music'), 'TerraPlayer')
+  addLibraryFolder(base) // bootstrap a library root so downloads get indexed
+  return join(base, DOWNLOADED_DIR)
+}
+
+/**
+ * Where downloads go. Explicit overrides win; otherwise default to
+ * `<root>/Downloaded`. The dir need not exist yet — download() creates it.
+ */
+export function resolveOutputDir(): string {
+  if (process.env.TPLAY_MUSIC_OUT) return process.env.TPLAY_MUSIC_OUT
   const local = readLocalConfig()
-  const candidates = orderedOutputCandidates({
-    env: process.env.TPLAY_MUSIC_OUT,
-    preferred,
-    localOut: local.out,
-    canonical: CANONICAL_OUT,
-  })
-  // Prefer an output dir that already exists; otherwise take the highest-priority
-  // candidate (it'll be created on first download).
-  return pickFirstExisting(candidates, existsSync) ?? candidates[0] ?? CANONICAL_OUT
+  if (local.out) return local.out
+  return resolveDownloadedDir()
 }
 
 // Cookie source resolution lives in ytauth.ts (persisted auth state); callers
@@ -442,6 +459,8 @@ export function download(
       return
     }
     const tmp = writeTempTasks(lines)
+    // Ensure the output dir exists — the default <root>/Downloaded won't on first run.
+    try { mkdirSync(outDir, { recursive: true }) } catch { /* a real failure surfaces via the spawn */ }
     const args = [script, '--json', '--from-file', tmp, '--out', outDir, ...cookieArgs(cookieOpts)]
     const child = spawn(pythonCmd(), args, { windowsHide: true })
     activeDownload = child

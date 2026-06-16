@@ -91,22 +91,25 @@ export function orderedScriptCandidates(o: ScriptResolveOpts): string[] {
   return candidates.filter((x): x is string => !!x)
 }
 
-export interface OutResolveOpts {
-  env?: string
-  preferred?: string
-  localOut?: string
-  canonical: string
-}
+/** Default download subfolder name (under the primary library root). Also the
+ *  name of the "Downloaded" playlist the renderer drops finished tracks into. */
+export const DOWNLOADED_DIR = 'Downloaded'
 
 /**
- * Output-directory candidates in precedence order:
- *   1. TPLAY_MUSIC_OUT env override
- *   2. preferred (the library folder the user is currently viewing)
- *   3. hub/downloader.local.json -> "out"
- *   4. canonical Media/Music
+ * Is `path` inside (or equal to) any of `folderPaths`? Case-insensitive and
+ * separator-agnostic, so a Windows download dir matches its library root
+ * regardless of slash direction or drive-letter casing. Drives whether the
+ * downloader still needs its "+ add to library" affordance (a dir under a
+ * library folder is already covered by the scan).
  */
-export function orderedOutputCandidates(o: OutResolveOpts): string[] {
-  return [o.env, o.preferred, o.localOut, o.canonical].filter((x): x is string => !!x)
+export function isPathUnderAnyFolder(path: string, folderPaths: readonly string[]): boolean {
+  const norm = (p: string): string => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
+  const p = norm(path)
+  if (!p) return false
+  return folderPaths.some((f) => {
+    const root = norm(f)
+    return !!root && (p === root || p.startsWith(root + '/'))
+  })
 }
 
 /** First path that exists, else null. */

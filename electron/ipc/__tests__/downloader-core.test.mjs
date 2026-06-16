@@ -9,7 +9,6 @@ import {
   parseNdjson,
   buildTaskLines,
   orderedScriptCandidates,
-  orderedOutputCandidates,
   pickFirstExisting,
   installCommand,
   isInstallable,
@@ -17,6 +16,8 @@ import {
   toNetscape,
   cookieArgsForAuth,
   isAllowedAuthUrl,
+  isPathUnderAnyFolder,
+  DOWNLOADED_DIR,
 } from '../downloader-core.ts'
 
 // A POSIX-ish join so path precedence is testable independent of the OS.
@@ -97,15 +98,35 @@ test('orderedScriptCandidates omits packaged path in dev and drops empties', () 
   assert.deepEqual(c, ['/app/hub/../download_music.py', '/canon/dl.py'])
 })
 
-test('orderedOutputCandidates precedence: env > preferred > local > canonical', () => {
-  assert.deepEqual(
-    orderedOutputCandidates({ env: '/e', preferred: '/p', localOut: '/l', canonical: '/c' }),
-    ['/e', '/p', '/l', '/c']
-  )
-  assert.deepEqual(
-    orderedOutputCandidates({ preferred: '/p', canonical: '/c' }),
-    ['/p', '/c']
-  )
+test('isPathUnderAnyFolder: exact match counts as under', () => {
+  assert.equal(isPathUnderAnyFolder('C:/Music', ['C:/Music']), true)
+})
+
+test('isPathUnderAnyFolder: a subfolder is under its root', () => {
+  assert.equal(isPathUnderAnyFolder('C:/Music/Downloaded', ['C:/Music']), true)
+})
+
+test('isPathUnderAnyFolder: an unrelated path is not under', () => {
+  assert.equal(isPathUnderAnyFolder('C:/Other/x', ['C:/Music']), false)
+})
+
+test('isPathUnderAnyFolder: case- and separator-insensitive (Windows)', () => {
+  assert.equal(isPathUnderAnyFolder('c:\\music\\downloaded', ['C:/Music']), true)
+  assert.equal(isPathUnderAnyFolder('C:/Music/', ['c:\\music']), true)
+})
+
+test('isPathUnderAnyFolder: a sibling sharing a name prefix is NOT under', () => {
+  // "C:/MusicExtra" must not count as under "C:/Music" (prefix-but-not-a-child).
+  assert.equal(isPathUnderAnyFolder('C:/MusicExtra/x', ['C:/Music']), false)
+})
+
+test('isPathUnderAnyFolder: empties are safe', () => {
+  assert.equal(isPathUnderAnyFolder('', ['C:/Music']), false)
+  assert.equal(isPathUnderAnyFolder('C:/Music', []), false)
+})
+
+test('DOWNLOADED_DIR is the Downloaded bucket name', () => {
+  assert.equal(DOWNLOADED_DIR, 'Downloaded')
 })
 
 test('pickFirstExisting returns first hit, else null', () => {
