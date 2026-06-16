@@ -3,6 +3,7 @@ import { join, basename, extname } from 'path'
 import type Database from 'better-sqlite3'
 import { getDb, dbAll, dbGet, dbRun, saveCoverFile, migrateCoversToDisk, fingerprint } from './db'
 import { readMeta } from './metadata'
+import { shouldSeedFolder } from './library-seed-core'
 
 type Db = Database.Database
 
@@ -36,6 +37,8 @@ export interface LibraryFolder {
   id: number
   path: string
   added_at: number
+  /** NULL until the folder's playlists have been seeded once (import-once model). */
+  seeded_at: number | null
 }
 
 export interface ScanSummary {
@@ -121,6 +124,38 @@ function seedLegacyPlaylists(db: Db): void {
     }
     dbRun(db, 'INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)', ['playlist_seed_v1', '1'])
   })()
+}
+
+/**
+ * Seed folder→playlist memberships for ONE library folder, exactly once.
+ * Group the folder's tracks by their derived `playlist` (top subfolder name)
+ * and add each to that playlist. Path-prefix match mirrors removeLibraryFolder.
+ * INSERT OR IGNORE makes this safe against overlap with seedLegacyPlaylists and
+ * against accidental re-runs. The caller gates this on seeded_at and stamps it,
+ * so a user who later renames a folder-playlist never sees it respawned by a
+ * routine rescan (the import-once contract).
+ */
+function seedFolderPlaylists(db: Db, folderPath: string): void {
+  const groups = dbAll<{ playlist: string }>(
+    db,
+    'SELECT DISTINCT playlist FROM tracks WHERE SUBSTR(path, 1, ?) = ? AND playlist IS NOT NULL AND playlist <> ?',
+    [folderPath.length, folderPath, '']
+  )
+  for (const group of groups) {
+    const playlistId = ensurePlaylist(db, group.playlist)
+    const tracks = dbAll<{ id: number }>(
+      db,
+      'SELECT id FROM tracks WHERE SUBSTR(path, 1, ?) = ? AND playlist = ?',
+      [folderPath.length, folderPath, group.playlist]
+    )
+    for (const track of tracks) {
+      dbRun(
+        db,
+        'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)',
+        [playlistId, track.id, Math.floor(Date.now() / 1000)]
+      )
+    }
+  }
 }
 
 export function listLibraryFolders(): LibraryFolder[] {
@@ -232,17 +267,10 @@ async function walkDir(
           [uid, fullPath, playlist, title, artist, album, duration, coverPath, mtime]
         )
 
-        if (!existing) {
-          const track = dbGet<{ id: number }>(db, 'SELECT id FROM tracks WHERE path = ?', [fullPath])
-          if (track) {
-            const playlistId = ensurePlaylist(db, playlist)
-            dbRun(
-              db,
-              'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)',
-              [playlistId, track.id, Math.floor(Date.now() / 1000)]
-            )
-          }
-        }
+        // NOTE: playlist membership is NOT seeded here anymore. Per-new-track
+        // seeding on every scan was the folder↔playlist drift footgun (a renamed
+        // folder-playlist respawned when a new file landed in its folder). Seeding
+        // now happens once per folder in scanLibrary, gated by seeded_at.
       } catch (e) {
         // Don't let one problematic file (e.g. a uid collision from edited metadata)
         // roll back the whole scan.
@@ -277,6 +305,17 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
       try { statSync(path) } catch {
         dbRun(db, 'DELETE FROM tracks WHERE path = ?', [path])
       }
+    }
+
+    // Import-once seeding: each folder seeds its playlists exactly once — when
+    // seeded_at IS NULL (freshly added, or removed+re-added). Already-seeded
+    // folders are skipped so playlists the user renamed/edited are never
+    // recreated or overwritten. `folders` carries seeded_at (listLibraryFolders
+    // does SELECT *); runs after the walk so the folder's tracks all exist.
+    for (const folder of folders) {
+      if (!shouldSeedFolder(folder.seeded_at)) continue
+      seedFolderPlaylists(db, folder.path)
+      dbRun(db, "UPDATE library_folders SET seeded_at = strftime('%s','now') WHERE path = ?", [folder.path])
     }
 
     db.exec('COMMIT')
