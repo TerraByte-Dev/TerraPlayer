@@ -177,6 +177,7 @@ declare global {
       suggestMusicFolder(): Promise<{ path: string; exists: boolean }>
       getDriveStats(): Promise<{ totalBytes: number }>
       isPathInLibrary(path: string): Promise<boolean>
+      deleteTrack(trackId: number): Promise<{ ok?: boolean; path?: string; reason?: string; cancelled?: boolean }>
       getPathForFile(file: File): string
       writeTags(path: string, tags: StandardTags): Promise<void>
       listTags(): Promise<Tag[]>
@@ -260,6 +261,7 @@ export const hub = {
   pickFolder: () => window.hub.pickFolder(),
   suggestMusicFolder: () => window.hub.suggestMusicFolder(),
   getDriveStats: () => window.hub.getDriveStats(),
+  deleteTrack: (trackId: number) => window.hub.deleteTrack(trackId),
   getPathForFile: (file: File) => window.hub.getPathForFile(file),
   writeTags: (path: string, tags: StandardTags) => window.hub.writeTags(path, tags),
   listTags: () => window.hub.listTags(),

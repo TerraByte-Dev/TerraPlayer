@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { ChevronUp, ChevronDown, Play, Pause, FolderPlus, Music, X, AlertCircle, ListPlus, ListEnd, FolderOpen, Tag, ListMusic } from 'lucide-react'
+import { ChevronUp, ChevronDown, Play, Pause, FolderPlus, Music, X, AlertCircle, ListPlus, ListEnd, FolderOpen, Tag, ListMusic, Trash2 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
 import { useContextMenuStore } from '@/store/contextMenu'
@@ -207,6 +207,13 @@ export default function TrackList() {
         label: 'Reveal in folder',
         icon: <FolderOpen size={12} />,
         onClick: () => window.hub.revealInFolder(track.path),
+      },
+      { separator: true },
+      {
+        label: 'Delete song',
+        icon: <Trash2 size={12} />,
+        danger: true,
+        onClick: () => useLibraryStore.getState().deleteTrack(track.id),
       },
     ])
   }
