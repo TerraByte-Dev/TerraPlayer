@@ -14,9 +14,11 @@ import UtilityOverlay from './components/utilities/UtilityOverlay'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
 import Downloader from './components/Downloader'
+import DownloaderDock from './components/DownloaderDock'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
+import { useDownloaderStore } from './store/downloader'
 import { useUiStore } from './store/ui'
 import { THEME_EVENT, getThemeId } from './lib/theme'
 import { hub } from './lib/ipc'
@@ -28,16 +30,31 @@ export default function App() {
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [downloaderOpen, setDownloaderOpen] = useState(false)
+  const downloaderView = useDownloaderStore((s) => s.view)
 
   useEffect(() => {
     load()
   }, [])
 
-  // Let PlayerBar's global transport shortcuts yield while a tool/Settings/Downloader overlay owns the keyboard.
+  // Single, app-level subscription for the downloader's NDJSON stream. Lives here
+  // (not in Downloader.tsx) so progress keeps flowing while a download is docked
+  // to the side or the modal is closed — and so events are handled exactly once.
   useEffect(() => {
-    useUiStore.getState().setOverlayOpen(!!utilityMode || settingsOpen || downloaderOpen)
-  }, [utilityMode, settingsOpen, downloaderOpen])
+    const unsubDl = window.hub.onDownloaderEvent((e) => useDownloaderStore.getState().handleEvent(e))
+    const unsubInstall = window.hub.onDownloaderInstallEvent((e) =>
+      useDownloaderStore.getState().handleInstallEvent(e)
+    )
+    return () => {
+      unsubDl()
+      unsubInstall()
+    }
+  }, [])
+
+  // Let PlayerBar's global transport shortcuts yield while a tool/Settings/Downloader overlay owns the
+  // keyboard. Only the full modal grabs it — the docked monitor leaves the app fully interactive.
+  useEffect(() => {
+    useUiStore.getState().setOverlayOpen(!!utilityMode || settingsOpen || downloaderView === 'modal')
+  }, [utilityMode, settingsOpen, downloaderView])
 
   // Relay the app theme to the popout visualizer so the second monitor recolors with the app: publish on
   // every theme change, prime once at mount (covers a popout already open), and answer a popout's request.
@@ -164,6 +181,8 @@ export default function App() {
         )}
 
         {showQueuePanel && <QueuePanel />}
+
+        {downloaderView === 'docked' && <DownloaderDock />}
       </div>
 
       <div className="relative z-[1]">
@@ -199,12 +218,12 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           onOpenDownloader={() => {
             setSettingsOpen(false)
-            setDownloaderOpen(true)
+            useDownloaderStore.getState().openPanel()
           }}
         />
       )}
 
-      {downloaderOpen && <Downloader onClose={() => setDownloaderOpen(false)} />}
+      {downloaderView === 'modal' && <Downloader />}
 
       <UtilityTimerHost onOpenTimer={() => handleOpenUtility('timer')} />
 
