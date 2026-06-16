@@ -16,7 +16,7 @@ renders the streamed events.
 │        ▲  dl:event (NDJSON)      ▼                        │
 │        └──────────────  download_music.py --json ────────┼─► YouTube / YT Music
 └──────────────────────────────────────────────────────────┘
-                                   └─ writes .m4a ─► Media/Music  ─► rescan
+                                   └─ writes .m4a ─► <root>/Downloaded ─► rescan + Downloaded playlist
 ```
 
 ## The flow (what the UI does)
@@ -47,11 +47,23 @@ renders the streamed events.
    `already have it`). LOW-confidence picks are flagged the whole way.
 6. **Done** — a summary (new / skipped / failed) with any LOW grabs highlighted
    to verify, and the library is **automatically reindexed** so new tracks
-   appear immediately.
+   appear immediately. The downloaded files also join a **Downloaded** playlist
+   so the batch is grouped, not just scattered into *All Tracks*.
 
 Accepted rows are pinned to their exact chosen video id when handed to the
 backend, so the download grabs the *same* version you previewed/approved — it
 does not re-resolve.
+
+### Run it in the background (dock)
+
+Once a download starts you don't have to sit and watch the popup. The header's
+**dock** button (▸) collapses the downloader into a slim right-side panel — like
+the queue / edit-tags pop-outs — that shows live `done / total` progress and a
+**Cancel**, while the rest of the app stays fully interactive. **Pop out** (⤢)
+restores the full window. The NDJSON stream is handled by a single app-level
+listener, so progress keeps flowing across dock↔pop-out and is never
+double-counted. While a download is running you can't fully close it — **dock or
+cancel** (no forgotten background jobs).
 
 ## YouTube sign-in (auth)
 
@@ -90,10 +102,16 @@ exists wins):
 4. `<appPath>/../download_music.py` (colocated copy, mirrors `tag_writer.py`)
 5. the canonical Media path baked into `downloader.ts` (`CANONICAL_SCRIPT`)
 
-Output directory order: `TPLAY_MUSIC_OUT` env → the library folder you're
-currently viewing → `downloader.local.json → "out"` → `Media/Music`. The bar at
-the bottom of the input screen shows the target and lets you **change** it; if
-the folder isn't in your library yet, an **+ add to library** button appears.
+Output directory: `TPLAY_MUSIC_OUT` env → `downloader.local.json → "out"` →
+**`<primaryRoot>/Downloaded`** (the Downloaded subfolder of your oldest-added
+library folder, the default). With **no library folder yet**, the app bootstraps
+and registers `<Music>/TerraPlayer` so downloads are always indexed, and drops
+them in its `Downloaded` subfolder. The dir is created before the run. The bar at
+the bottom of the input screen shows the target and lets you **change** it; the
+**+ add to library** button only appears when the chosen folder isn't *under* a
+library folder (so the default Downloaded dir never shows it). After the run, the
+new files are added to a **Downloaded** playlist (path-based, idempotent — the
+bucket's owner under the import-once folder model).
 
 `python` and the cookies browser are likewise overridable via
 `downloader.local.json` (`"python"`, `"cookiesFromBrowser"`) or the
@@ -127,8 +145,12 @@ Full reference: `Media/Tools/MusicDownloader/JSON-PROTOCOL.md`.
 `downloaderPreflight(opts?)` · `downloaderInstall(tools, cookieOpts?)` (streams
 `dl:install-event`) · `downloaderPickCookies()` · `downloaderResolve({lines|csvPath})` ·
 `downloaderCandidates(query)` · `downloaderDownload(rows, outDir, cookieOpts?)`
-(streams `dl:event`) · `downloaderCancel()` · `downloaderResolveOutDir(preferred)` ·
+(streams `dl:event`) · `downloaderCancel()` · `downloaderResolveOutDir()` ·
 `downloaderReadText(path)` · `onDownloaderEvent(cb)` · `onDownloaderInstallEvent(cb)`.
+The Downloaded bucket + the SAVE-TO affordance use `addPathsToPlaylist(name, paths)`
+and `isPathInLibrary(path)`. The `dl:event` listener is registered **once at the
+app level** (not in the downloader component) so a docked/closed download keeps
+streaming and events are handled exactly once.
 
 Plus YouTube-auth: `ytauthStatus()` · `ytauthConnect()` (opens the in-app login)
 · `ytauthDisconnect()` · `ytauthSetBrowser(b)` · `ytauthDetectBrowsers()` ·
@@ -168,6 +190,8 @@ python Media/Tools/MusicDownloader/test_download_music.py
 | `electron/ipc/downloader.ts` | spawns the CLI, frames NDJSON, streams events, cancel |
 | `electron/ipc/downloader-core.ts` | pure helpers (LineBuffer, path precedence, task lines) |
 | `electron/ipc/__tests__/downloader-core.test.mjs` | `node --test` unit tests |
-| `src/store/downloader.ts` | zustand state machine (preview → download → done) |
-| `src/components/Downloader.tsx` | the overlay UI |
+| `src/store/downloader.ts` | zustand state machine (preview → download → done); `view` modal/docked; captures downloaded paths |
+| `src/components/Downloader.tsx` | the overlay UI (+ dock button) |
+| `src/components/DownloaderDock.tsx` | slim right-side background progress monitor |
+| `src/lib/downloader-progress.ts` | pure `summarizeRun` for the dock's `done / total` (unit-tested) |
 | `downloader.local.example.json` | per-machine path template |
