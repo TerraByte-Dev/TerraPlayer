@@ -23,6 +23,7 @@ import {
   KeyRound,
   Globe,
   Info,
+  PanelRight,
 } from 'lucide-react'
 import { useDownloaderStore, type PreviewRow } from '@/store/downloader'
 import { hub, fmtDuration } from '@/lib/ipc'
@@ -57,42 +58,24 @@ const INPUT_PLACEHOLDER = `Kendrick Lamar - HUMBLE.
 Daft Punk - Get Lucky | https://youtu.be/5NV6Rdv1a3I    ← pin an exact source
 https://youtu.be/dQw4w9WgXcQ                              ← or just a URL / video id`
 
-export default function Downloader({ onClose }: { onClose: () => void }) {
+export default function Downloader() {
   const s = useDownloaderStore()
 
-  // Stream NDJSON download + install events into the store.
-  useEffect(() => {
-    const unsubDl = window.hub.onDownloaderEvent((e) => useDownloaderStore.getState().handleEvent(e))
-    const unsubInstall = window.hub.onDownloaderInstallEvent((e) =>
-      useDownloaderStore.getState().handleInstallEvent(e)
-    )
-    return () => {
-      unsubDl()
-      unsubInstall()
-    }
-  }, [])
-
-  // Open: load preflight + output dir; start fresh after a finished run.
-  useEffect(() => {
-    const st = useDownloaderStore.getState()
-    if (st.phase === 'done') st.reset()
-    st.openPanel()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const tryClose = () => {
-    if (s.busy) return
-    onClose()
-  }
-
+  // NOTE: the NDJSON event subscription lives at the app level (App.tsx), not
+  // here — that keeps a single persistent listener so a download docked to the
+  // side keeps streaming progress, and avoids double-handling across modal↔dock.
+  // closePanel() no-ops while busy (dock-or-cancel), so Escape can stay simple.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') tryClose()
+      if (e.key === 'Escape') useDownloaderStore.getState().closePanel()
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.busy])
+  }, [])
+
+  // While a download is running you can't fully close — dock it (keep using the
+  // app) or cancel. The dock button only appears once there's progress to watch.
+  const canDock = s.phase === 'downloading' || s.phase === 'done'
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
@@ -111,7 +94,7 @@ export default function Downloader({ onClose }: { onClose: () => void }) {
       className="fixed inset-0 z-50 flex items-center justify-center no-drag"
       style={{ background: 'rgba(0,0,0,0.78)' }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) tryClose()
+        if (e.target === e.currentTarget) s.closePanel()
       }}
       onDragOver={(e) => {
         e.preventDefault()
@@ -149,15 +132,26 @@ export default function Downloader({ onClose }: { onClose: () => void }) {
               ♪ MEDIA DOWNLOADER
             </span>
           </div>
-          <button
-            className="metal-key w-7 h-7"
-            onClick={tryClose}
-            disabled={s.busy}
-            title={s.busy ? 'Cancel the download before closing' : 'Close'}
-            style={s.busy ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-          >
-            <X size={13} />
-          </button>
+          <div className="flex items-center gap-1">
+            {canDock && (
+              <button
+                className="metal-key w-7 h-7"
+                onClick={s.dock}
+                title="Dock to side — keep using the app while it downloads"
+              >
+                <PanelRight size={13} />
+              </button>
+            )}
+            <button
+              className="metal-key w-7 h-7"
+              onClick={s.closePanel}
+              disabled={s.busy}
+              title={s.busy ? 'Dock it or cancel the download — it can’t close mid-run' : 'Close'}
+              style={s.busy ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+            >
+              <X size={13} />
+            </button>
+          </div>
         </div>
 
         <PreflightBanner />
@@ -169,7 +163,7 @@ export default function Downloader({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Footer / actions */}
-        <Footer acceptedCount={acceptedCount} lowAccepted={lowAccepted} onClose={tryClose} />
+        <Footer acceptedCount={acceptedCount} lowAccepted={lowAccepted} onClose={s.closePanel} />
       </div>
     </div>
   )
@@ -639,7 +633,7 @@ function ConfidenceBadge({ c, explicit }: { c: Confidence; explicit?: boolean | 
   )
 }
 
-function StageLabel({ row }: { row: PreviewRow }) {
+export function StageLabel({ row }: { row: PreviewRow }) {
   const stage = row.dlStage
   if (stage === 'done')
     return (
