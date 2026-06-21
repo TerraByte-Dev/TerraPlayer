@@ -204,6 +204,8 @@ declare global {
       minimizeWindow(): Promise<void>
       maximizeWindow(): Promise<void>
       closeWindow(): Promise<void>
+      /** Recolor the native Windows titlebar overlay glyphs to the theme accent. */
+      setTitleBarOverlay(symbolColor: string): void
       isWindows: boolean
       // Music downloader
       downloaderPreflight(opts?: CookieOpts & { noAuthProbe?: boolean }): Promise<DownloaderPreflight>

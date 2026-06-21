@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Minus, Square, X, Settings, Monitor, MonitorX } from 'lucide-react'
+import { Minus, Square, X, Settings, Monitor, MonitorX, Download } from 'lucide-react'
 import { setCrtOff } from '@/lib/theme'
 import { useDisplayState } from '@/lib/useDisplay'
+import { useDownloaderStore } from '@/store/downloader'
+import { useLibraryStore } from '@/store/library'
 import logoUrl from '@/assets/brand/terrabyte-globe.png'
 
 // The TerraByte globe ships as a transparent monochrome shape; masking it with the theme accent recolors it
@@ -32,6 +34,7 @@ export default function TitleBar({ onOpenSettings }: { onOpenSettings: () => voi
   const isWindows = window.hub.isWindows
   const [clock, setClock] = useState(() => formatDate(new Date()))
   const { crtOff } = useDisplayState()
+  const dlOpen = useLibraryStore((s) => s.rightPanelOpen && s.panelMode === 'downloader')
 
   useEffect(() => {
     const id = window.setInterval(() => setClock(formatDate(new Date())), 1000)
@@ -61,6 +64,15 @@ export default function TitleBar({ onOpenSettings }: { onOpenSettings: () => voi
         </span>
 
         <TitleButton
+          title="Download music"
+          onClick={() => useDownloaderStore.getState().openPanel()}
+          ariaPressed={dlOpen}
+          active={dlOpen}
+        >
+          <Download size={14} />
+        </TitleButton>
+
+        <TitleButton
           title={crtOff ? 'CRT effect off — click to enable' : 'CRT effect on — click to disable'}
           onClick={() => setCrtOff(!crtOff)}
           ariaPressed={!crtOff}
@@ -85,21 +97,23 @@ export default function TitleBar({ onOpenSettings }: { onOpenSettings: () => voi
   )
 }
 
-function TitleButton({ children, onClick, title, ariaPressed }: {
+function TitleButton({ children, onClick, title, ariaPressed, active }: {
   children: React.ReactNode
   onClick: () => void
   title: string
   ariaPressed?: boolean
+  active?: boolean
 }) {
+  const rest = active ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.5)'
   return (
     <button
       onClick={onClick}
       title={title}
       aria-pressed={ariaPressed}
       className="flex items-center justify-center w-6 h-6 rounded-sm transition-colors"
-      style={{ color: 'rgb(var(--ink-rgb) / 0.5)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+      style={{ color: rest, background: 'transparent', border: 'none', cursor: 'pointer' }}
       onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--accent)')}
-      onMouseLeave={(e) => (e.currentTarget.style.color = 'rgb(var(--ink-rgb) / 0.5)')}
+      onMouseLeave={(e) => (e.currentTarget.style.color = rest)}
     >
       {children}
     </button>
