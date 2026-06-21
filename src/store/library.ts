@@ -19,7 +19,7 @@ interface LibraryState {
   sidebarView: SidebarView
   selectedTrackId: number | null
   rightPanelOpen: boolean
-  panelMode: 'metadata' | 'queue'
+  panelMode: 'metadata' | 'queue' | 'downloader'
   driveBytes: number
 
   load: () => Promise<void>
@@ -36,7 +36,8 @@ interface LibraryState {
   setSidebarView: (v: SidebarView) => void
   selectTrack: (id: number | null) => void
   toggleRightPanel: () => void
-  openPanel: (mode: 'metadata' | 'queue') => void
+  openPanel: (mode: 'metadata' | 'queue' | 'downloader') => void
+  closeDownloaderPanel: () => void
   visibleTracks: () => Track[]
   selectedTrack: () => Track | null
 }
@@ -52,7 +53,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   sidebarView: { kind: 'all' },
   selectedTrackId: null,
   rightPanelOpen: false,
-  panelMode: 'metadata' as 'metadata' | 'queue',
+  panelMode: 'metadata' as 'metadata' | 'queue' | 'downloader',
   driveBytes: 0,
 
   load: async () => {
@@ -163,6 +164,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   selectTrack: (id) => set({ selectedTrackId: id }),
   toggleRightPanel: () => set((s) => ({ rightPanelOpen: !s.rightPanelOpen, panelMode: 'metadata' })),
   openPanel: (mode) => set({ rightPanelOpen: true, panelMode: mode }),
+  closeDownloaderPanel: () => set((s) => (s.panelMode === 'downloader' ? { rightPanelOpen: false } : {})),
 
   visibleTracks: () => {
     const { sidebarView, tracks } = get()

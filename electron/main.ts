@@ -347,6 +347,18 @@ app.whenReady().then(() => {
   })
   ipcMain.handle('win:close', () => mainWindow?.close())
 
+  // Recolor the native Windows titlebar overlay (the min/max/close glyphs) to
+  // match the app theme. CSS can't reach the OS-drawn buttons, but this can.
+  // No-op off-Windows or if the overlay isn't active in this configuration.
+  ipcMain.on('win:set-overlay', (_, symbolColor: string) => {
+    if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return
+    try {
+      mainWindow.setTitleBarOverlay({ color: '#000000', symbolColor, height: 30 })
+    } catch {
+      /* overlay not available — ignore */
+    }
+  })
+
   // Close popout
   ipcMain.handle('viz:close', () => {
     if (vizWindow && !vizWindow.isDestroyed()) {

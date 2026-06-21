@@ -6,6 +6,8 @@ import Playback from './settings/Playback'
 import Library from './settings/Library'
 import Updates from './settings/Updates'
 import About from './settings/About'
+import { useDownloaderStore } from '@/store/downloader'
+import { AuthControls } from './downloader/shared'
 
 type Section = 'appearance' | 'audio' | 'playback' | 'library' | 'music' | 'updates' | 'about'
 
@@ -92,15 +94,23 @@ export default function Settings({ onClose, onOpenDownloader }: { onClose: () =>
 }
 
 function MusicPane({ onOpenDownloader }: { onOpenDownloader: () => void }) {
+  // Prime auth + environment status so the YouTube sign-in block below reflects
+  // reality even if the user never opened the downloader panel this session.
+  useEffect(() => {
+    const s = useDownloaderStore.getState()
+    s.loadAuth()
+    s.loadPreflight(true)
+  }, [])
+
   return (
     <div className="flex flex-col gap-5">
       <div>
         <div className="font-term text-[10px] tracking-[2px] mb-1" style={{ color: 'rgb(var(--accent-rgb) / 0.35)' }}>ADD MUSIC</div>
         <p className="font-term text-[13px] leading-[1.5]" style={{ color: 'rgb(var(--ink-rgb) / 0.7)' }}>
-          Download songs straight into your library. Paste an{' '}
-          <span style={{ color: 'var(--accent)' }}>Artist - Track</span> list (or a YouTube URL), preview the
-          chosen version with a confidence flag, then grab the explicit / original master — not a clean
-          or radio edit.
+          Download songs straight into your library. The downloader opens in the right-hand panel —
+          paste an <span style={{ color: 'var(--accent)' }}>Artist - Track</span> (or a YouTube URL), each
+          line resolves into the explicit / original master — not a clean or radio edit — with a
+          confidence flag, and you keep adding while they download.
         </p>
       </div>
       <button
@@ -109,6 +119,13 @@ function MusicPane({ onOpenDownloader }: { onOpenDownloader: () => void }) {
       >
         <Download size={14} /> OPEN MUSIC DOWNLOADER
       </button>
+
+      {/* YouTube sign-in — set-once, lives here (the panel shows only a status line). */}
+      <div>
+        <div className="font-term text-[10px] tracking-[2px] mb-2" style={{ color: 'rgb(var(--accent-rgb) / 0.35)' }}>YOUTUBE SIGN-IN</div>
+        <AuthControls />
+      </div>
+
       <p className="font-term text-[11px]" style={{ color: 'rgb(var(--ink-rgb) / 0.3)' }}>
         First run? The downloader checks your environment and can install what's missing.
       </p>

@@ -14,13 +14,13 @@ import UtilityOverlay from './components/utilities/UtilityOverlay'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
 import Downloader from './components/Downloader'
-import DownloaderDock from './components/DownloaderDock'
+import DownloaderPanel from './components/DownloaderPanel'
 import type { UtilityMode } from './components/utilities/UtilityDock'
 import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
 import { useDownloaderStore } from './store/downloader'
 import { useUiStore } from './store/ui'
-import { THEME_EVENT, getThemeId } from './lib/theme'
+import { THEME_EVENT, getThemeId, getTheme } from './lib/theme'
 import { hub } from './lib/ipc'
 
 export default function App() {
@@ -37,8 +37,8 @@ export default function App() {
   }, [])
 
   // Single, app-level subscription for the downloader's NDJSON stream. Lives here
-  // (not in Downloader.tsx) so progress keeps flowing while a download is docked
-  // to the side or the modal is closed — and so events are handled exactly once.
+  // (not in Downloader.tsx) so progress keeps flowing while the downloader is shown
+  // in the side panel or the modal is closed — and so events are handled exactly once.
   useEffect(() => {
     const unsubDl = window.hub.onDownloaderEvent((e) => useDownloaderStore.getState().handleEvent(e))
     const unsubInstall = window.hub.onDownloaderInstallEvent((e) =>
@@ -51,7 +51,7 @@ export default function App() {
   }, [])
 
   // Let PlayerBar's global transport shortcuts yield while a tool/Settings/Downloader overlay owns the
-  // keyboard. Only the full modal grabs it — the docked monitor leaves the app fully interactive.
+  // keyboard. Only the full modal grabs it — the side panel leaves the app fully interactive.
   useEffect(() => {
     useUiStore.getState().setOverlayOpen(!!utilityMode || settingsOpen || downloaderView === 'modal')
   }, [utilityMode, settingsOpen, downloaderView])
@@ -59,7 +59,11 @@ export default function App() {
   // Relay the app theme to the popout visualizer so the second monitor recolors with the app: publish on
   // every theme change, prime once at mount (covers a popout already open), and answer a popout's request.
   useEffect(() => {
-    const onTheme = (e: Event) => window.hub.publishTheme((e as CustomEvent).detail as string)
+    const onTheme = (e: Event) => {
+      const id = (e as CustomEvent).detail as string
+      window.hub.publishTheme(id)
+      window.hub.setTitleBarOverlay(getTheme(id).swatch.accent) // recolor the native window-control glyphs
+    }
     window.addEventListener(THEME_EVENT, onTheme)
     const offRequest = window.hub.onRequestTheme(() => window.hub.publishTheme(getThemeId()))
     window.hub.publishTheme(getThemeId())
@@ -131,6 +135,9 @@ export default function App() {
 
   const showMetadataPanel = rightPanelOpen && panelMode === 'metadata' && selectedTrackId !== null
   const showQueuePanel = rightPanelOpen && panelMode === 'queue'
+  // The downloader panel and its full-screen pop-out are mutually exclusive — only
+  // one reads/writes resolve state at a time (the modal owns the keyboard).
+  const showDownloaderPanel = rightPanelOpen && panelMode === 'downloader' && downloaderView !== 'modal'
 
   return (
     <div
@@ -182,7 +189,7 @@ export default function App() {
 
         {showQueuePanel && <QueuePanel />}
 
-        {downloaderView === 'docked' && <DownloaderDock />}
+        {showDownloaderPanel && <DownloaderPanel onOpenSettings={() => setSettingsOpen(true)} />}
       </div>
 
       <div className="relative z-[1]">
