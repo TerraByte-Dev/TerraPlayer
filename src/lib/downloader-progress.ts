@@ -1,4 +1,4 @@
-// Pure, dependency-free progress math for the downloader's docked monitor.
+// Pure, dependency-free progress math for the downloader's side-panel monitor.
 // Unit-tested in src/lib/__tests__/downloader-progress.test.mjs. No store/React.
 
 export type DlStage = 'queued' | 'downloading' | 'embedding' | 'done' | 'failed' | 'skipped'
@@ -24,7 +24,7 @@ export interface RunProgress {
  * Only rows whose `i` is in `downloadOrder` count (others were unselected in the
  * preview). `total` is the run size (downloadOrder.length), so a row that is in
  * the order but missing from `rows` simply leaves the run short of complete.
- * Drives the docked monitor's "N / M" footer and the run-settled check.
+ * Drives the side panel's "N / M" footer and the run-settled check.
  */
 export function summarizeRun(
   rows: readonly RunRow[],

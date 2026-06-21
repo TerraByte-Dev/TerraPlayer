@@ -101,6 +101,7 @@ contextBridge.exposeInMainWorld('hub', {
   minimizeWindow: () => ipcRenderer.invoke('win:minimize'),
   maximizeWindow: () => ipcRenderer.invoke('win:maximize'),
   closeWindow: () => ipcRenderer.invoke('win:close'),
+  setTitleBarOverlay: (symbolColor: string) => ipcRenderer.send('win:set-overlay', symbolColor),
   isWindows: process.platform === 'win32',
 
   // Audio frame publishing (main renderer → main process → viz window)
