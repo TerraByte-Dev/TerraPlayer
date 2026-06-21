@@ -18,11 +18,11 @@ export type Phase = 'input' | 'preview' | 'downloading' | 'done'
 
 /**
  * Where the downloader is currently shown:
- *  - 'closed' — not mounted anywhere
- *  - 'modal'  — full-screen popup (owns the keyboard; used to pick/preview songs)
- *  - 'docked' — slim right-side progress monitor (app stays interactive)
+ *  - 'closed' — not in the full-screen modal (it lives in the right-side panel,
+ *               whose visibility is driven by libraryStore.panelMode === 'downloader')
+ *  - 'modal'  — full-screen pop-out (owns the keyboard; for big-batch triage)
  */
-export type DownloaderView = 'closed' | 'modal' | 'docked'
+export type DownloaderView = 'closed' | 'modal'
 
 export interface PreviewRow extends ResolvedRow {
   confidence: Confidence
@@ -55,6 +55,45 @@ function extractVideoId(input: string): string | null {
   return m ? m[1] : null
 }
 
+// ---------------------------------------------------------------------------
+// Row identity: a row's `i` is a CLIENT-allocated monotonic id, NOT the backend's
+// per-call resolve index (which restarts at 0 every single-line resolve and would
+// otherwise collide when we append rows one at a time). downloadOrder/handleEvent/
+// patchRow/removeRow all key on this client `i`, and the backend's streamed 1-based
+// event index is mapped THROUGH downloadOrder, so it never indexes a row directly.
+let rowSeq = 0
+function nextRowId(): number {
+  return ++rowSeq
+}
+
+function placeholderRow(i: number, query: string): PreviewRow {
+  return {
+    i,
+    query,
+    id: null,
+    title: null,
+    channel: null,
+    album: null,
+    duration: null,
+    confidence: 'LOW',
+    source: '',
+    explicit: null,
+    stem: null,
+    status: 'preview',
+    accepted: false,
+    candidatesLoading: true, // drives the resolving spinner until reresolveRow lands
+  }
+}
+
+function toPreviewRow(i: number, r: ResolvedRow): PreviewRow {
+  return {
+    ...r,
+    i,
+    confidence: r.confidence as Confidence,
+    accepted: r.status === 'preview' && !!r.id,
+  }
+}
+
 interface DownloaderState {
   view: DownloaderView
   phase: Phase
@@ -73,6 +112,8 @@ interface DownloaderState {
   outDirIsLibrary: boolean
   resolving: boolean
   busy: boolean
+  /** When true, the next FIFO batch auto-starts once the current one settles. */
+  keepGoing: boolean
   rows: PreviewRow[]
   downloadOrder: number[]
   /** Output paths of files that downloaded OK this run — added to the Downloaded playlist when the run settles. */
@@ -87,6 +128,7 @@ interface DownloaderState {
   popOut: () => void
   reset: () => void
   setInputText: (t: string) => void
+  setKeepGoing: (v: boolean) => void
   ingestFilePath: (path: string) => Promise<void>
   loadPreflight: (fast?: boolean) => Promise<void>
   loadAuth: () => Promise<void>
@@ -98,8 +140,12 @@ interface DownloaderState {
   handleInstallEvent: (e: InstallEvent) => void
   pickOutDir: () => Promise<void>
   addOutDirToLibrary: () => Promise<void>
+  /** Modal flow: resolve ALL pasted lines at once and replace the row list. */
   runPreview: () => Promise<void>
+  /** Panel flow: append a card per pasted line and resolve each in place (organic). */
+  addLines: () => Promise<void>
   backToInput: () => void
+  clearFinished: () => void
 
   toggleAccept: (i: number) => void
   setAcceptAll: (v: boolean) => void
@@ -122,6 +168,12 @@ function patchRow(rows: PreviewRow[], i: number, patch: Partial<PreviewRow>): Pr
   return rows.map((r) => (r.i === i ? { ...r, ...patch } : r))
 }
 
+/** A row is eligible for a fresh download batch if it's accepted, resolved, not
+ *  failed, and hasn't been queued/downloaded yet (no dlStage). */
+function isEligible(r: PreviewRow): boolean {
+  return r.accepted && !!r.id && r.status !== 'failed' && !r.dlStage
+}
+
 export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   view: 'closed',
   phase: 'input',
@@ -140,6 +192,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   outDirIsLibrary: false,
   resolving: false,
   busy: false,
+  keepGoing: false,
   rows: [],
   downloadOrder: [],
   downloadedPaths: [],
@@ -147,33 +200,37 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
   reindexed: false,
   error: null,
 
+  // Open the right-side panel (the default surface). The list PERSISTS across
+  // opens — no auto-reset — so you can keep adding songs over a session. outDir
+  // resolves once on first open; auth/preflight refresh each time.
   openPanel: async () => {
-    // Opening from Settings always lands in the full modal. A finished run starts
-    // fresh; an in-flight run is shown live (no reset) so re-opening mid-download
-    // just brings the popup back over the running job.
-    if (get().phase === 'done') get().reset()
-    set({ view: 'modal' })
+    set({ view: 'closed' })
+    useLibraryStore.getState().openPanel('downloader')
     get().loadAuth()
     get().loadPreflight()
-    // Default to <root>/Downloaded; "+ add to library" hides when the dir is
-    // already under a library folder (prefix match, computed in main).
-    try {
-      const outDir = await hub.downloaderResolveOutDir()
-      const outDirIsLibrary = await hub.isPathInLibrary(outDir)
-      set({ outDir, outDirIsLibrary })
-    } catch {
-      /* leave outDir empty; backend still has its own default */
+    if (!get().outDir) {
+      try {
+        const outDir = await hub.downloaderResolveOutDir()
+        const outDirIsLibrary = await hub.isPathInLibrary(outDir)
+        set({ outDir, outDirIsLibrary })
+      } catch {
+        /* leave outDir empty; backend still has its own default */
+      }
     }
   },
 
+  // Closes the full-screen modal pop-out only. No-ops while busy (dock-or-cancel).
   closePanel: () => {
-    if (get().busy) return // dock-or-cancel: can't fully close mid-download
+    if (get().busy) return
     set({ view: 'closed' })
   },
 
-  // Minimize the modal into the slim right-side progress monitor — the download
-  // keeps running and the app stays interactive. popOut restores the full modal.
-  dock: () => set({ view: 'docked' }),
+  // From the modal: move back into the slim right-side panel (keep the app interactive).
+  dock: () => {
+    set({ view: 'closed' })
+    useLibraryStore.getState().openPanel('downloader')
+  },
+  // From the panel: pop out into the full-screen modal for big-batch triage.
   popOut: () => set({ view: 'modal' }),
 
   reset: () =>
@@ -190,6 +247,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     }),
 
   setInputText: (t) => set({ inputText: t, csvPath: null, csvName: null }),
+  setKeepGoing: (v) => set({ keepGoing: !!v }),
 
   ingestFilePath: async (path) => {
     const lower = path.toLowerCase()
@@ -317,11 +375,9 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
         set({ resolving: false, error })
         return
       }
-      const preview: PreviewRow[] = rows.map((r) => ({
-        ...r,
-        confidence: r.confidence as Confidence,
-        accepted: r.status === 'preview' && !!r.id,
-      }))
+      // Reassign client-allocated ids so identity never depends on the backend's
+      // per-call index (keeps the modal and panel rows collision-free).
+      const preview: PreviewRow[] = rows.map((r) => toPreviewRow(nextRowId(), r))
       set({
         rows: preview,
         phase: 'preview',
@@ -333,7 +389,67 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     }
   },
 
+  // Panel flow — append, then resolve in place. Input + list coexist; the user
+  // keeps typing while earlier lines resolve. A small concurrency cap avoids
+  // firing dozens of parallel resolves at yt-dlp / ytmusicapi on a big paste.
+  addLines: async () => {
+    const csvPath = get().csvPath
+    if (csvPath) {
+      set({ csvPath: null, csvName: null, error: null })
+      try {
+        const { rows, error } = await hub.downloaderResolve({ csvPath })
+        if (error && rows.length === 0) {
+          set({ error })
+          return
+        }
+        set((s) => ({
+          phase: s.busy ? s.phase : 'preview',
+          rows: [...s.rows, ...rows.map((r) => toPreviewRow(nextRowId(), r))],
+        }))
+      } catch (e) {
+        set({ error: String(e) })
+      }
+      return
+    }
+
+    const lines = get()
+      .inputText.split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'))
+    if (lines.length === 0) return
+
+    const appended = lines.map((line) => ({ i: nextRowId(), line }))
+    set((s) => ({
+      inputText: '',
+      error: null,
+      phase: s.busy ? s.phase : 'preview',
+      rows: [...s.rows, ...appended.map(({ i, line }) => placeholderRow(i, line))],
+    }))
+
+    let idx = 0
+    const CAP = 3
+    const worker = async (): Promise<void> => {
+      while (idx < appended.length) {
+        const cur = appended[idx++]
+        if (!get().rows.some((r) => r.i === cur.i)) continue // removed mid-flight
+        await reresolveRow(cur.i, cur.line, undefined, set, get)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CAP, appended.length) }, worker))
+  },
+
   backToInput: () => set({ phase: 'input', summary: null, reindexed: false }),
+
+  // Panel: prune terminal cards (done / skipped / failed) so a long session's
+  // list doesn't grow forever. Only when idle, so an active run is never touched.
+  clearFinished: () =>
+    set((s) => {
+      if (s.busy) return {}
+      const keep = s.rows.filter(
+        (r) => !(r.dlStage === 'done' || r.dlStage === 'skipped' || r.dlStage === 'failed' || r.status === 'failed')
+      )
+      return { rows: keep, downloadOrder: [], summary: null, phase: keep.length ? 'preview' : 'input' }
+    }),
 
   toggleAccept: (i) =>
     set((s) => ({ rows: patchRow(s.rows, i, { accepted: !s.rows.find((r) => r.i === i)?.accepted }) })),
@@ -416,14 +532,20 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     await reresolveRow(i, row!.query, vid, set, get)
   },
 
+  // Start a FIFO batch from the currently-eligible rows. The backend runs ONE
+  // download child at a time (per-spawn 1-based event indexing), so we snapshot
+  // this batch's order and never splice new songs into a live run. After the
+  // await resolves (child 'close' — activeDownload is null again) it's safe to
+  // auto-start the next batch if "keep going" is on.
   startDownload: async () => {
-    const accepted = get().rows.filter((r) => r.accepted && r.id && r.status !== 'failed')
-    if (accepted.length === 0) {
+    if (get().busy) return
+    const eligible = get().rows.filter(isEligible)
+    if (eligible.length === 0) {
       set({ error: 'Nothing selected to download.' })
       return
     }
-    const downloadOrder = accepted.map((r) => r.i)
-    const sendRows = accepted.map((r) => ({ stem: r.stem || r.query, id: r.id as string }))
+    const downloadOrder = eligible.map((r) => r.i)
+    const sendRows = eligible.map((r) => ({ stem: r.stem || r.query, id: r.id as string }))
     set((s) => ({
       phase: 'downloading',
       busy: true,
@@ -432,9 +554,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
       reindexed: false,
       downloadOrder,
       downloadedPaths: [],
-      rows: s.rows.map((r) =>
-        downloadOrder.includes(r.i) ? { ...r, dlStage: 'queued', pct: 0 } : r
-      ),
+      rows: s.rows.map((r) => (downloadOrder.includes(r.i) ? { ...r, dlStage: 'queued', pct: 0 } : r)),
     }))
     const outDir = get().outDir || undefined
     try {
@@ -446,17 +566,23 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
     } catch (e) {
       if (get().busy) set({ busy: false, error: String(e) })
     }
+    if (get().keepGoing && !get().busy && get().rows.some(isEligible)) {
+      void get().startDownload()
+    }
   },
 
   cancel: async () => {
     await hub.downloaderCancel()
     set((s) => {
       const inRun = (i: number) => s.downloadOrder.includes(i)
-      const rows = s.rows.map((r) =>
-        inRun(r.i) && (r.dlStage === 'downloading' || r.dlStage === 'queued' || r.dlStage === 'embedding')
-          ? { ...r, dlStage: 'failed' as const }
-          : r
-      )
+      const rows = s.rows.map((r) => {
+        if (!inRun(r.i)) return r
+        // Actively in-flight rows were interrupted → failed. Not-yet-started
+        // (queued) rows reset to idle so they stay retryable in the next batch.
+        if (r.dlStage === 'downloading' || r.dlStage === 'embedding') return { ...r, dlStage: 'failed' as const }
+        if (r.dlStage === 'queued') return { ...r, dlStage: undefined, pct: undefined }
+        return r
+      })
       const inRunRows = rows.filter((r) => inRun(r.i))
       const done = inRunRows.filter((r) => r.dlStage === 'done')
       return {
@@ -472,7 +598,7 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
       }
     })
     // Songs that finished before the cancel are real files — index + bucket them.
-    void finishRun()
+    scheduleFinish(get().downloadedPaths.slice())
   },
 
   handleEvent: (e) => {
@@ -508,12 +634,13 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
         break
       }
       case 'summary': {
+        const paths = get().downloadedPaths.slice() // snapshot before the next batch resets it
         set({
           summary: { new: e.new, skipped: e.skipped, failed: e.failed, low_confidence: e.low_confidence },
           phase: 'done',
           busy: false,
         })
-        void finishRun() // rescan, then drop the run's files into the Downloaded playlist
+        scheduleFinish(paths) // rescan (debounced), then drop the run's files into Downloaded
         break
       }
       case 'fatal': {
@@ -527,15 +654,31 @@ export const useDownloaderStore = create<DownloaderState>((set, get) => ({
 }))
 
 /**
- * Settle a finished/cancelled run: rescan the library so the new files appear,
- * then add this run's downloaded files to the "Downloaded" playlist (path-based;
- * INSERT OR IGNORE keeps repeats idempotent) and refresh playlist counts. The
+ * Settle finished/cancelled runs. The library rescan is DEBOUNCED + coalesced so
+ * back-to-back FIFO batches (with "keep going") don't thrash scanLibrary — one
+ * rescan covers the whole chain. Downloaded paths accumulate across coalesced
+ * batches and are added to the "Downloaded" playlist (path-based; INSERT OR IGNORE
+ * keeps repeats idempotent) once the rescan lands so the tracks exist to map. The
  * 'Downloaded' name matches the default download subfolder (downloader-core
  * DOWNLOADED_DIR) but is fixed here so custom out-dirs still land in the bucket.
  */
-async function finishRun(): Promise<void> {
+let pendingFinishPaths: string[] = []
+let finishTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleFinish(paths: string[]): void {
+  if (paths.length) pendingFinishPaths.push(...paths)
+  useDownloaderStore.setState({ reindexed: false })
+  if (finishTimer) clearTimeout(finishTimer)
+  finishTimer = setTimeout(() => {
+    void runFinish()
+  }, 1200)
+}
+
+async function runFinish(): Promise<void> {
+  finishTimer = null
+  const paths = pendingFinishPaths
+  pendingFinishPaths = []
   await useLibraryStore.getState().load()
-  const paths = useDownloaderStore.getState().downloadedPaths
   if (paths.length) {
     try {
       await hub.addPathsToPlaylist('Downloaded', paths)
@@ -565,6 +708,7 @@ async function reresolveRow(
     }
     set((s) => ({
       rows: patchRow(s.rows, i, {
+        // NOTE: never copy r.i — identity stays the client-allocated `i`.
         id: r.id,
         title: r.title,
         channel: r.channel,
