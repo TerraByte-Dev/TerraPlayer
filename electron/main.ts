@@ -176,24 +176,38 @@ app.whenReady().then(() => {
     const path = getTrackPath(trackId)
     if (path == null) return { ok: false as const, reason: 'Track not found' }
     const win = BrowserWindow.fromWebContents(event.sender)
-    const opts = {
-      type: 'warning' as const,
-      buttons: ['Move to Recycle Bin', 'Cancel'],
-      defaultId: 1, // Cancel is the safe default
-      cancelId: 1,
-      noLink: true,
-      title: 'Delete song',
-      message: `Move “${basename(path)}” to the Recycle Bin?`,
-      detail: 'You can restore it from the Recycle Bin.',
-    }
+    // A row whose file is already gone (its folder was deleted outside the app)
+    // can't be trashed — saying so beats promising a Recycle Bin round trip that
+    // will not happen.
+    let exists = true
+    try { statSync(path) } catch { exists = false }
+    const opts = exists
+      ? {
+          type: 'warning' as const,
+          buttons: ['Move to Recycle Bin', 'Cancel'],
+          defaultId: 1, // Cancel is the safe default
+          cancelId: 1,
+          noLink: true,
+          title: 'Delete song',
+          message: `Move “${basename(path)}” to the Recycle Bin?`,
+          detail: 'You can restore it from the Recycle Bin.',
+        }
+      : {
+          type: 'warning' as const,
+          buttons: ['Remove from library', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+          title: 'Delete song',
+          message: `“${basename(path)}” is no longer on disk. Remove it from your library?`,
+          detail: 'The file is already gone, so there is nothing to move to the Recycle Bin. Its tags and playlist entries are removed with it.',
+        }
     const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
     if (response !== 0) return { cancelled: true as const }
 
     // Trash the file if it still exists; an already-missing file is fine — just
     // drop the row. Retry once after a beat: a just-stopped track may still be
     // briefly locked while the renderer releases its <audio> handle (Windows).
-    let exists = true
-    try { statSync(path) } catch { exists = false }
     if (exists) {
       for (let attempt = 0; ; attempt++) {
         try { await shell.trashItem(path); break }

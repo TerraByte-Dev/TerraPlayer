@@ -380,7 +380,29 @@ async function walkDir(
   }
 }
 
-export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tracks: TrackRow[]; summary: ScanSummary }> {
+type ScanResult = { playlists: PlaylistSummary[]; tracks: TrackRow[]; summary: ScanSummary }
+
+/**
+ * Scans run one at a time.
+ *
+ * better-sqlite3 has a single connection and runScan holds a manual BEGIN across
+ * its metadata reads, so a second scan starting mid-flight threw "cannot start a
+ * transaction within a transaction" — and since the BEGIN sits outside the try,
+ * nothing rolled back and the raw error surfaced in the UI. Dropping a song while
+ * the boot scan is still going is an ordinary gesture now, and it triggers
+ * exactly that. Queueing instead of rejecting means the drop simply rescans once
+ * the running scan finishes, which is the result the caller wanted anyway.
+ */
+let scanChain: Promise<unknown> = Promise.resolve()
+
+export function scanLibrary(): Promise<ScanResult> {
+  const next = scanChain.then(runScan, runScan)
+  // Keep the chain alive after a failed scan; each caller still sees its own error.
+  scanChain = next.catch(() => undefined)
+  return next
+}
+
+async function runScan(): Promise<ScanResult> {
   const db = getDb()
 
   migrateCoversToDisk(db)
