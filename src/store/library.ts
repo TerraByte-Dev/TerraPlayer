@@ -35,7 +35,8 @@ interface LibraryState {
   addFolderByPath: (path: string) => Promise<void>
   addPaths: (paths: string[]) => Promise<void>
   clearReveal: () => void
-  removeFolder: (path: string) => Promise<void>
+  removeFolder: (path: string, keepTracks: boolean) => Promise<void>
+  removeTrackFromLibrary: (id: number) => Promise<void>
   deleteTrack: (id: number) => Promise<void>
   clearError: () => void
   setSidebarView: (v: SidebarView) => void
@@ -176,9 +177,26 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   clearReveal: () => set({ revealTrackId: null }),
 
-  removeFolder: async (path: string) => {
-    await hub.removeFolder(path)
+  removeFolder: async (path: string, keepTracks: boolean) => {
+    await hub.removeFolder(path, keepTracks)
     await get().load()
+  },
+
+  // Take a song out of the library, leaving the file alone. Main refuses this for
+  // anything a library folder still covers, since the next scan would just walk
+  // it back in — surface that reason rather than looking like nothing happened.
+  removeTrackFromLibrary: async (id: number) => {
+    usePlayerStore.getState().purgeTrack(id)
+    const res = await hub.removeTrackFromLibrary(id)
+    if (!res.ok) {
+      set({ error: res.reason ?? 'Could not remove that song.' })
+      return
+    }
+    set((s) => ({
+      tracks: s.tracks.filter((t) => t.id !== id),
+      selectedTrackId: s.selectedTrackId === id ? null : s.selectedTrackId,
+    }))
+    get().loadPlaylists()
   },
 
   deleteTrack: async (id: number) => {

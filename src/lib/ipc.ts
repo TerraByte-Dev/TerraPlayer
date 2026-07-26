@@ -8,6 +8,8 @@ export interface Track {
   duration: number
   coverUrl: string | null
   mtime: number
+  /** No library folder covers this file — it can be removed without deleting it. */
+  loose: boolean
 }
 
 export interface PlaylistSummary {
@@ -186,7 +188,8 @@ declare global {
       listFolders(): Promise<LibraryFolder[]>
       addFolder(path: string): Promise<LibraryFolder[]>
       addPaths(paths: string[]): Promise<AddPathsResult>
-      removeFolder(path: string): Promise<void>
+      removeFolder(path: string, keepTracks: boolean): Promise<void>
+      removeTrackFromLibrary(trackId: number): Promise<{ ok: boolean; reason?: string }>
       pickFolder(): Promise<string | null>
       suggestMusicFolder(): Promise<{ path: string; exists: boolean }>
       getDriveStats(): Promise<{ totalBytes: number }>
@@ -274,7 +277,8 @@ export const hub = {
   listFolders: () => window.hub.listFolders(),
   addFolder: (path: string) => window.hub.addFolder(path),
   addPaths: (paths: string[]) => window.hub.addPaths(paths),
-  removeFolder: (path: string) => window.hub.removeFolder(path),
+  removeFolder: (path: string, keepTracks: boolean) => window.hub.removeFolder(path, keepTracks),
+  removeTrackFromLibrary: (trackId: number) => window.hub.removeTrackFromLibrary(trackId),
   pickFolder: () => window.hub.pickFolder(),
   suggestMusicFolder: () => window.hub.suggestMusicFolder(),
   getDriveStats: () => window.hub.getDriveStats(),

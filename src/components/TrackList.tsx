@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { ChevronUp, ChevronDown, Play, Pause, FolderPlus, Music, X, AlertCircle, ListPlus, ListEnd, FolderOpen, Tag, ListMusic, Trash2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, Play, Pause, FolderPlus, Music, X, AlertCircle, ListPlus, ListEnd, FolderOpen, Tag, ListMusic, ListX, Trash2 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
 import { useContextMenuStore } from '@/store/contextMenu'
@@ -244,6 +244,16 @@ export default function TrackList() {
         onClick: () => window.hub.revealInFolder(track.path),
       },
       { separator: true },
+      // Only offered for songs no library folder covers. For a folder-covered
+      // track this would be undone by the next scan — and the tags would already
+      // be gone — so there the way out is to stop scanning the folder.
+      ...(track.loose
+        ? [{
+            label: 'Remove from library',
+            icon: <ListX size={12} />,
+            onClick: () => useLibraryStore.getState().removeTrackFromLibrary(track.id),
+          }]
+        : []),
       {
         label: 'Delete song',
         icon: <Trash2 size={12} />,

@@ -20,6 +20,13 @@ export interface TrackRow {
   duration: number
   coverUrl: string | null
   mtime: number
+  /**
+   * True when no library folder covers this file — a song dragged in on its own,
+   * or one kept when its folder was unregistered. Only these can be taken out of
+   * the library non-destructively: a folder-covered track would be re-inserted by
+   * the very next scan, with a new id and its tags already cascaded away.
+   */
+  loose: boolean
 }
 
 export interface PlaylistSummary {
@@ -53,10 +60,11 @@ function coverUrlFromPath(coverPath: unknown): string | null {
   return `hub://localhost/${encodeURIComponent(coverPath as string)}`
 }
 
-function rowToTrack(r: Record<string, unknown>): TrackRow {
+function rowToTrack(r: Record<string, unknown>, roots: readonly string[]): TrackRow {
+  const path = r.path as string
   return {
     id: r.id as number,
-    path: r.path as string,
+    path,
     playlist: r.playlist as string,
     title: (r.title as string) ?? '',
     artist: (r.artist as string) ?? '',
@@ -64,7 +72,13 @@ function rowToTrack(r: Record<string, unknown>): TrackRow {
     duration: (r.duration as number) ?? 0,
     coverUrl: coverUrlFromPath(r.cover_path),
     mtime: (r.mtime as number) ?? 0,
+    loose: !isPathUnderAnyFolder(path, roots),
   }
+}
+
+/** Registered scan roots — resolved once per query to flag each track's `loose`. */
+function folderPaths(): string[] {
+  return listLibraryFolders().map((f) => f.path)
 }
 
 function normalizeName(name: string): string {
@@ -128,32 +142,51 @@ function seedLegacyPlaylists(db: Db): void {
 }
 
 /**
+ * Every track whose file lives inside `folderPath`.
+ *
+ * Deliberately a JS filter rather than a SQL prefix test. `SUBSTR(path, 1, ?) = ?`
+ * with folderPath.length was wrong three ways: it has no separator boundary (so
+ * "C:\Music" also matched C:\Music2 and C:\Music Videos), it is case-sensitive
+ * (so it missed "c:\music\…" rows the shell can produce), and it fed a JS UTF-16
+ * code-unit count to a SQLite call that counts characters — so a folder name
+ * containing an emoji cut one character short and matched NOTHING, ever. The
+ * predicate was already non-sargable (EXPLAIN reports SCAN tracks), so nothing
+ * is given up by filtering here, and isPathUnderAnyFolder is the same containment
+ * check addPaths already uses to answer this exact question.
+ */
+function tracksUnderFolder(db: Db, folderPath: string): { id: number; playlist: string }[] {
+  return dbAll<{ id: number; path: string; playlist: string }>(
+    db, 'SELECT id, path, playlist FROM tracks', []
+  ).filter((t) => isPathUnderAnyFolder(t.path, [folderPath]))
+}
+
+/**
  * Seed folder→playlist memberships for ONE library folder, exactly once.
  * Group the folder's tracks by their derived `playlist` (top subfolder name)
- * and add each to that playlist. Path-prefix match mirrors removeLibraryFolder.
- * INSERT OR IGNORE makes this safe against overlap with seedLegacyPlaylists and
- * against accidental re-runs. The caller gates this on seeded_at and stamps it,
- * so a user who later renames a folder-playlist never sees it respawned by a
- * routine rescan (the import-once contract).
+ * and add each to that playlist. INSERT OR IGNORE makes this safe against overlap
+ * with seedLegacyPlaylists and against accidental re-runs. The caller gates this
+ * on seeded_at and stamps it, so a user who later renames a folder-playlist never
+ * sees it respawned by a routine rescan (the import-once contract).
+ *
+ * Uses the same containment test as removeLibraryFolder, and must keep doing so:
+ * if seeding and removal disagreed about which tracks belong to a folder, a folder
+ * could seed a playlist from tracks its own removal would never clean up.
  */
 function seedFolderPlaylists(db: Db, folderPath: string): void {
-  const groups = dbAll<{ playlist: string }>(
-    db,
-    'SELECT DISTINCT playlist FROM tracks WHERE SUBSTR(path, 1, ?) = ? AND playlist IS NOT NULL AND playlist <> ?',
-    [folderPath.length, folderPath, '']
-  )
-  for (const group of groups) {
-    const playlistId = ensurePlaylist(db, group.playlist)
-    const tracks = dbAll<{ id: number }>(
-      db,
-      'SELECT id FROM tracks WHERE SUBSTR(path, 1, ?) = ? AND playlist = ?',
-      [folderPath.length, folderPath, group.playlist]
-    )
-    for (const track of tracks) {
+  const groups = new Map<string, number[]>()
+  for (const track of tracksUnderFolder(db, folderPath)) {
+    if (!track.playlist) continue
+    const ids = groups.get(track.playlist)
+    if (ids) ids.push(track.id)
+    else groups.set(track.playlist, [track.id])
+  }
+  for (const [playlist, trackIds] of groups) {
+    const playlistId = ensurePlaylist(db, playlist)
+    for (const trackId of trackIds) {
       dbRun(
         db,
         'INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, added_at) VALUES (?, ?, ?)',
-        [playlistId, track.id, Math.floor(Date.now() / 1000)]
+        [playlistId, trackId, Math.floor(Date.now() / 1000)]
       )
     }
   }
@@ -173,10 +206,28 @@ export function addLibraryFolder(folderPath: string): LibraryFolder[] {
   return listLibraryFolders()
 }
 
-export function removeLibraryFolder(folderPath: string): void {
+/**
+ * Stop scanning a folder.
+ *
+ * A library folder is a *source* of songs and the name its playlist was seeded
+ * from — it does not own them. So dropping the songs is the caller's explicit
+ * choice, never implied by unregistering the root. `keepTracks` leaves them in
+ * the library as ordinary folder-less tracks: same row ids, so they keep their
+ * tags, their playlist memberships, and their place in "order added". That also
+ * makes remove-then-re-add lossless, where before it renumbered every track and
+ * cascaded its tags away.
+ *
+ * `keepTracks` is required rather than defaulted: a default would quietly pick a
+ * semantic at every call site, and one of the two destroys data.
+ */
+export function removeLibraryFolder(folderPath: string, keepTracks: boolean): void {
   const db = getDb()
   db.transaction(() => {
-    dbRun(db, 'DELETE FROM tracks WHERE SUBSTR(path, 1, ?) = ?', [folderPath.length, folderPath])
+    if (!keepTracks) {
+      for (const track of tracksUnderFolder(db, folderPath)) {
+        dbRun(db, 'DELETE FROM tracks WHERE id = ?', [track.id])
+      }
+    }
     dbRun(db, 'DELETE FROM library_folders WHERE path = ?', [folderPath])
   })()
 }
@@ -381,11 +432,12 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
   // is strictly monotonic and never reused, which makes it the only total,
   // stable "added" ordering available — added_at is 1-second granularity, so a
   // bulk import lands hundreds of rows on the same value.
+  const roots = folders.map((f) => f.path)
   const tracks = dbAll(
     db,
     'SELECT id, path, playlist, title, artist, album, duration, cover_path, mtime FROM tracks ORDER BY id',
     []
-  ).map(rowToTrack)
+  ).map((r) => rowToTrack(r, roots))
   const playlists = listPlaylists()
 
   return { playlists, tracks, summary }
@@ -534,7 +586,7 @@ export async function refreshTrack(filePath: string): Promise<TrackRow | null> {
   }
 
   const row = dbGet(db, 'SELECT id, path, playlist, title, artist, album, duration, cover_path, mtime FROM tracks WHERE path = ?', [filePath])
-  return row ? rowToTrack(row as Record<string, unknown>) : null
+  return row ? rowToTrack(row as Record<string, unknown>, folderPaths()) : null
 }
 
 export function getTrackPath(id: number): string | null {
@@ -546,6 +598,25 @@ export function getTrackPath(id: number): string | null {
 export function deleteTrackRow(id: number): void {
   const db = getDb()
   dbRun(db, 'DELETE FROM tracks WHERE id = ?', [id])
+}
+
+/**
+ * Take a song out of the library without touching the file on disk.
+ *
+ * Refuses a track any library folder still covers, and that refusal is the whole
+ * point: the next scan would walk that file straight back in with a fresh id,
+ * having already cascaded away the tags and playlist memberships the user built.
+ * The way out of a folder is to stop scanning the folder.
+ */
+export function removeTrackFromLibrary(id: number): { ok: boolean; reason?: string } {
+  const db = getDb()
+  const track = dbGet<{ path: string }>(db, 'SELECT path FROM tracks WHERE id = ?', [id])
+  if (!track) return { ok: false, reason: 'Track not found' }
+  if (isPathUnderAnyFolder(track.path, folderPaths())) {
+    return { ok: false, reason: 'That song is in a library folder — remove the folder instead.' }
+  }
+  deleteTrackRow(id)
+  return { ok: true }
 }
 
 export function listTags(): TagRow[] {
@@ -621,7 +692,8 @@ export function getTracksForPlaylist(playlistId: number): TrackRow[] {
      ORDER BY pt.added_at, t.artist, t.title`,
     [playlistId]
   )
-  return rows.map(rowToTrack)
+  const roots = folderPaths()
+  return rows.map((r) => rowToTrack(r, roots))
 }
 
 export function addTrackToPlaylist(playlistId: number, trackId: number): void {
@@ -738,7 +810,8 @@ export function getTracksForTag(tagId: number): TrackRow[] {
      ORDER BY t.artist, t.title`,
     [tagId]
   )
-  return rows.map(rowToTrack)
+  const roots = folderPaths()
+  return rows.map((r) => rowToTrack(r, roots))
 }
 
 export function getDriveStats(): { totalBytes: number } {
