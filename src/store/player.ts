@@ -22,7 +22,6 @@ interface PlayerState {
   vizFullscreen: boolean
   eq: EqSettings
 
-  setQueue: (tracks: Track[], startIndex?: number) => void
   playTrack: (track: Track, queue?: Track[]) => void
   next: () => void
   prev: () => void
@@ -40,7 +39,6 @@ interface PlayerState {
   addToUpNext: (track: Track) => void
   playNext: (track: Track) => void
   removeFromUpNext: (index: number) => void
-  reorderUpNext: (from: number, to: number) => void
   moveFutureTrack: (
     from: { section: 'upNext' | 'comingUp'; index: number },
     to: { section: 'upNext' | 'comingUp'; index: number }
@@ -93,16 +91,6 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   currentTrack: () => {
     const { queueIndex } = get()
     return get().activeQueue()[queueIndex] ?? null
-  },
-
-  setQueue: (tracks, startIndex = 0) => {
-    const { shuffle } = get()
-    if (shuffle) {
-      const anchor = tracks[startIndex]
-      set({ queue: tracks, shuffledQueue: buildShuffled(tracks, anchor?.id ?? -1), queueIndex: 0 })
-    } else {
-      set({ queue: tracks, queueIndex: startIndex })
-    }
   },
 
   playTrack: (track, queue) => {
@@ -188,11 +176,6 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
   playNext: (track) => set((s) => ({ upNext: [track, ...s.upNext] })),
   removeFromUpNext: (index) =>
     set((s) => ({ upNext: s.upNext.filter((_, i) => i !== index) })),
-  reorderUpNext: (from, to) =>
-    set((s) => {
-      return { upNext: moveItem(s.upNext, from, to) }
-    }),
-
   moveFutureTrack: (from, to) =>
     set((s) => {
       if (from.section === to.section && from.index === to.index) return {}

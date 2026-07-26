@@ -1,4 +1,3 @@
-import React from 'react'
 import { THEMES, applyTheme, setCrtOff, setReduceMotion } from '@/lib/theme'
 import { useDisplayState } from '@/lib/useDisplay'
 import { Section, SettingRow, Toggle } from './primitives'

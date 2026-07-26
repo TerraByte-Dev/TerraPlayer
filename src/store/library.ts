@@ -154,8 +154,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // Point at the song either way: a drop whose file was already indexed is
       // still answered by scrolling to it, rather than looking like a no-op.
       // Compared loosely: the shell hands back a path whose drive-letter case and
-      // separators needn't match the one the walk recorded.
-      const key = (p: string) => p.replace(/[\\/]+/g, '/').toLowerCase()
+      // separators needn't match the one the walk recorded. Same normalization as
+      // main's isPathUnderAnyFolder, trailing separator included — the two must
+      // agree about whether they're looking at the same file.
+      const key = (p: string) => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
       const landed = res.revealPath
         ? get().tracks.find((t) => key(t.path) === key(res.revealPath!))
         : undefined

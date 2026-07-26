@@ -92,35 +92,6 @@ export function Slider({ value, min, max, step = 1, onChange, format }: {
   )
 }
 
-/** A small segmented selector (radio-style button group). */
-export function Segmented<T extends string>({ value, options, onChange }: {
-  value: T
-  options: { value: T; label: string }[]
-  onChange: (v: T) => void
-}) {
-  return (
-    <div className="inline-flex" style={{ border: '1px solid rgb(var(--accent-rgb) / 0.15)' }}>
-      {options.map((o, i) => {
-        const active = o.value === value
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            className="font-term text-[12px] px-3 py-1 transition-colors"
-            style={{
-              color: active ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.55)',
-              background: active ? 'rgb(var(--accent-rgb) / 0.12)' : 'transparent',
-              borderLeft: i > 0 ? '1px solid rgb(var(--accent-rgb) / 0.15)' : 'none',
-            }}
-          >
-            {o.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 /** A metal-key styled action button. */
 export function KeyButton({ children, onClick, primary, danger, disabled, title }: {
   children: React.ReactNode

@@ -1,4 +1,3 @@
-import React from 'react'
 import { usePlayerStore } from '@/store/player'
 import { useSettingsStore } from '@/store/settings'
 import {

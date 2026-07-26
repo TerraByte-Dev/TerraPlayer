@@ -2,7 +2,6 @@ node_modules/
 out/
 dist/
 release/
-build/*.png
 *.map
 *.tsbuildinfo
 *.log
@@ -20,3 +19,6 @@ build/download_music.py
 # Claude Code
 CLAUDE.md
 .claude/
+
+# RADAR product state (workspace tooling, not part of the product)
+BLIP.md
