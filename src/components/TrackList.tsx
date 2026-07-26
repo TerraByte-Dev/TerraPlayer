@@ -14,6 +14,29 @@ type SortKey = 'added' | 'title' | 'artist' | 'album' | 'duration' | 'playlist'
 const ROW_HEIGHT = 30 // py-[3px] (6px) + 24px cover = 30px per row
 const OVERSCAN = 8   // rows rendered outside viewport for smooth scrolling
 
+const SORT_KEYS: SortKey[] = ['added', 'title', 'artist', 'album', 'duration', 'playlist']
+const SORT_STORAGE_KEY = 'tp-track-sort'
+
+// Remember the chosen sort across launches. "Order added" is only the default for
+// someone who has never picked anything — otherwise every session would throw
+// away the column they sorted by last time.
+function readSort(): { key: SortKey; asc: boolean } {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY)
+    if (raw) {
+      const saved = JSON.parse(raw) as { key?: unknown; asc?: unknown }
+      if (SORT_KEYS.includes(saved.key as SortKey) && typeof saved.asc === 'boolean') {
+        return { key: saved.key as SortKey, asc: saved.asc }
+      }
+    }
+  } catch { /* unreadable or malformed — fall back to the default */ }
+  return { key: 'added', asc: true }
+}
+
+function writeSort(key: SortKey, asc: boolean): void {
+  try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ key, asc })) } catch { /* non-fatal */ }
+}
+
 export default function TrackList() {
   const {
     sidebarView, visibleTracks, selectTrack, selectedTrackId,
@@ -36,8 +59,8 @@ export default function TrackList() {
 
   // asyncTracks holds results for tag/playlist views (requires IPC)
   const [asyncTracks, setAsyncTracks] = useState<Track[]>([])
-  const [sortKey, setSortKey] = useState<SortKey>('added')
-  const [sortAsc, setSortAsc] = useState(true)
+  const [sortKey, setSortKey] = useState<SortKey>(() => readSort().key)
+  const [sortAsc, setSortAsc] = useState(() => readSort().asc)
   const [tagViewLoading, setTagViewLoading] = useState(false)
   const [musicSuggestion, setMusicSuggestion] = useState<{ path: string; exists: boolean } | null>(null)
   const [showReadErrors, setShowReadErrors] = useState(false)
@@ -150,8 +173,13 @@ export default function TrackList() {
   }
 
   function handleSort(key: SortKey) {
-    if (key === sortKey) setSortAsc((v) => !v)
-    else { setSortKey(key); setSortAsc(true) }
+    if (key === sortKey) {
+      setSortAsc((v) => { writeSort(key, !v); return !v })
+    } else {
+      setSortKey(key)
+      setSortAsc(true)
+      writeSort(key, true)
+    }
   }
 
   const SortIcon = ({ k }: { k: SortKey }) =>

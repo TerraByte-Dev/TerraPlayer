@@ -178,8 +178,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   clearReveal: () => set({ revealTrackId: null }),
 
   removeFolder: async (path: string, keepTracks: boolean) => {
-    await hub.removeFolder(path, keepTracks)
-    await get().load()
+    try {
+      await hub.removeFolder(path, keepTracks)
+      await get().load()
+    } catch (e) {
+      set({ error: String(e), loading: false })
+    }
   },
 
   // Take a song out of the library, leaving the file alone. Main refuses this for
@@ -189,18 +193,22 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     // Ask first, then purge. Purging up front would strip the song from the queue
     // even when main cancels or refuses, leaving playback edited for an action
     // that never happened.
-    const res = await hub.removeTrackFromLibrary(id)
-    if (res.cancelled) return
-    if (!res.ok) {
-      set({ error: res.reason ?? 'Could not remove that song.' })
-      return
+    try {
+      const res = await hub.removeTrackFromLibrary(id)
+      if (res.cancelled) return
+      if (!res.ok) {
+        set({ error: res.reason ?? 'Could not remove that song.' })
+        return
+      }
+      usePlayerStore.getState().purgeTrack(id)
+      set((s) => ({
+        tracks: s.tracks.filter((t) => t.id !== id),
+        selectedTrackId: s.selectedTrackId === id ? null : s.selectedTrackId,
+      }))
+      get().loadPlaylists()
+    } catch (e) {
+      set({ error: String(e) })
     }
-    usePlayerStore.getState().purgeTrack(id)
-    set((s) => ({
-      tracks: s.tracks.filter((t) => t.id !== id),
-      selectedTrackId: s.selectedTrackId === id ? null : s.selectedTrackId,
-    }))
-    get().loadPlaylists()
   },
 
   deleteTrack: async (id: number) => {
