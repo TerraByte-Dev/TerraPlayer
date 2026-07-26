@@ -136,7 +136,27 @@ app.whenReady().then(() => {
   ipcMain.handle('lib:removeFolder', (_, path: string, keepTracks: boolean) =>
     removeLibraryFolder(path, keepTracks)
   )
-  ipcMain.handle('lib:removeTrackFromLibrary', (_, trackId: number) => removeTrackFromLibrary(trackId))
+  ipcMain.handle('lib:removeTrackFromLibrary', async (event, trackId: number) => {
+    const path = getTrackPath(trackId)
+    if (path == null) return { ok: false as const, reason: 'Track not found' }
+    // The file survives, but the tags and playlist entries do not — they live only
+    // in the DB and cascade with the row. That's less recoverable than "Delete
+    // song" (which is a Recycle Bin move), so it gets a confirm that says so.
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const opts = {
+      type: 'warning' as const,
+      buttons: ['Remove from library', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      title: 'Remove from library',
+      message: `Remove “${basename(path)}” from your library?`,
+      detail: 'The file stays where it is on disk. Its tags and playlist entries are lost, and re-adding the song won’t bring them back.',
+    }
+    const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
+    if (response !== 0) return { ok: false as const, cancelled: true as const }
+    return removeTrackFromLibrary(trackId)
+  })
   ipcMain.handle('lib:pickFolder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)!
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })

@@ -186,12 +186,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   // anything a library folder still covers, since the next scan would just walk
   // it back in — surface that reason rather than looking like nothing happened.
   removeTrackFromLibrary: async (id: number) => {
-    usePlayerStore.getState().purgeTrack(id)
+    // Ask first, then purge. Purging up front would strip the song from the queue
+    // even when main cancels or refuses, leaving playback edited for an action
+    // that never happened.
     const res = await hub.removeTrackFromLibrary(id)
+    if (res.cancelled) return
     if (!res.ok) {
       set({ error: res.reason ?? 'Could not remove that song.' })
       return
     }
+    usePlayerStore.getState().purgeTrack(id)
     set((s) => ({
       tracks: s.tracks.filter((t) => t.id !== id),
       selectedTrackId: s.selectedTrackId === id ? null : s.selectedTrackId,
