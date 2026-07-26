@@ -7,7 +7,7 @@ preference applies live and is remembered across restarts.
 ```
 ┌──────────────── Settings ────────────────────────────────┐
 │ APPEARANCE │  theme picker · scanlines · reduce motion    │
-│ AUDIO      │  3-band EQ + presets · pre-amp · mono        │
+│ AUDIO      │  10-band EQ + presets · pre-amp · mono       │
 │ PLAYBACK   │  volume · shuffle · repeat (all remembered)  │
 │ LIBRARY    │  stats · add / remove / rescan folders       │
 │ ADD MUSIC  │  open the downloader                         │
@@ -77,11 +77,12 @@ Everything is renderer-side and instant — no IPC round-trip.
 `src/lib/audio.ts` builds one Web Audio chain:
 
 ```
-source → preamp(gain) → low → mid → high → mono(downmix) → analyser → destination
+source → preamp(gain) → 10 peaking biquads → mono(downmix) → analyser → destination
 ```
 
 - **Pre-amp** — a `GainNode` ahead of the EQ; level set in dB via `dbToGain` (`audio-math.ts`).
-- **EQ** — low-shelf @120 Hz, peaking @1.2 kHz, high-shelf @7.2 kHz, ±8 dB each.
+- **EQ** — 10 peaking biquads at the ISO octave centers (31, 62, 125, 250, 500 Hz, 1, 2, 4, 8, 16 kHz),
+  flat by default. Native nodes, so the band count costs nothing per frame.
 - **Mono** — a `GainNode` with `channelCount=1, channelCountMode='explicit'` sums L+R to a
   true mono signal (the destination upmixes it back to both speakers).
 

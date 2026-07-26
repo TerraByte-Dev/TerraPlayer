@@ -65,7 +65,6 @@ export default function PlayerBar() {
   const deckBRef = useRef<HTMLAudioElement>(null)
   const activeDeckRef = useRef<Deck>('a')
   const connectedRef = useRef(false)
-  const [showVolume, setShowVolume] = useState(false)
   const [showEnhance, setShowEnhance] = useState(false)
   const [showDisplayPicker, setShowDisplayPicker] = useState(false)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
@@ -541,7 +540,7 @@ export default function PlayerBar() {
         {/* EQ */}
         <div className="relative">
           <button
-            onClick={() => { setShowEnhance((v) => !v); setShowVolume(false); setShowDisplayPicker(false) }}
+            onClick={() => { setShowEnhance((v) => !v); setShowDisplayPicker(false) }}
             className={`metal-key ${eq.preset !== 'off' || eq.bands.some((b) => b !== 0) ? 'is-primary' : ''}`}
             style={{ width: 26, height: 26 }}
             title="Equalizer presets"

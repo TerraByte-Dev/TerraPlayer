@@ -67,6 +67,29 @@ else (EQ, crossfade, themes, the fullscreen visualizer) lives behind the gear ic
 - **12 themes, whole-app** — a CRT phosphor-green default plus 11 recolors (Matrix, Ice, Aqua, Ultraviolet, Synthwave, Vapor, Crimson, Tangerine…) that recolor the entire UI **and the visualizer**, applied **before first paint** so there's no flash; plus scanline + reduced-motion toggles ([`SETTINGS.md`](SETTINGS.md)).
 - **Keyboard-first, with a built-in updater** — global transport shortcuts (space · seek · prev/next · volume · mute), and a one-click in-app updater that pulls new versions from GitHub Releases on demand.
 
+## How the library thinks about your music
+
+Worth knowing up front, because it's deliberately different from most players:
+
+**A song is in your library. A folder is just where some of them came from.**
+
+- **Drop anything** — folders *or* individual songs. A folder becomes a watched source and names a
+  playlist after itself. Individual songs are indexed on their own; they don't drag their whole
+  containing folder in with them.
+- **Removing a folder asks what you meant.** **KEEP SONGS** stops watching the folder but leaves its
+  music in your library, tags and playlists intact. **DROP SONGS** takes them out with it. Either way
+  **the files on disk are never touched** — the only thing that deletes a file is *Delete song*, which
+  goes to the Recycle Bin.
+- **Songs list in the order you added them** by default, and the `id` column is that position. It's
+  each song's permanent place in line, so it stays meaningful when you sort by artist or album. Click
+  any column to re-sort; your choice is remembered.
+- **Remove from library** (right-click) takes a song out without deleting the file. It's offered only
+  for songs no folder is watching — for the rest, the way out is to stop watching the folder, since a
+  scan would otherwise just pull the song straight back in.
+
+Nothing is ever silently deleted from disk, and your tags and playlists follow a song across renames
+and moves — they're bound to the file's content, not its path.
+
 ## Screenshots
 
 <p align="center">

@@ -1,0 +1,30 @@
+# Typecheck + unit tests on every push and PR. Deliberately does NOT run
+# electron-builder: packaging is a release-time concern (npm run release) and
+# needs signing/publish credentials this workflow has no business holding.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest # the only shipped target; keeps native better-sqlite3 honest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` runs the postinstall (electron-builder install-app-deps), which
+      # rebuilds better-sqlite3 against Electron's ABI.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test

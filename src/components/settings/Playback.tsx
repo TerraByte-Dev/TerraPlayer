@@ -1,4 +1,3 @@
-import React from 'react'
 import { useSettingsStore } from '@/store/settings'
 import { FADE_MAX, SPEED_MIN, SPEED_MAX } from '@/lib/audio-math'
 import { Section, SettingRow, Slider } from './primitives'

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react'
-import { X, GripVertical, Music } from 'lucide-react'
+import { X, GripVertical } from 'lucide-react'
 import { usePlayerStore } from '@/store/player'
 import { fmtDuration } from '@/lib/ipc'
 import type { Track } from '@/lib/ipc'

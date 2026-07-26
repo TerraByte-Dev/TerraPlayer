@@ -1,4 +1,3 @@
-import React from 'react'
 import Shell from '../tools/Shell'
 import { getTool } from '../tools/registry'
 import type { UtilityMode } from './UtilityDock'
