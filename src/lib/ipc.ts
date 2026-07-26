@@ -8,6 +8,8 @@ export interface Track {
   duration: number
   coverUrl: string | null
   mtime: number
+  /** No library folder covers this file — it can be removed without deleting it. */
+  loose: boolean
 }
 
 export interface PlaylistSummary {
@@ -31,6 +33,19 @@ export interface LibraryFolder {
 export interface ScanSummary {
   folders: number
   scanned: number
+  errors: string[]
+}
+
+/** Outcome of dropping a mixed bag of folders and loose audio files on the window. */
+export interface AddPathsResult {
+  folders: number
+  indexed: number
+  unchanged: number
+  skipped: number
+  duplicates: number
+  unsupported: number
+  /** Library path of the first dropped song, added or already present. */
+  revealPath: string | null
   errors: string[]
 }
 
@@ -172,7 +187,9 @@ declare global {
       refreshTrack(path: string): Promise<Track | null>
       listFolders(): Promise<LibraryFolder[]>
       addFolder(path: string): Promise<LibraryFolder[]>
-      removeFolder(path: string): Promise<void>
+      addPaths(paths: string[]): Promise<AddPathsResult>
+      removeFolder(path: string, keepTracks: boolean): Promise<void>
+      removeTrackFromLibrary(trackId: number): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }>
       pickFolder(): Promise<string | null>
       suggestMusicFolder(): Promise<{ path: string; exists: boolean }>
       getDriveStats(): Promise<{ totalBytes: number }>
@@ -259,7 +276,9 @@ export const hub = {
   refreshTrack: (path: string) => window.hub.refreshTrack(path),
   listFolders: () => window.hub.listFolders(),
   addFolder: (path: string) => window.hub.addFolder(path),
-  removeFolder: (path: string) => window.hub.removeFolder(path),
+  addPaths: (paths: string[]) => window.hub.addPaths(paths),
+  removeFolder: (path: string, keepTracks: boolean) => window.hub.removeFolder(path, keepTracks),
+  removeTrackFromLibrary: (trackId: number) => window.hub.removeTrackFromLibrary(trackId),
   pickFolder: () => window.hub.pickFolder(),
   suggestMusicFolder: () => window.hub.suggestMusicFolder(),
   getDriveStats: () => window.hub.getDriveStats(),

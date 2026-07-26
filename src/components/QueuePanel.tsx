@@ -34,12 +34,19 @@ export default function QueuePanel() {
     dragItem.current = { section, index }
   }
 
+  // dragover stops propagation so an internal reorder doesn't flash App's
+  // "drop songs to index" overlay. drop deliberately does NOT: App's handler is a
+  // no-op for a reorder (no files on the DataTransfer) and it's what clears that
+  // overlay — and a song dragged from Explorer onto a queue row still has to
+  // reach the library. preventDefault stays on both, or Chromium handles the drop.
   function handleDragOver(e: React.DragEvent, section: QueueSection, index: number) {
     e.preventDefault()
+    e.stopPropagation()
     setDragOver(dropKey(section, index))
   }
 
-  function handleDrop(section: QueueSection, index: number) {
+  function handleDrop(e: React.DragEvent, section: QueueSection, index: number) {
+    e.preventDefault()
     if (dragItem.current) moveFutureTrack(dragItem.current, { section, index })
     dragItem.current = null
     setDragOver(null)
@@ -92,7 +99,7 @@ export default function QueuePanel() {
                 draggable
                 onDragStart={() => handleDragStart('upNext', i)}
                 onDragOver={(e) => handleDragOver(e, 'upNext', i)}
-                onDrop={() => handleDrop('upNext', i)}
+                onDrop={(e) => handleDrop(e, 'upNext', i)}
                 onDragEnd={handleDragEnd}
                 className="flex items-center gap-1.5 py-1 pl-0.5 pr-1 transition-colors"
                 style={{
@@ -114,7 +121,7 @@ export default function QueuePanel() {
           ) : (
             <div
               onDragOver={(e) => handleDragOver(e, 'upNext', 0)}
-              onDrop={() => handleDrop('upNext', 0)}
+              onDrop={(e) => handleDrop(e, 'upNext', 0)}
               className="px-2 py-3 text-center font-term text-[12px] transition-colors"
               style={{
                 border: dragOver === dropKey('upNext', 0)
@@ -142,7 +149,7 @@ export default function QueuePanel() {
                 draggable
                 onDragStart={() => handleDragStart('comingUp', i)}
                 onDragOver={(e) => handleDragOver(e, 'comingUp', i)}
-                onDrop={() => handleDrop('comingUp', i)}
+                onDrop={(e) => handleDrop(e, 'comingUp', i)}
                 onDragEnd={handleDragEnd}
                 className="flex items-center gap-1.5 py-1 pl-0.5 pr-1 transition-colors"
                 style={{
@@ -171,7 +178,7 @@ export default function QueuePanel() {
             {remaining.length === 0 && (
               <div
                 onDragOver={(e) => handleDragOver(e, 'comingUp', 0)}
-                onDrop={() => handleDrop('comingUp', 0)}
+                onDrop={(e) => handleDrop(e, 'comingUp', 0)}
                 className="px-2 py-3 text-center font-term text-[12px] transition-colors"
                 style={{
                   border: dragOver === dropKey('comingUp', 0)

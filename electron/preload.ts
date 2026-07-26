@@ -6,7 +6,11 @@ contextBridge.exposeInMainWorld('hub', {
   refreshTrack: (path: string) => ipcRenderer.invoke('lib:refreshTrack', path),
   listFolders: () => ipcRenderer.invoke('lib:listFolders'),
   addFolder: (path: string) => ipcRenderer.invoke('lib:addFolder', path),
-  removeFolder: (path: string) => ipcRenderer.invoke('lib:removeFolder', path),
+  addPaths: (paths: string[]) => ipcRenderer.invoke('lib:addPaths', paths),
+  removeFolder: (path: string, keepTracks: boolean) =>
+    ipcRenderer.invoke('lib:removeFolder', path, keepTracks),
+  removeTrackFromLibrary: (trackId: number) =>
+    ipcRenderer.invoke('lib:removeTrackFromLibrary', trackId),
   pickFolder: () => ipcRenderer.invoke('lib:pickFolder'),
   suggestMusicFolder: () => ipcRenderer.invoke('lib:suggestMusicFolder'),
   getDriveStats: () => ipcRenderer.invoke('lib:getDriveStats'),

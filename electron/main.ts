@@ -24,7 +24,9 @@ import {
   removeTrackFromPlaylist,
   listLibraryFolders,
   addLibraryFolder,
+  addPaths,
   removeLibraryFolder,
+  removeTrackFromLibrary,
   getTrackPath,
   deleteTrackRow,
   getDriveStats,
@@ -65,6 +67,17 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  // A file dropped anywhere the renderer doesn't preventDefault makes Chromium
+  // navigate to it, replacing the whole app with the file — and there's no back
+  // button on a loadFile window. Now that dropping songs is a normal gesture,
+  // pin the window to its own document. Same-URL navigations still pass: that's
+  // how location.reload() arrives, and blocking it silently swallows every Vite
+  // full-reload in dev.
+  const contents = mainWindow.webContents
+  contents.on('will-navigate', (e, url) => {
+    if (url !== contents.getURL()) e.preventDefault()
   })
 
   // Forward native fullscreen state changes to renderer
@@ -119,7 +132,31 @@ app.whenReady().then(() => {
   ipcMain.handle('lib:refreshTrack', (_, path: string) => refreshTrack(path))
   ipcMain.handle('lib:listFolders', () => listLibraryFolders())
   ipcMain.handle('lib:addFolder', (_, path: string) => addLibraryFolder(path))
-  ipcMain.handle('lib:removeFolder', (_, path: string) => removeLibraryFolder(path))
+  ipcMain.handle('lib:addPaths', (_, paths: string[]) => addPaths(paths))
+  ipcMain.handle('lib:removeFolder', (_, path: string, keepTracks: boolean) =>
+    removeLibraryFolder(path, keepTracks)
+  )
+  ipcMain.handle('lib:removeTrackFromLibrary', async (event, trackId: number) => {
+    const path = getTrackPath(trackId)
+    if (path == null) return { ok: false as const, reason: 'Track not found' }
+    // The file survives, but the tags and playlist entries do not — they live only
+    // in the DB and cascade with the row. That's less recoverable than "Delete
+    // song" (which is a Recycle Bin move), so it gets a confirm that says so.
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const opts = {
+      type: 'warning' as const,
+      buttons: ['Remove from library', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true,
+      title: 'Remove from library',
+      message: `Remove “${basename(path)}” from your library?`,
+      detail: 'The file stays where it is on disk. Its tags and playlist entries are lost, and re-adding the song won’t bring them back.',
+    }
+    const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
+    if (response !== 0) return { ok: false as const, cancelled: true as const }
+    return removeTrackFromLibrary(trackId)
+  })
   ipcMain.handle('lib:pickFolder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)!
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
@@ -139,24 +176,38 @@ app.whenReady().then(() => {
     const path = getTrackPath(trackId)
     if (path == null) return { ok: false as const, reason: 'Track not found' }
     const win = BrowserWindow.fromWebContents(event.sender)
-    const opts = {
-      type: 'warning' as const,
-      buttons: ['Move to Recycle Bin', 'Cancel'],
-      defaultId: 1, // Cancel is the safe default
-      cancelId: 1,
-      noLink: true,
-      title: 'Delete song',
-      message: `Move “${basename(path)}” to the Recycle Bin?`,
-      detail: 'You can restore it from the Recycle Bin.',
-    }
+    // A row whose file is already gone (its folder was deleted outside the app)
+    // can't be trashed — saying so beats promising a Recycle Bin round trip that
+    // will not happen.
+    let exists = true
+    try { statSync(path) } catch { exists = false }
+    const opts = exists
+      ? {
+          type: 'warning' as const,
+          buttons: ['Move to Recycle Bin', 'Cancel'],
+          defaultId: 1, // Cancel is the safe default
+          cancelId: 1,
+          noLink: true,
+          title: 'Delete song',
+          message: `Move “${basename(path)}” to the Recycle Bin?`,
+          detail: 'You can restore it from the Recycle Bin.',
+        }
+      : {
+          type: 'warning' as const,
+          buttons: ['Remove from library', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true,
+          title: 'Delete song',
+          message: `“${basename(path)}” is no longer on disk. Remove it from your library?`,
+          detail: 'The file is already gone, so there is nothing to move to the Recycle Bin. Its tags and playlist entries are removed with it.',
+        }
     const { response } = await (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts))
     if (response !== 0) return { cancelled: true as const }
 
     // Trash the file if it still exists; an already-missing file is fine — just
     // drop the row. Retry once after a beat: a just-stopped track may still be
     // briefly locked while the renderer releases its <audio> handle (Windows).
-    let exists = true
-    try { statSync(path) } catch { exists = false }
     if (exists) {
       for (let attempt = 0; ; attempt++) {
         try { await shell.trashItem(path); break }
@@ -281,6 +332,14 @@ app.whenReady().then(() => {
         contextIsolation: true,
         nodeIntegration: false,
       },
+    })
+
+    // Same pin as the main window. This one matters more: the popout is frameless
+    // and fullscreen, so a song dropped on it would swap the visualizer for
+    // Chromium's file viewer with no titlebar and no way back.
+    const vizContents = vizWindow.webContents
+    vizContents.on('will-navigate', (e, url) => {
+      if (url !== vizContents.getURL()) e.preventDefault()
     })
 
     if (process.env.ELECTRON_RENDERER_URL) {

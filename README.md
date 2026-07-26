@@ -43,8 +43,9 @@ music downloader, and only when you ask it to.
 
 1. **[Download the latest release](https://github.com/TerraByte-Dev/TerraPlayer/releases/latest)** and run the
    installer.
-2. **Drag a folder of music onto the window** — that's the whole setup. It scans on the spot and adopts it as
-   your library. (Prefer a button? **Add folder** does the same.) Hit play.
+2. **Drag music onto the window** — that's the whole setup. Drop a folder and it scans on the spot and adopts
+   it as your library; drop a handful of songs and they're indexed on their own, no folder required. (Prefer a
+   button? **Add folder** does the same.) Hit play.
 
 That's it — no account, no command line, nothing to configure. The app installs and opens straight into your
 library, and you can **check for updates** from GitHub Releases in one click (Settings → Updates). Everything
@@ -57,7 +58,7 @@ else (EQ, crossfade, themes, the fullscreen visualizer) lives behind the gear ic
 
 ## Features
 
-- **Your library, your files** — **drag a folder onto the window** (or use the picker) and a recursive scan indexes your `.mp3` / `.m4a` into SQLite. Instant search, playlists, a genre / mood / custom **tag** system, and a built-in metadata + cover-art editor (procedural cover art for files without embedded art). **Rename** any playlist or tag in place (double-click it in the sidebar) and **add the selected song to a playlist** — existing or brand-new — right from the side panel. **Delete a song** from the right-click menu — it goes to the **Recycle Bin** (reversible), never silently nuked.
+- **Your library, your files** — **drag songs or a folder onto the window** (or use the picker) and a recursive scan indexes your `.mp3` / `.m4a` into SQLite. Individually dropped songs are indexed without adopting their folder, so they don't show up under Settings → Library → Folders. Tracks list in **the order you added them** by default (click any column to re-sort). Instant search, playlists, a genre / mood / custom **tag** system, and a built-in metadata + cover-art editor (procedural cover art for files without embedded art). **Rename** any playlist or tag in place (double-click it in the sidebar) and **add the selected song to a playlist** — existing or brand-new — right from the side panel. **Delete a song** from the right-click menu — it goes to the **Recycle Bin** (reversible), never silently nuked.
 - **A real audio chain** — a **10-band graphic EQ** with a dozen presets, pre-amp, true mono downmix, **crossfade between songs**, and pitch-preserved **playback speed** — all native Web Audio ([`AUDIO.md`](AUDIO.md)).
 - **A visualizer worth a second monitor** — a live spectrum in the player bar plus a **fullscreen visualizer** (a rotating frequency ring, spectrum bars, particles, shockwaves) that **recolors with your theme** and pops out to a second display ([`VISUALIZER.md`](VISUALIZER.md)).
 - **100% offline & private** — no account, no telemetry, no listening sockets; fonts are vendored locally. Your data is a local SQLite database that never leaves your machine.

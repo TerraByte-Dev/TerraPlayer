@@ -36,25 +36,33 @@ export default function Library() {
 
       <Section
         title="Folders"
-        description="TerraPlayer scans these folders for .m4a and .mp3 files. Removing a folder drops its tracks from the library (the files are never deleted)."
+        description="TerraPlayer scans these folders for .m4a and .mp3 files, and names a playlist after each one. Removing a folder stops the scan — you choose whether its songs stay in your library or go with it (the files on disk are never touched either way). Songs dragged in one at a time are indexed on their own and aren't listed here."
       >
         <div className="flex flex-col gap-1.5">
           {folders.length === 0 && (
-            <p className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>No folders yet — add one to build your library.</p>
+            <p className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>No folders yet — add one, or just drag songs onto the window.</p>
           )}
           {folders.map((f) => (
             <div key={f.path} className="flex items-center gap-2 px-2 py-1.5" style={{ border: '1px solid rgb(var(--accent-rgb) / 0.10)' }}>
               <Folder size={13} style={{ color: 'rgb(var(--accent-rgb) / 0.5)', flexShrink: 0 }} />
               <span className="font-term text-[12px] truncate flex-1" style={{ color: 'var(--ink)' }} title={f.path}>{f.path}</span>
               {confirmRemove === f.path ? (
+                // Two outcomes, both spelled out. Keeping the songs is the calm
+                // option and leaves them as ordinary folder-less tracks — ids,
+                // tags and playlist memberships intact, so re-adding the folder
+                // later costs nothing. Dropping them is still one click, just no
+                // longer the unstated meaning of a trash icon.
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <span className="font-term text-[10px]" style={{ color: '#ff6b6b' }}>remove?</span>
+                  <span className="font-term text-[10px]" style={{ color: 'var(--accent2)' }}>stop scanning?</span>
+                  <button className="metal-key font-term text-[10px] px-2 py-0.5" title="Unregister the folder; its songs stay in your library"
+                    onClick={async () => { setConfirmRemove(null); await removeFolder(f.path, true) }}>KEEP SONGS</button>
                   <button className="font-term text-[10px] px-2 py-0.5" style={{ color: '#000', background: '#ff5555' }}
-                    onClick={async () => { setConfirmRemove(null); await removeFolder(f.path) }}>YES</button>
+                    title="Unregister the folder and remove its songs from the library"
+                    onClick={async () => { setConfirmRemove(null); await removeFolder(f.path, false) }}>DROP SONGS</button>
                   <button className="metal-key font-term text-[10px] px-2 py-0.5" onClick={() => setConfirmRemove(null)}>NO</button>
                 </div>
               ) : (
-                <button className="metal-key w-6 h-6 flex-shrink-0" title="Remove folder" onClick={() => setConfirmRemove(f.path)}>
+                <button className="metal-key w-6 h-6 flex-shrink-0" title="Stop scanning this folder" onClick={() => setConfirmRemove(f.path)}>
                   <Trash2 size={11} />
                 </button>
               )}
