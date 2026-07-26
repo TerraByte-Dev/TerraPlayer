@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('hub', {
   refreshTrack: (path: string) => ipcRenderer.invoke('lib:refreshTrack', path),
   listFolders: () => ipcRenderer.invoke('lib:listFolders'),
   addFolder: (path: string) => ipcRenderer.invoke('lib:addFolder', path),
+  addPaths: (paths: string[]) => ipcRenderer.invoke('lib:addPaths', paths),
   removeFolder: (path: string) => ipcRenderer.invoke('lib:removeFolder', path),
   pickFolder: () => ipcRenderer.invoke('lib:pickFolder'),
   suggestMusicFolder: () => ipcRenderer.invoke('lib:suggestMusicFolder'),

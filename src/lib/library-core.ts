@@ -35,3 +35,41 @@ export function validateRename(raw: string, others: readonly string[]): RenameCh
 export function isInPlaylist(memberTrackIds: readonly number[], trackId: number): boolean {
   return memberTrackIds.includes(trackId)
 }
+
+/** The counts a drop reports back; mirrors AddPathsResult without the paths. */
+export interface DropCounts {
+  folders: number
+  indexed: number
+  unchanged: number
+  skipped: number
+  duplicates: number
+  unsupported: number
+  errors: readonly string[]
+}
+
+/**
+ * What to tell the user after a drop, or null when the outcome speaks for itself
+ * (the song is on screen and selected). Anything the drop turned away has to be
+ * said out loud — a file that silently fails to appear reads as a broken app.
+ * `revealed` means a song was scrolled to, which already answers "did it work?".
+ */
+export function describeDrop(r: DropCounts, revealed: boolean): string | null {
+  if (r.unsupported > 0) {
+    const n = r.unsupported
+    return `Skipped ${n} file${n > 1 ? 's' : ''} — TerraPlayer plays .mp3 and .m4a.`
+  }
+  if (r.errors.length > 0) return r.errors[0]
+  // The reveal landed on the copy already in the library, not on what was dropped,
+  // so saying nothing would imply the dropped file was added. It wasn't.
+  if (r.duplicates > 0 && r.indexed === 0 && r.unchanged === 0 && r.skipped === 0) {
+    const n = r.duplicates
+    return `Already in your library — ${n > 1 ? `${n} songs are` : 'that song is'} here under another name.`
+  }
+  // Nothing landed, nothing was rejected, and nothing was revealed: the file is
+  // neither in the library nor accounted for (e.g. it collided with an existing
+  // song's content fingerprint), so don't leave the drop unanswered.
+  if (!revealed && r.folders === 0 && r.indexed === 0 && r.unchanged === 0 && r.skipped === 0) {
+    return 'Nothing was added — that song is already in your library.'
+  }
+  return null
+}

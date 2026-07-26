@@ -1,9 +1,10 @@
 import { readdirSync, statSync, type Dirent } from 'fs'
-import { join, basename, extname } from 'path'
+import { join, basename, dirname, extname } from 'path'
 import type Database from 'better-sqlite3'
 import { getDb, dbAll, dbGet, dbRun, saveCoverFile, migrateCoversToDisk, fingerprint } from './db'
 import { readMeta } from './metadata'
 import { shouldSeedFolder } from './library-seed-core'
+import { isPathUnderAnyFolder } from './downloader-core'
 
 type Db = Database.Database
 
@@ -180,6 +181,122 @@ export function removeLibraryFolder(folderPath: string): void {
   })()
 }
 
+/**
+ * The playlist bucket a file belongs to: its top subfolder name relative to the
+ * scan root, or the root's own name when the file sits directly in it.
+ *
+ * The loose-file drop path passes the file's own parent as the root, so a dropped
+ * song is bucketed by the folder it came from. That deliberately does NOT always
+ * match what the walk would produce for the same file — a file two or more levels
+ * under a scan root yields its immediate parent here and the top subfolder there.
+ * Dropped files under a registered root are left to the walk precisely so the two
+ * can't disagree; a file only gets the parent-folder answer while it belongs to
+ * no root at all.
+ */
+function derivePlaylist(fullPath: string, root: string): string {
+  const rel = fullPath.slice(root.length).replace(/^[/\\]/, '')
+  const parts = rel.split(/[/\\]/)
+  return parts.length > 1 ? parts[0] : basename(root)
+}
+
+/**
+ * Every outcome that leaves the song present in the library carries the path it
+ * lives at, so a caller can point the user straight at it — including the cases
+ * where nothing was written, which are exactly the ones that otherwise look like
+ * the app ignored the file.
+ */
+type IndexOutcome =
+  | { status: 'indexed'; path: string }
+  /** File unchanged since the last scan (mtime match) — already in the library. */
+  | { status: 'unchanged'; path: string }
+  /** A moved/renamed file was matched to its existing row by content uid. */
+  | { status: 'relinked'; path: string }
+  /** A byte-identical song is already indexed; `path` is where that one lives. */
+  | { status: 'duplicate'; path: string }
+  | { status: 'unreadable' }
+  | { status: 'error'; message: string }
+
+/**
+ * Read one audio file's metadata and upsert its `tracks` row. This is the single
+ * implementation of the uid contract (content fingerprint → survives rename/move,
+ * keeps tags and playlist membership attached to the song rather than to a path),
+ * shared by the folder walk and by the drop-a-loose-file path. Never throws: a
+ * problematic file reports itself so one bad song can't roll back a whole scan.
+ */
+async function indexFile(db: Db, fullPath: string, playlist: string): Promise<IndexOutcome> {
+  let mtime = 0, size = 0
+  try { const st = statSync(fullPath); mtime = Math.floor(st.mtimeMs); size = st.size }
+  catch { return { status: 'unreadable' } }
+
+  const existing = dbGet<{ id: number; mtime: number }>(db, 'SELECT id, mtime FROM tracks WHERE path = ?', [fullPath])
+  if (existing && existing.mtime === mtime) return { status: 'unchanged', path: fullPath }
+
+  let title = basename(fullPath, extname(fullPath))
+  let artist = '', album = '', duration = 0, coverPath: string | null = null
+  try {
+    const raw = await readMeta(fullPath)
+    title = raw.title || title
+    artist = raw.artist
+    album = raw.album
+    duration = raw.duration
+    if (raw.coverBuf) {
+      try { coverPath = saveCoverFile(raw.coverBuf.data, raw.coverBuf.format) } catch { /* noop */ }
+    }
+  } catch { /* use filename fallback */ }
+
+  const uid = fingerprint(size, duration, artist, title, album)
+
+  try {
+    // Re-link a moved/renamed file to its existing row (by content uid) so its
+    // tags and playlist membership follow the song instead of being orphaned.
+    if (!existing) {
+      const byUid = dbGet<{ id: number; path: string }>(db, 'SELECT id, path FROM tracks WHERE uid = ?', [uid])
+      if (byUid && byUid.path !== fullPath) {
+        let oldExists = true
+        try { statSync(byUid.path) } catch { oldExists = false }
+        if (!oldExists) {
+          // The original file is gone — repoint the existing row at the new path.
+          // id is preserved, so track_tags / playlist_tracks stay attached (and the
+          // song keeps its original place in "order added").
+          dbRun(
+            db,
+            `UPDATE tracks SET path=?, playlist=?, title=?, artist=?, album=?,
+               duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE id=?`,
+            [fullPath, playlist, title, artist, album, duration, coverPath, mtime, byUid.id]
+          )
+          return { status: 'relinked', path: fullPath }
+        }
+        // else: a byte-identical file already exists — uid is UNIQUE, so we keep
+        // the existing row and skip adding a duplicate (content-fingerprint tradeoff).
+        return { status: 'duplicate', path: byUid.path }
+      }
+    }
+
+    dbRun(
+      db,
+      `INSERT INTO tracks (uid, path, playlist, title, artist, album, duration, cover_path, mtime)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(path) DO UPDATE SET
+         uid        = excluded.uid,
+         title      = excluded.title,
+         artist     = excluded.artist,
+         album      = excluded.album,
+         duration   = excluded.duration,
+         cover_path = COALESCE(excluded.cover_path, tracks.cover_path),
+         mtime      = excluded.mtime`,
+      [uid, fullPath, playlist, title, artist, album, duration, coverPath, mtime]
+    )
+
+    // NOTE: playlist membership is NOT seeded here. Per-new-track seeding on every
+    // scan was the folder↔playlist drift footgun (a renamed folder-playlist
+    // respawned when a new file landed in its folder). Seeding happens once per
+    // folder in scanLibrary, gated by seeded_at.
+    return { status: 'indexed', path: fullPath }
+  } catch (e) {
+    return { status: 'error', message: (e as Error).message }
+  }
+}
+
 async function walkDir(
   db: Db,
   dir: string,
@@ -202,79 +319,9 @@ async function walkDir(
       await walkDir(db, fullPath, root, stats)
     } else if (AUDIO_EXTS.has(extname(entry.name).toLowerCase())) {
       stats.scanned++
-
-      let mtime = 0, size = 0
-      try { const st = statSync(fullPath); mtime = Math.floor(st.mtimeMs); size = st.size } catch { continue }
-
-      const rel = fullPath.slice(root.length).replace(/^[/\\]/, '')
-      const parts = rel.split(/[/\\]/)
-      const playlist = parts.length > 1 ? parts[0] : basename(root)
-
-      const existing = dbGet<{ id: number; mtime: number }>(db, 'SELECT id, mtime FROM tracks WHERE path = ?', [fullPath])
-      if (existing && existing.mtime === mtime) continue
-
-      let title = basename(fullPath, extname(fullPath))
-      let artist = '', album = '', duration = 0, coverPath: string | null = null
-      try {
-        const raw = await readMeta(fullPath)
-        title = raw.title || title
-        artist = raw.artist
-        album = raw.album
-        duration = raw.duration
-        if (raw.coverBuf) {
-          try { coverPath = saveCoverFile(raw.coverBuf.data, raw.coverBuf.format) } catch { /* noop */ }
-        }
-      } catch { /* use filename fallback */ }
-
-      const uid = fingerprint(size, duration, artist, title, album)
-
-      try {
-        // Re-link a moved/renamed file to its existing row (by content uid) so its
-        // tags and playlist membership follow the song instead of being orphaned.
-        if (!existing) {
-          const byUid = dbGet<{ id: number; path: string }>(db, 'SELECT id, path FROM tracks WHERE uid = ?', [uid])
-          if (byUid && byUid.path !== fullPath) {
-            let oldExists = true
-            try { statSync(byUid.path) } catch { oldExists = false }
-            if (!oldExists) {
-              // The original file is gone — repoint the existing row at the new path.
-              // id is preserved, so track_tags / playlist_tracks stay attached.
-              dbRun(
-                db,
-                `UPDATE tracks SET path=?, playlist=?, title=?, artist=?, album=?,
-                   duration=?, cover_path=COALESCE(?, cover_path), mtime=? WHERE id=?`,
-                [fullPath, playlist, title, artist, album, duration, coverPath, mtime, byUid.id]
-              )
-            }
-            // else: a byte-identical file already exists — uid is UNIQUE, so we keep
-            // the existing row and skip adding a duplicate (content-fingerprint tradeoff).
-            continue
-          }
-        }
-
-        dbRun(
-          db,
-          `INSERT INTO tracks (uid, path, playlist, title, artist, album, duration, cover_path, mtime)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(path) DO UPDATE SET
-             uid        = excluded.uid,
-             title      = excluded.title,
-             artist     = excluded.artist,
-             album      = excluded.album,
-             duration   = excluded.duration,
-             cover_path = COALESCE(excluded.cover_path, tracks.cover_path),
-             mtime      = excluded.mtime`,
-          [uid, fullPath, playlist, title, artist, album, duration, coverPath, mtime]
-        )
-
-        // NOTE: playlist membership is NOT seeded here anymore. Per-new-track
-        // seeding on every scan was the folder↔playlist drift footgun (a renamed
-        // folder-playlist respawned when a new file landed in its folder). Seeding
-        // now happens once per folder in scanLibrary, gated by seeded_at.
-      } catch (e) {
-        // Don't let one problematic file (e.g. a uid collision from edited metadata)
-        // roll back the whole scan.
-        if (stats.errors.length < 5) stats.errors.push(`${fullPath}: ${(e as Error).message}`)
+      const outcome = await indexFile(db, fullPath, derivePlaylist(fullPath, root))
+      if (outcome.status === 'error' && stats.errors.length < 5) {
+        stats.errors.push(`${fullPath}: ${outcome.message}`)
       }
     }
   }
@@ -285,11 +332,10 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
 
   migrateCoversToDisk(db)
   seedLegacyPlaylists(db)
+  // No early return when there are zero folders: tracks dropped in as loose files
+  // belong to no folder, so the walk being empty must not stop us from purging,
+  // reading the table, and returning what's there.
   const folders = listLibraryFolders()
-
-  if (folders.length === 0) {
-    return { playlists: [], tracks: [], summary: { folders: 0, scanned: 0, errors: [] } }
-  }
 
   const summary: ScanSummary = { folders: folders.length, scanned: 0, errors: [] }
 
@@ -300,10 +346,17 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
       await walkDir(db, folder.path, folder.path, summary)
     }
 
+    // Purge rows whose file is genuinely gone — and ONLY those. An offline network
+    // or removable drive throws here too, and dropping those rows would cascade
+    // away their tags and playlist memberships (db.ts ON DELETE CASCADE). A
+    // folder-scanned track would come back on the next scan; a loose track has no
+    // scan root, so it would be gone for good.
     const allPaths = dbAll<{ path: string }>(db, 'SELECT path FROM tracks', [])
     for (const { path } of allPaths) {
-      try { statSync(path) } catch {
-        dbRun(db, 'DELETE FROM tracks WHERE path = ?', [path])
+      try { statSync(path) } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
+          dbRun(db, 'DELETE FROM tracks WHERE path = ?', [path])
+        }
       }
     }
 
@@ -324,14 +377,130 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
     throw e
   }
 
+  // ORDER BY id = the order songs were added. id is AUTOINCREMENT (db.ts) so it
+  // is strictly monotonic and never reused, which makes it the only total,
+  // stable "added" ordering available — added_at is 1-second granularity, so a
+  // bulk import lands hundreds of rows on the same value.
   const tracks = dbAll(
     db,
-    'SELECT id, path, playlist, title, artist, album, duration, cover_path, mtime FROM tracks ORDER BY artist, title',
+    'SELECT id, path, playlist, title, artist, album, duration, cover_path, mtime FROM tracks ORDER BY id',
     []
   ).map(rowToTrack)
   const playlists = listPlaylists()
 
   return { playlists, tracks, summary }
+}
+
+export interface AddPathsResult {
+  /** Folders newly registered as scan roots. */
+  folders: number
+  /** Loose files indexed straight into the library. */
+  indexed: number
+  /** Dropped files that were already in the library, unchanged. */
+  unchanged: number
+  /** Audio files already covered by a library folder — the scan owns those. */
+  skipped: number
+  /** A byte-identical song is already in the library under another path. */
+  duplicates: number
+  /** Dropped files that aren't .mp3 / .m4a. */
+  unsupported: number
+  /**
+   * Where to point the user afterwards: the library path of the first dropped
+   * song, whether it was just added or already there. Null only when nothing the
+   * user dropped ended up in the library.
+   */
+  revealPath: string | null
+  errors: string[]
+}
+
+/**
+ * Take whatever the user dropped on the window and make it part of the library.
+ *
+ * Folders become scan roots exactly as before. Individual audio files are indexed
+ * directly, with no folder registered — the library deliberately supports tracks
+ * that belong to no scan root, so "drag a couple of songs in" doesn't force the
+ * user to adopt their whole containing directory. A dropped file that already
+ * sits under a registered folder is left alone: the rescan that follows owns it,
+ * and letting it derive its own `playlist` here would disagree with walkDir's
+ * (relative-to-root) value that the mtime short-circuit would then never correct.
+ */
+export async function addPaths(paths: string[]): Promise<AddPathsResult> {
+  const db = getDb()
+  const result: AddPathsResult = {
+    folders: 0, indexed: 0, unchanged: 0, skipped: 0, duplicates: 0, unsupported: 0,
+    revealPath: null, errors: [],
+  }
+
+  const dirs: string[] = []
+  const files: string[] = []
+  for (const path of paths) {
+    let isDir = false
+    try { isDir = statSync(path).isDirectory() }
+    catch (e) {
+      if (result.errors.length < 5) result.errors.push(`${path}: ${(e as Error).message}`)
+      continue
+    }
+    if (isDir) dirs.push(path)
+    else if (AUDIO_EXTS.has(extname(path).toLowerCase())) files.push(path)
+    else result.unsupported++
+  }
+
+  // Shortest path first so a parent always registers before its children (a child
+  // is strictly longer), letting the containment check drop the children of a
+  // folder dropped alongside them — otherwise one gesture registers overlapping
+  // roots that walk the same files twice. Note this only collapses downward:
+  // dropping a folder that CONTAINS an already-registered root still adds it,
+  // same as picking that folder from the dialog would.
+  dirs.sort((a, b) => a.length - b.length)
+  const roots = listLibraryFolders().map((f) => f.path)
+  for (const dir of dirs) {
+    if (isPathUnderAnyFolder(dir, roots)) continue
+    addLibraryFolder(dir)
+    roots.push(dir)
+    result.folders++
+  }
+
+  // Deliberately NOT wrapped in a transaction. indexFile awaits metadata reads, so
+  // a manual BEGIN would stay open across the event loop — and better-sqlite3 has
+  // one connection, so a scan starting meanwhile (boot, the downloader's rescan,
+  // the rescan button) would throw "cannot start a transaction within a
+  // transaction" and lose the drop. Each file autocommits instead: a drop that
+  // fails part-way leaves the songs it did index, which is the better outcome here.
+  for (const file of files) {
+    if (isPathUnderAnyFolder(file, roots)) {
+      // Already covered by a scan root — the rescan indexes it with the playlist
+      // derived from that root, which is the value walkDir would have used.
+      result.skipped++
+      if (!result.revealPath) result.revealPath = file
+      continue
+    }
+    const outcome = await indexFile(db, file, derivePlaylist(file, dirname(file)))
+    switch (outcome.status) {
+      case 'indexed':
+      case 'relinked':
+        result.indexed++
+        break
+      case 'unchanged':
+        result.unchanged++
+        break
+      case 'duplicate':
+        result.duplicates++
+        break
+      case 'unreadable':
+        if (result.errors.length < 5) result.errors.push(`${file}: could not be read`)
+        break
+      case 'error':
+        if (result.errors.length < 5) result.errors.push(`${file}: ${outcome.message}`)
+        break
+    }
+    // Every non-failing outcome means the song IS in the library at outcome.path
+    // (for a duplicate, under the name it was first indexed as).
+    if (outcome.status !== 'unreadable' && outcome.status !== 'error' && !result.revealPath) {
+      result.revealPath = outcome.path
+    }
+  }
+
+  return result
 }
 
 export async function refreshTrack(filePath: string): Promise<TrackRow | null> {

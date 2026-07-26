@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Track, PlaylistSummary, Tag, LibraryFolder, ScanSummary } from '@/lib/ipc'
 import { hub } from '@/lib/ipc'
+import { describeDrop } from '@/lib/library-core'
 import { usePlayerStore } from './player'
 
 export type SidebarView =
@@ -18,6 +19,8 @@ interface LibraryState {
   lastSummary: ScanSummary | null
   sidebarView: SidebarView
   selectedTrackId: number | null
+  /** Track the list should scroll into view once, then clear — set after a drop. */
+  revealTrackId: number | null
   rightPanelOpen: boolean
   panelMode: 'metadata' | 'queue' | 'downloader'
   driveBytes: number
@@ -30,6 +33,8 @@ interface LibraryState {
   renameTag: (id: number, name: string) => Promise<void>
   addFolder: () => Promise<void>
   addFolderByPath: (path: string) => Promise<void>
+  addPaths: (paths: string[]) => Promise<void>
+  clearReveal: () => void
   removeFolder: (path: string) => Promise<void>
   deleteTrack: (id: number) => Promise<void>
   clearError: () => void
@@ -52,6 +57,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   lastSummary: null,
   sidebarView: { kind: 'all' },
   selectedTrackId: null,
+  revealTrackId: null,
   rightPanelOpen: false,
   panelMode: 'metadata' as 'metadata' | 'queue' | 'downloader',
   driveBytes: 0,
@@ -134,6 +140,41 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ error: String(e), loading: false })
     }
   },
+
+  // Whatever was dropped on the window: folders become scan roots, loose audio
+  // files are indexed on their own. Reading metadata takes real time, so show the
+  // scanning state up front — it's also what disables the rescan buttons that
+  // would otherwise start a competing scan mid-drop.
+  addPaths: async (paths: string[]) => {
+    set({ error: null, loading: true })
+    try {
+      const res = await hub.addPaths(paths)
+      await get().load()
+      // Point at the song either way: a drop whose file was already indexed is
+      // still answered by scrolling to it, rather than looking like a no-op.
+      // Compared loosely: the shell hands back a path whose drive-letter case and
+      // separators needn't match the one the walk recorded.
+      const key = (p: string) => p.replace(/[\\/]+/g, '/').toLowerCase()
+      const landed = res.revealPath
+        ? get().tracks.find((t) => key(t.path) === key(res.revealPath!))
+        : undefined
+      if (landed) {
+        // Back to all-tracks first: a loose file joins no playlist or tag, so
+        // revealing it from inside one of those views would find nothing.
+        set({ sidebarView: { kind: 'all' }, selectedTrackId: landed.id, revealTrackId: landed.id })
+      }
+      // Say what was turned away, whether or not something else landed —
+      // otherwise a folder that registers fine hides the .flac dropped with it.
+      const note = describeDrop(res, !!landed)
+      if (note) set({ error: note })
+    } catch (e) {
+      set({ error: String(e) })
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  clearReveal: () => set({ revealTrackId: null }),
 
   removeFolder: async (path: string) => {
     await hub.removeFolder(path)

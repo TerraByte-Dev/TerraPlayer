@@ -24,7 +24,7 @@ import { THEME_EVENT, getThemeId, getTheme } from './lib/theme'
 import { hub } from './lib/ipc'
 
 export default function App() {
-  const { load, rightPanelOpen, panelMode, toggleRightPanel, selectedTrackId, addFolderByPath } = useLibraryStore()
+  const { load, rightPanelOpen, panelMode, toggleRightPanel, selectedTrackId, addPaths } = useLibraryStore()
   const { vizFullscreen, setVizFullscreen } = usePlayerStore()
   const [dragActive, setDragActive] = useState(false)
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
@@ -77,6 +77,20 @@ export default function App() {
     return unsub
   }, [])
 
+  // Take the overlay down for every way a drag can end, not just a drop the root
+  // handler sees. Panels that stop propagation (the downloader) would otherwise
+  // leave it painted over the app. Capture phase, so it runs before any handler
+  // that stops the event.
+  useEffect(() => {
+    const clear = () => setDragActive(false)
+    window.addEventListener('drop', clear, true)
+    window.addEventListener('dragend', clear, true)
+    return () => {
+      window.removeEventListener('drop', clear, true)
+      window.removeEventListener('dragend', clear, true)
+    }
+  }, [])
+
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
     setDragActive(true)
@@ -92,19 +106,22 @@ export default function App() {
     e.preventDefault()
     setDragActive(false)
 
-    const items = Array.from(e.dataTransfer.items)
-    for (const item of items) {
-      const entry = item.webkitGetAsEntry()
-      if (entry?.isDirectory) {
-        const file = item.getAsFile()
-        if (file) {
-          const path = hub.getPathForFile(file)
-          await addFolderByPath(path)
-        }
-        return
-      }
+    // Collect every path synchronously: Chromium empties the DataTransfer store
+    // the moment this handler yields, so getPathForFile() must run before any
+    // await. Folders and files are both just paths here — main stats them.
+    const paths: string[] = []
+    for (const item of Array.from(e.dataTransfer.items)) {
+      if (item.kind !== 'file') continue
+      const file = item.getAsFile()
+      if (!file) continue
+      try {
+        const path = hub.getPathForFile(file)
+        if (path) paths.push(path)
+      } catch { /* not a real filesystem entry — skip it */ }
     }
-    useLibraryStore.setState({ error: 'Drop a folder, not a file.' })
+    // An in-app drag (reordering the queue) carries no files; stay silent.
+    if (paths.length === 0) return
+    await addPaths(paths)
   }
 
   async function handleCloseFullscreen() {
@@ -154,7 +171,7 @@ export default function App() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 border-2 border-dashed pointer-events-none"
           style={{ borderColor: 'rgb(var(--accent-rgb) / 0.40)' }}>
           <p className="font-term text-[14px] tracking-[2px] uppercase" style={{ color: 'var(--accent)' }}>
-            [ DROP FOLDER TO INDEX ]
+            [ DROP SONGS OR FOLDERS TO INDEX ]
           </p>
         </div>
       )}

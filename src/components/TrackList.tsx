@@ -7,7 +7,9 @@ import { fmtDuration, hub } from '@/lib/ipc'
 import type { Track } from '@/lib/ipc'
 import VectorGridCover from './VectorGridCover'
 
-type SortKey = 'title' | 'artist' | 'album' | 'duration' | 'playlist'
+// 'added' is backed by track.id — AUTOINCREMENT, never reused, so it's the one
+// total and stable record of the order songs entered the library.
+type SortKey = 'added' | 'title' | 'artist' | 'album' | 'duration' | 'playlist'
 
 const ROW_HEIGHT = 30 // py-[3px] (6px) + 24px cover = 30px per row
 const OVERSCAN = 8   // rows rendered outside viewport for smooth scrolling
@@ -16,7 +18,7 @@ export default function TrackList() {
   const {
     sidebarView, visibleTracks, selectTrack, selectedTrackId,
     loading, folders, addFolder, addFolderByPath, error, lastSummary, clearError,
-    openPanel, playlists, loadPlaylists,
+    openPanel, playlists, loadPlaylists, revealTrackId, clearReveal,
     tracks: storeTracks,
   } = useLibraryStore()
   // Narrow selectors instead of a selector-less usePlayerStore() — the latter
@@ -34,7 +36,7 @@ export default function TrackList() {
 
   // asyncTracks holds results for tag/playlist views (requires IPC)
   const [asyncTracks, setAsyncTracks] = useState<Track[]>([])
-  const [sortKey, setSortKey] = useState<SortKey>('artist')
+  const [sortKey, setSortKey] = useState<SortKey>('added')
   const [sortAsc, setSortAsc] = useState(true)
   const [tagViewLoading, setTagViewLoading] = useState(false)
   const [musicSuggestion, setMusicSuggestion] = useState<{ path: string; exists: boolean } | null>(null)
@@ -80,6 +82,9 @@ export default function TrackList() {
   const filtered = useMemo(() => {
     const base: Track[] = sidebarView.kind === 'all' ? visibleTracks() : asyncTracks
     const sorted = [...base].sort((a, b) => {
+      if (sortKey === 'added') {
+        return sortAsc ? a.id - b.id : b.id - a.id
+      }
       if (sortKey === 'duration') {
         const av = Number(a.duration ?? 0)
         const bv = Number(b.duration ?? 0)
@@ -97,6 +102,36 @@ export default function TrackList() {
       (t.album || '').toLowerCase().includes(q)
     )
   }, [sidebarView, asyncTracks, storeTracks, visibleTracks, sortKey, sortAsc, searchQuery])
+
+  // Each song's place in line: its 1-based rank by id across the whole library.
+  // Derived from the library rather than from the rendered slice, so the id column
+  // keeps naming the same song under every sort and inside playlist and tag views.
+  // It's a rank, not an identity — deleting a song renumbers the ones added after
+  // it, which is what "position in line" should do.
+  const addOrder = useMemo(() => {
+    const order = new Map<number, number>()
+    ;[...storeTracks]
+      .sort((a, b) => a.id - b.id)
+      .forEach((t, i) => order.set(t.id, i + 1))
+    return order
+  }, [storeTracks])
+
+  // Bring a just-dropped song into view. Under the default add-order sort it lands
+  // at the very end of the list, which for any real library is far off-screen —
+  // without this the drop looks like it did nothing.
+  useEffect(() => {
+    if (revealTrackId == null) return
+    // The list is showing its scanning/empty state — the scroll container isn't
+    // mounted yet. Keep the request pending rather than burning it: `filtered`
+    // changes when the scan lands, which re-runs this with a real element.
+    const el = scrollRef.current
+    if (!el) return
+    const index = filtered.findIndex((t) => t.id === revealTrackId)
+    if (index >= 0) {
+      el.scrollTop = Math.max(0, index * ROW_HEIGHT - el.clientHeight / 2)
+    }
+    clearReveal()
+  }, [revealTrackId, filtered, clearReveal])
 
   // Virtualizer derived values — computed each render, not state
   const startIdx = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
@@ -227,7 +262,10 @@ export default function TrackList() {
     )
   }
 
-  if (folders.length === 0) {
+  // Onboarding only when there is genuinely nothing here. Songs dropped in as
+  // loose files register no folder, so gating on folders alone would hide a real
+  // library behind the "add a folder" screen.
+  if (folders.length === 0 && storeTracks.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center track-scan">
         <div
@@ -237,9 +275,9 @@ export default function TrackList() {
           <Music size={22} style={{ color: 'rgb(var(--accent-rgb) / 0.40)' }} />
         </div>
         <div>
-          <p className="font-term text-[14px]" style={{ color: 'var(--ink)' }}>no music folder</p>
+          <p className="font-term text-[14px]" style={{ color: 'var(--ink)' }}>no music yet</p>
           <p className="font-term text-[13px] mt-1" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
-            add a folder to get started
+            drag songs or a folder anywhere on this window
           </p>
         </div>
         <div className="flex flex-col items-center gap-2 w-full max-w-[220px]">
@@ -378,7 +416,14 @@ export default function TrackList() {
           borderBottom: '1px solid rgb(var(--accent-rgb) / 0.18)',
         }}
       >
-        <span className="font-mono text-[9px] tracking-[1.5px] uppercase" style={{ color: 'var(--accent2)' }}>id</span>
+        <button
+          onClick={() => handleSort('added')}
+          className="flex items-center gap-1 font-mono text-[9px] tracking-[1.5px] uppercase text-left transition-opacity hover:opacity-80"
+          style={{ color: 'var(--accent2)' }}
+          title="Order added"
+        >
+          id <SortIcon k="added" />
+        </button>
         <span />
         {(['title', 'artist', 'album'] as SortKey[]).map((k) => (
           <button
@@ -422,6 +467,9 @@ export default function TrackList() {
           const idx = startIdx + relIdx
           const isCurrentTrack = currentId === track.id
           const isSelected = selectedTrackId === track.id
+          // Falls back to the row number for tracks the library view hasn't loaded
+          // (tag/playlist results fetched before the first scan lands).
+          const slot = addOrder.get(track.id) ?? idx + 1
 
           return (
             <div
@@ -442,12 +490,12 @@ export default function TrackList() {
             >
               {/* ID / play indicator */}
               <span className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
-                {isCurrentTrack ? '▶' : String(idx + 1).padStart(4, '0')}
+                {isCurrentTrack ? '▶' : String(slot).padStart(4, '0')}
               </span>
 
               {/* Cover */}
               <div className="relative cursor-pointer" onClick={(e) => handleCoverClick(e, track)}>
-                <VectorGridCover src={track.coverUrl} label={`A:${String(idx + 1).padStart(3, '0')}`} size={24} />
+                <VectorGridCover src={track.coverUrl} label={`A:${String(slot).padStart(3, '0')}`} size={24} />
                 <div
                   className={`absolute inset-0 flex items-center justify-center transition-opacity ${
                     isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
