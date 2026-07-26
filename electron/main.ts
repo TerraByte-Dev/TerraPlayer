@@ -26,6 +26,7 @@ import {
   addLibraryFolder,
   addPaths,
   removeLibraryFolder,
+  removeTrackFromLibrary,
   getTrackPath,
   deleteTrackRow,
   getDriveStats,
@@ -132,7 +133,10 @@ app.whenReady().then(() => {
   ipcMain.handle('lib:listFolders', () => listLibraryFolders())
   ipcMain.handle('lib:addFolder', (_, path: string) => addLibraryFolder(path))
   ipcMain.handle('lib:addPaths', (_, paths: string[]) => addPaths(paths))
-  ipcMain.handle('lib:removeFolder', (_, path: string) => removeLibraryFolder(path))
+  ipcMain.handle('lib:removeFolder', (_, path: string, keepTracks: boolean) =>
+    removeLibraryFolder(path, keepTracks)
+  )
+  ipcMain.handle('lib:removeTrackFromLibrary', (_, trackId: number) => removeTrackFromLibrary(trackId))
   ipcMain.handle('lib:pickFolder', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)!
     const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
