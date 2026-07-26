@@ -175,7 +175,10 @@ function tracksUnderFolder(db: Db, folderPath: string): { id: number; playlist: 
 function seedFolderPlaylists(db: Db, folderPath: string): void {
   const groups = new Map<string, number[]>()
   for (const track of tracksUnderFolder(db, folderPath)) {
-    if (!track.playlist) continue
+    // normalizeName is what ensurePlaylist will apply, and it throws on an empty
+    // result. A directory named with only a non-breaking space trims to nothing,
+    // and that throw would roll back the entire scan.
+    if (!normalizeName(track.playlist ?? '')) continue
     const ids = groups.get(track.playlist)
     if (ids) ids.push(track.id)
     else groups.set(track.playlist, [track.id])
@@ -224,9 +227,8 @@ export function removeLibraryFolder(folderPath: string, keepTracks: boolean): vo
   const db = getDb()
   db.transaction(() => {
     if (!keepTracks) {
-      for (const track of tracksUnderFolder(db, folderPath)) {
-        dbRun(db, 'DELETE FROM tracks WHERE id = ?', [track.id])
-      }
+      const drop = db.prepare('DELETE FROM tracks WHERE id = ?')
+      for (const track of tracksUnderFolder(db, folderPath)) drop.run(track.id)
     }
     dbRun(db, 'DELETE FROM library_folders WHERE path = ?', [folderPath])
   })()
@@ -397,16 +399,34 @@ export async function scanLibrary(): Promise<{ playlists: PlaylistSummary[]; tra
       await walkDir(db, folder.path, folder.path, summary)
     }
 
-    // Purge rows whose file is genuinely gone — and ONLY those. An offline network
-    // or removable drive throws here too, and dropping those rows would cascade
-    // away their tags and playlist memberships (db.ts ON DELETE CASCADE). A
-    // folder-scanned track would come back on the next scan; a loose track has no
-    // scan root, so it would be gone for good.
+    // Purge rows whose file is genuinely gone — and ONLY those. Dropping a row
+    // cascades away its tags and playlist memberships (db.ts ON DELETE CASCADE);
+    // a folder-scanned track comes back on the next walk, but a track that
+    // belongs to no scan root would be gone for good.
+    //
+    // ENOENT alone does NOT mean "deleted": an unplugged USB drive and a
+    // disconnected share report ENOENT for every path on them, so trusting it
+    // would wipe an entire offline library. Require the containing directory to
+    // still be there — that distinguishes one deleted file from a volume that
+    // simply isn't mounted right now. Directory results are cached because whole
+    // albums share a parent.
+    const dirReachable = new Map<string, boolean>()
+    const parentIsThere = (filePath: string): boolean => {
+      const dir = dirname(filePath)
+      const cached = dirReachable.get(dir)
+      if (cached !== undefined) return cached
+      let there = false
+      try { statSync(dir); there = true } catch { there = false }
+      dirReachable.set(dir, there)
+      return there
+    }
+
     const allPaths = dbAll<{ path: string }>(db, 'SELECT path FROM tracks', [])
+    const purge = db.prepare('DELETE FROM tracks WHERE path = ?')
     for (const { path } of allPaths) {
       try { statSync(path) } catch (e) {
-        if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
-          dbRun(db, 'DELETE FROM tracks WHERE path = ?', [path])
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT' && parentIsThere(path)) {
+          purge.run(path)
         }
       }
     }

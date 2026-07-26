@@ -189,7 +189,7 @@ declare global {
       addFolder(path: string): Promise<LibraryFolder[]>
       addPaths(paths: string[]): Promise<AddPathsResult>
       removeFolder(path: string, keepTracks: boolean): Promise<void>
-      removeTrackFromLibrary(trackId: number): Promise<{ ok: boolean; reason?: string }>
+      removeTrackFromLibrary(trackId: number): Promise<{ ok: boolean; reason?: string; cancelled?: boolean }>
       pickFolder(): Promise<string | null>
       suggestMusicFolder(): Promise<{ path: string; exists: boolean }>
       getDriveStats(): Promise<{ totalBytes: number }>
