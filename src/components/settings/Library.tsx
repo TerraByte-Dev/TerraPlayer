@@ -36,11 +36,11 @@ export default function Library() {
 
       <Section
         title="Folders"
-        description="TerraPlayer scans these folders for .m4a and .mp3 files. Removing a folder drops its tracks from the library (the files are never deleted)."
+        description="TerraPlayer scans these folders for .m4a and .mp3 files. Removing a folder drops its tracks from the library (the files are never deleted). Songs dragged in one at a time are indexed on their own and aren't listed here."
       >
         <div className="flex flex-col gap-1.5">
           {folders.length === 0 && (
-            <p className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>No folders yet — add one to build your library.</p>
+            <p className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.4)' }}>No folders yet — add one, or just drag songs onto the window.</p>
           )}
           {folders.map((f) => (
             <div key={f.path} className="flex items-center gap-2 px-2 py-1.5" style={{ border: '1px solid rgb(var(--accent-rgb) / 0.10)' }}>
