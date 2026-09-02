@@ -179,6 +179,13 @@ export type VisualizerCommand =
   | { type: 'next' }
   | { type: 'seek'; time: number }
   | { type: 'volume'; volume: number }
+  // section+index address the snapshot row the popout actually rendered; `id` is the
+  // staleness guard the main window checks before it removes anything.
+  | { type: 'queueRemove'; section: 'upNext' | 'comingUp'; index: number; id?: number }
+  // The popout asks for a snapshot once it has actually booted — the open-time publish
+  // races the window's renderer and is dropped, which left a paused popout showing an
+  // empty queue (and no rows to click) until playback resumed.
+  | { type: 'requestState' }
 
 declare global {
   interface Window {

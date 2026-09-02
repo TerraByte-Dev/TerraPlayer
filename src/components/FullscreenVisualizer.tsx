@@ -154,6 +154,14 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     return unsub
   }, [source])
 
+  // Announce readiness. The main window publishes the moment it opens this window, long
+  // before this renderer has an 'viz:playback-state' listener, so that first snapshot is
+  // dropped; while paused nothing else would ever trigger another one.
+  useEffect(() => {
+    if (source !== 'ipc') return
+    window.hub.sendVisualizerCommand({ type: 'requestState' })
+  }, [source])
+
   useEffect(() => {
     if (source !== 'ipc') return
     const unsub = window.hub.onPlaybackState((state) =>
@@ -501,6 +509,20 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     window.hub.sendVisualizerCommand(command)
   }
 
+  // The drawer renders a serialized snapshot in both modes, so a row is addressed by
+  // section+index. In the popout that has to travel back over IPC to the window that
+  // owns the store; in the in-app overlay the store is right here. `id` rides along
+  // as the staleness guard either way (see removeComingUpAt).
+  function removeQueueRow(section: 'upNext' | 'comingUp', index: number, id?: number) {
+    if (source === 'ipc') {
+      runCommand({ type: 'queueRemove', section, index, id })
+      return
+    }
+    const store = usePlayerStore.getState()
+    if (section === 'upNext') store.removeFromUpNext(index, id)
+    else store.removeFromComingUp(index, id)
+  }
+
   type BoolKey = 'bars' | 'ring' | 'bubbles' | 'atmosphere' | 'rotation' | 'particles' | 'grid' | 'mirrorBars'
   function toggle(key: BoolKey) {
     useVizStore.getState().setVizSetting(key, !useVizStore.getState()[key])
@@ -732,7 +754,7 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
         </div>
       </div>
 
-      <FullscreenQueueDrawer queue={playback.queue ?? EMPTY_QUEUE} />
+      <FullscreenQueueDrawer queue={playback.queue ?? EMPTY_QUEUE} onRemove={removeQueueRow} />
 
       {!playback.isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingBottom: '12%' }}>
@@ -745,7 +767,13 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
   )
 }
 
-function FullscreenQueueDrawer({ queue }: { queue: PlaybackSnapshot['queue'] }) {
+function FullscreenQueueDrawer({
+  queue,
+  onRemove,
+}: {
+  queue: PlaybackSnapshot['queue']
+  onRemove: (section: 'upNext' | 'comingUp', index: number, id?: number) => void
+}) {
   const hasItems = queue.nowPlaying || queue.upNext.length > 0 || queue.comingUp.length > 0
 
   return (
@@ -788,7 +816,11 @@ function FullscreenQueueDrawer({ queue }: { queue: PlaybackSnapshot['queue'] }) 
             <section className="mb-3">
               <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>UP NEXT</p>
               {queue.upNext.map((track, i) => (
-                <FullscreenQueueRow key={`up-${track.id ?? track.title}-${i}`} track={track} />
+                <FullscreenQueueRow
+                  key={`up-${track.id ?? track.title}-${i}`}
+                  track={track}
+                  onRemove={() => onRemove('upNext', i, track.id)}
+                />
               ))}
             </section>
           )}
@@ -796,7 +828,12 @@ function FullscreenQueueDrawer({ queue }: { queue: PlaybackSnapshot['queue'] }) 
             <section>
               <p className="mb-1.5 font-mono text-[9px] uppercase tracking-[2px]" style={{ color: 'var(--accent2)' }}>COMING UP</p>
               {queue.comingUp.map((track, i) => (
-                <FullscreenQueueRow key={`coming-${track.id ?? track.title}-${i}`} track={track} dim />
+                <FullscreenQueueRow
+                  key={`coming-${track.id ?? track.title}-${i}`}
+                  track={track}
+                  dim
+                  onRemove={() => onRemove('comingUp', i, track.id)}
+                />
               ))}
             </section>
           )}
@@ -815,37 +852,55 @@ function FullscreenQueueRow({
   track,
   current,
   dim,
+  onRemove,
 }: {
   track: QueueSnapshotTrack
   current?: boolean
   dim?: boolean
+  onRemove?: () => void
 }) {
   const label = track.id ? `A:${String(track.id).padStart(3, '0')}` : 'A:000'
   return (
     <div
-      className={`mb-1.5 flex min-w-0 items-center gap-2 px-1.5 py-1.5 ${dim ? 'opacity-40' : ''}`}
+      className="mb-1.5 flex min-w-0 items-center gap-2 px-1.5 py-1.5"
       style={{
         background: current ? 'rgb(var(--accent-rgb) / 0.08)' : 'transparent',
         borderLeft: current ? '2px solid var(--accent)' : '2px solid transparent',
       }}
     >
-      <div className="flex-shrink-0">
-        <VectorGridCover src={track.coverUrl} size={28} label={label} />
+      {/* The dim wraps the CONTENT, not the row: an X inside it would composite down to
+          ~0.1 alpha and be invisible on exactly the rows it exists for. Same split QueuePanel
+          uses, where the button is a sibling of the dimmed QueueRow. */}
+      <div className={`flex min-w-0 flex-1 items-center gap-2 ${dim ? 'opacity-40' : ''}`}>
+        <div className="flex-shrink-0">
+          <VectorGridCover src={track.coverUrl} size={28} label={label} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p
+            className={`font-term text-[12px] truncate leading-tight ${current ? 'phosphor-glow' : ''}`}
+            style={{ color: current ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.75)' }}
+          >
+            {current ? '▶ ' : ''}{track.title || '—'}
+          </p>
+          <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}>
+            {track.artist || '—'}
+          </p>
+        </div>
+        <span className="font-term text-[11px] flex-shrink-0 tabular-nums" style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }}>
+          {fmtDuration(track.duration)}
+        </span>
       </div>
-      <div className="min-w-0 flex-1">
-        <p
-          className={`font-term text-[12px] truncate leading-tight ${current ? 'phosphor-glow' : ''}`}
-          style={{ color: current ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.75)' }}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          title="remove from queue"
+          aria-label={`remove ${track.title || 'track'} from queue`}
+          className="flex-shrink-0 transition-opacity hover:opacity-70"
+          style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }}
         >
-          {current ? '▶ ' : ''}{track.title || '—'}
-        </p>
-        <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}>
-          {track.artist || '—'}
-        </p>
-      </div>
-      <span className="font-term text-[11px] flex-shrink-0 tabular-nums" style={{ color: 'rgb(var(--ink-rgb) / 0.25)' }}>
-        {fmtDuration(track.duration)}
-      </span>
+          <X size={11} />
+        </button>
+      )}
     </div>
   )
 }

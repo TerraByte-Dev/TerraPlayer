@@ -10,7 +10,7 @@ type QueueSection = 'upNext' | 'comingUp'
 
 export default function QueuePanel() {
   const {
-    upNext, removeFromUpNext, moveFutureTrack, clearUpNext,
+    upNext, removeFromUpNext, removeFromComingUp, moveFutureTrack, clearUpNext,
     currentTrack, activeQueue, queueIndex,
   } = usePlayerStore()
 
@@ -159,6 +159,15 @@ export default function QueuePanel() {
               >
                 <GripVertical size={11} className="flex-shrink-0 cursor-grab" style={{ color: 'rgb(var(--ink-rgb) / 0.20)' }} />
                 <QueueRow track={track} dim />
+                <button
+                  onClick={() => removeFromComingUp(i, track.id)}
+                  title="remove from queue"
+                  aria-label={`remove ${track.title || 'track'} from queue`}
+                  className="flex-shrink-0 transition-opacity hover:opacity-70"
+                  style={{ color: 'rgb(var(--ink-rgb) / 0.20)' }}
+                >
+                  <X size={11} />
+                </button>
               </div>
             ))}
             {hiddenCount > 0 && (

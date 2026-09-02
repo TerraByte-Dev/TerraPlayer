@@ -70,3 +70,59 @@ export function purgeTrackFromQueue<T extends { id: number }>(
 
   return { queue, shuffledQueue, upNext, queueIndex, clearedCurrent }
 }
+
+export interface RemoveResult<T> {
+  queue: T[]
+  shuffledQueue: T[]
+}
+
+/**
+ * Drop ONE row out of "Coming Up" — the auto-generated tail of the play order.
+ *
+ * `index` is relative to the future window (0 = the row right after the current
+ * track), the same convention `moveFutureTrack`'s 'comingUp' section uses. Only
+ * the tail is addressable, so history, the now-playing track and `upNext` are
+ * untouchable here and `queueIndex` never has to move.
+ *
+ * Both representations are edited, not just the active one: `queue` and
+ * `shuffledQueue` hold the same SET in different orders, and `toggleShuffle`
+ * re-derives the index by finding the current track in the other array. Leaving
+ * a removed row in the mirror would resurrect it the moment shuffle flips. The
+ * mirror occurrence that IS the current track is never the one taken (only
+ * reachable when the same id sits in the queue twice — `next()` can splice an
+ * upNext entry in alongside its own copy), or that lookup would miss.
+ *
+ * Returns null when the removal is refused — out of range, or `expectId` doesn't
+ * match the row actually sitting there. The popout window clicks against a
+ * snapshot that is up to one currentTime tick stale, and removing the wrong song
+ * is far worse than ignoring a click.
+ */
+export function removeComingUpAt<T extends { id: number }>(
+  snap: Pick<QueueSnapshot<T>, 'queue' | 'shuffledQueue' | 'queueIndex' | 'shuffle'>,
+  index: number,
+  expectId?: number
+): RemoveResult<T> | null {
+  if (!Number.isInteger(index) || index < 0) return null
+
+  const active = snap.shuffle ? snap.shuffledQueue : snap.queue
+  const abs = snap.queueIndex + 1 + index
+  if (abs < 1 || abs >= active.length) return null
+
+  const target = active[abs]
+  if (expectId !== undefined && target.id !== expectId) return null
+
+  const nextActive = [...active.slice(0, abs), ...active.slice(abs + 1)]
+
+  const mirror = snap.shuffle ? snap.queue : snap.shuffledQueue
+  let nextMirror = mirror
+  if (mirror.length > 0) {
+    const currentId = active[snap.queueIndex]?.id
+    const anchor = currentId === undefined ? -1 : mirror.findIndex((t) => t.id === currentId)
+    const mi = mirror.findIndex((t, i) => t.id === target.id && i !== anchor)
+    if (mi >= 0) nextMirror = [...mirror.slice(0, mi), ...mirror.slice(mi + 1)]
+  }
+
+  return snap.shuffle
+    ? { queue: nextMirror, shuffledQueue: nextActive }
+    : { queue: nextActive, shuffledQueue: nextMirror }
+}

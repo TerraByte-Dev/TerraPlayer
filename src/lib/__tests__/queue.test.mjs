@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { windowComingUp, COMING_UP_WINDOW, purgeTrackFromQueue } from '../queue.ts'
+import { windowComingUp, COMING_UP_WINDOW, purgeTrackFromQueue, removeComingUpAt } from '../queue.ts'
 
 const T = (id) => ({ id })
 // queue [a,b,c,d] with c (index 2) playing, shuffle off, empty upNext.
@@ -113,4 +113,84 @@ test('purge: shuffle mode indexes the shuffled queue', () => {
   assert.deepEqual(r.queue.map((t) => t.id), [2, 3, 4]) // removed from both lists
   assert.equal(r.queueIndex, 1) // points at the track that slid in (id 3)
   assert.equal(r.clearedCurrent, true)
+})
+
+// --- removeComingUpAt --------------------------------------------------------
+// queue [1,2,3,4,5] with 2 (index 1) playing → Coming Up is [3,4,5].
+const cu = (over = {}) => ({
+  queue: [T(1), T(2), T(3), T(4), T(5)],
+  shuffledQueue: [],
+  queueIndex: 1,
+  shuffle: false,
+  ...over,
+})
+
+test('removes the addressed Coming Up row and leaves the index alone', () => {
+  const r = removeComingUpAt(cu(), 1) // [3,>4<,5]
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 3, 5])
+  assert.deepEqual(r.shuffledQueue, [])
+})
+
+test('index 0 is the row right after the current track', () => {
+  const r = removeComingUpAt(cu(), 0)
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 4, 5])
+})
+
+test('never reaches the current track or history', () => {
+  assert.equal(removeComingUpAt(cu(), -1), null)
+  assert.equal(removeComingUpAt(cu(), 1.5), null)
+  assert.equal(removeComingUpAt(cu(), NaN), null)
+  assert.equal(removeComingUpAt(cu(), 3), null) // one past the end
+  assert.equal(removeComingUpAt(cu(), 999), null)
+})
+
+test('the id guard refuses a stale row rather than removing the wrong song', () => {
+  assert.equal(removeComingUpAt(cu(), 1, 99), null)
+  const ok = removeComingUpAt(cu(), 1, 4)
+  assert.deepEqual(ok.queue.map((t) => t.id), [1, 2, 3, 5])
+})
+
+test('shuffled: removes from the shuffled order AND the in-order mirror', () => {
+  // shuffled [5,1,3,2,4], playing 1 (index 1) → Coming Up is [3,2,4].
+  const r = removeComingUpAt(
+    cu({ shuffle: true, shuffledQueue: [T(5), T(1), T(3), T(2), T(4)], queueIndex: 1 }),
+    0 // id 3
+  )
+  assert.deepEqual(r.shuffledQueue.map((t) => t.id), [5, 1, 2, 4])
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 4, 5]) // mirror lost id 3 too
+})
+
+test('a removed row does not come back when shuffle is toggled off', () => {
+  const r = removeComingUpAt(
+    cu({ shuffle: true, shuffledQueue: [T(5), T(1), T(3), T(2), T(4)], queueIndex: 1 }),
+    0
+  )
+  assert.ok(!r.queue.some((t) => t.id === 3))
+})
+
+test('a duplicate id removes exactly one row, never the now-playing copy', () => {
+  // queue [1,2,3,2,4] with index 1 (id 2) playing; Coming Up [3,2,4] — the 2 is a dupe
+  // next() spliced in from upNext. Removing it must not orphan toggleShuffle's lookup.
+  const snap = {
+    queue: [T(1), T(2), T(3), T(2), T(4)],
+    shuffledQueue: [T(2), T(4), T(2), T(1), T(3)],
+    queueIndex: 1,
+    shuffle: false,
+  }
+  const r = removeComingUpAt(snap, 1, 2) // the second copy of id 2
+  assert.deepEqual(r.queue.map((t) => t.id), [1, 2, 3, 4])
+  // the mirror drops one id-2, and the surviving one is still findable as "current"
+  assert.equal(r.shuffledQueue.filter((t) => t.id === 2).length, 1)
+  assert.ok(r.shuffledQueue.some((t) => t.id === 2))
+})
+
+test('emptying Coming Up entirely leaves the current track playing', () => {
+  let snap = cu()
+  for (let i = 0; i < 3; i++) {
+    const r = removeComingUpAt(snap, 0)
+    snap = { ...snap, queue: r.queue, shuffledQueue: r.shuffledQueue }
+  }
+  assert.deepEqual(snap.queue.map((t) => t.id), [1, 2])
+  assert.equal(snap.queue[snap.queueIndex].id, 2)
+  assert.equal(removeComingUpAt(snap, 0), null)
 })
