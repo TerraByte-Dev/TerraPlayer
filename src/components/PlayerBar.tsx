@@ -194,15 +194,32 @@ export default function PlayerBar() {
       if (command.type === 'toggle') setPlaying(!usePlayerStore.getState().isPlaying)
       if (command.type === 'seek') seekTo(command.time)
       if (command.type === 'volume') setVolume(command.volume)
+      if (command.type === 'requestState') setSnapshotEpoch((n) => n + 1)
+      if (command.type === 'queueRemove') {
+        // Read the store fresh: the popout's row index is against the last published
+        // snapshot, and the guard inside the store rejects it if it has since moved on.
+        const store = usePlayerStore.getState()
+        if (command.section === 'upNext') store.removeFromUpNext(command.index, command.id)
+        else store.removeFromComingUp(command.index, command.id)
+      }
     })
     return unsub
   }, [next, prev, setPlaying, setVolume])
 
+  // Subscribed, not read through getState(), because these ARE the effect's triggers:
+  // removing a Coming Up row rewrites only the play order, so without them in the deps
+  // below the popout would keep rendering the row it just removed (and the store's
+  // staleness guard would then reject every click under it).
+  // Bumped when the popout announces itself, to force one republish it can actually receive.
+  const [snapshotEpoch, setSnapshotEpoch] = useState(0)
+  const publishedQueue = usePlayerStore((s) => (s.shuffle ? s.shuffledQueue : s.queue))
+  const publishedIndex = usePlayerStore((s) => s.queueIndex)
+
   useEffect(() => {
     if (!popoutOpen) return // no popout consumer — skip IPC entirely
     const state = usePlayerStore.getState()
-    const activeQueue = state.activeQueue()
-    const queueIndex = state.queueIndex
+    const activeQueue = publishedQueue
+    const queueIndex = publishedIndex
     const toQueueTrack = (item: typeof activeQueue[number]): QueueSnapshotTrack => ({
       id: item.id, title: item.title, artist: item.artist, duration: item.duration, coverUrl: item.coverUrl,
     })
@@ -215,7 +232,7 @@ export default function PlayerBar() {
         comingUp: activeQueue.slice(queueIndex + 1, queueIndex + 25).map(toQueueTrack),
       },
     })
-  }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverUrl, currentTime, duration, volume, upNext, popoutOpen])
+  }, [isPlaying, track?.id, track?.title, track?.artist, track?.coverUrl, currentTime, duration, volume, upNext, publishedQueue, publishedIndex, snapshotEpoch, popoutOpen])
 
   // Apply the 10-band EQ. eq.bands is always a fresh array (store copies on every change), so this fires on
   // every preset/band change.

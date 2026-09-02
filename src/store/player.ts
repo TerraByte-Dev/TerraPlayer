@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { createDedupeStorage } from '@/lib/perf'
-import { purgeTrackFromQueue } from '@/lib/queue'
+import { purgeTrackFromQueue, removeComingUpAt } from '@/lib/queue'
 import type { Track } from '@/lib/ipc'
 import { eqPresetGains, clampEqBand, coerceEqSettings, type AudioPreset, type EqSettings } from '@/lib/audio-math'
 
@@ -38,7 +38,8 @@ interface PlayerState {
   setEqBand: (index: number, value: number) => void
   addToUpNext: (track: Track) => void
   playNext: (track: Track) => void
-  removeFromUpNext: (index: number) => void
+  removeFromUpNext: (index: number, expectId?: number) => void
+  removeFromComingUp: (index: number, expectId?: number) => void
   moveFutureTrack: (
     from: { section: 'upNext' | 'comingUp'; index: number },
     to: { section: 'upNext' | 'comingUp'; index: number }
@@ -174,8 +175,21 @@ export const usePlayerStore = create<PlayerState>()(persist((set, get) => ({
 
   addToUpNext: (track) => set((s) => ({ upNext: [...s.upNext, track] })),
   playNext: (track) => set((s) => ({ upNext: [track, ...s.upNext] })),
-  removeFromUpNext: (index) =>
-    set((s) => ({ upNext: s.upNext.filter((_, i) => i !== index) })),
+  // `expectId` is the popout window's staleness guard: it clicks against a snapshot
+  // that can be a tick behind, so a mismatched row is ignored rather than removed.
+  removeFromUpNext: (index, expectId) =>
+    set((s) => {
+      if (expectId !== undefined && s.upNext[index]?.id !== expectId) return {}
+      return { upNext: s.upNext.filter((_, i) => i !== index) }
+    }),
+  removeFromComingUp: (index, expectId) =>
+    set((s) =>
+      removeComingUpAt(
+        { queue: s.queue, shuffledQueue: s.shuffledQueue, queueIndex: s.queueIndex, shuffle: s.shuffle },
+        index,
+        expectId
+      ) ?? {}
+    ),
   moveFutureTrack: (from, to) =>
     set((s) => {
       if (from.section === to.section && from.index === to.index) return {}
