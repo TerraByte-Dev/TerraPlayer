@@ -35,7 +35,7 @@ function loadTally(): Tally {
   return { X: 0, O: 0, draws: 0 }
 }
 
-export default function TicTacToe({ fullscreen }: ToolProps) {
+export default function TicTacToe({ fullscreen, active = true }: ToolProps) {
   const [board, setBoard] = useState<Board>(EMPTY_BOARD.slice())
   const [humanStarts, setHumanStarts] = useState(true)
   const [tally, setTally] = useState<Tally>(loadTally)
@@ -117,16 +117,18 @@ export default function TicTacToe({ fullscreen }: ToolProps) {
   // Keyboard: 1-9 (numpad-style top-left to bottom-right) place a mark; N starts a new round.
   // Guard against firing while focused in an input/textarea (none here, but house rule).
   useEffect(() => {
+    if (!active) return // the arcade cabinet is unfocused — don't bind at all
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return // Ctrl+N is not "new round"
       if (e.key.toLowerCase() === 'n') { newRound(); return }
       const n = Number(e.key)
       if (n >= 1 && n <= 9 && humanTurn) { e.preventDefault(); play(n - 1) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [play, newRound, humanTurn])
+  }, [play, newRound, humanTurn, active])
 
   const statusText = result === 'X' ? 'You win'
     : result === 'O' ? 'AI wins'
@@ -135,7 +137,7 @@ export default function TicTacToe({ fullscreen }: ToolProps) {
     : 'AI thinking…'
 
   const cellSize = fullscreen ? 'text-[120px]' : 'text-[64px]'
-  const boardMax = fullscreen ? 'max-w-[560px]' : 'max-w-[380px]'
+  const boardMax = fullscreen ? 'max-w-[min(720px,68vh)]' : 'max-w-[380px]'
 
   return (
     <div className="flex h-full min-h-0 flex-col">

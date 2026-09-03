@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Wrench, ChevronUp } from 'lucide-react'
+import { Wrench, ChevronUp, Gamepad2 } from 'lucide-react'
 import { TOOLS } from '../tools/registry'
 import type { ToolId } from '../tools/types'
 
@@ -9,7 +9,10 @@ export type UtilityMode = ToolId
 
 // A slim "TOOLS" bar that opens a grid of unlabelled tool icons above it. Portaled to <body> so it floats
 // over the player bar; a full-screen backdrop closes it on any outside click (Escape too).
-export default function UtilityDock({ onOpen }: { onOpen: (mode: UtilityMode) => void }) {
+export default function UtilityDock({ onOpen, onOpenArcade }: {
+  onOpen: (mode: UtilityMode) => void
+  onOpenArcade: () => void
+}) {
   const barRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [rect, setRect] = useState<DOMRect | null>(null)
@@ -65,7 +68,18 @@ export default function UtilityDock({ onOpen }: { onOpen: (mode: UtilityMode) =>
             }}
           >
             <div className="font-mono text-[9px] uppercase tracking-[2px] px-1 pb-2" style={{ color: 'var(--accent2)' }}>TOOLS</div>
-            <div className="grid grid-cols-5 gap-1.5">
+            {/* Six tools + the arcade. The four games used to sit in this grid; they are now
+                one tile, which is why it fits 7 across 4 columns with bigger targets. */}
+            <div className="grid grid-cols-4 gap-1.5">
+              <button
+                onClick={() => { setOpen(false); onOpenArcade() }}
+                title="Arcade — 2048, Snake, Minesweeper, Tic-Tac-Toe"
+                aria-label="Arcade"
+                className="metal-key flex items-center justify-center"
+                style={{ aspectRatio: '1 / 1', color: 'var(--accent)' }}
+              >
+                <Gamepad2 size={16} strokeWidth={1.6} />
+              </button>
               {TOOLS.map((tool) => (
                 <button
                   key={tool.id}

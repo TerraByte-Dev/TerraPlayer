@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Pencil, X } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import TrackList from './components/TrackList'
@@ -11,6 +11,7 @@ import TitleBar from './components/TitleBar'
 import ContextMenu from './components/ContextMenu'
 import QueuePanel from './components/QueuePanel'
 import UtilityOverlay from './components/utilities/UtilityOverlay'
+import Arcade from './components/arcade/Arcade'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
 import Downloader from './components/Downloader'
@@ -30,6 +31,12 @@ export default function App() {
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // The arcade is deliberately NOT a `utilityMode`: it floats over a usable app, so opening the
+  // calculator must not close the game you left running.
+  const [arcadeOpen, setArcadeOpen] = useState(false)
+  const [arcadeFullscreen, setArcadeFullscreen] = useState(false)
+  // Bumped when the tile is clicked again, to re-focus a cabinet that is already open.
+  const [arcadeNonce, setArcadeNonce] = useState(0)
   const downloaderView = useDownloaderStore((s) => s.view)
 
   useEffect(() => {
@@ -52,6 +59,8 @@ export default function App() {
 
   // Let PlayerBar's global transport shortcuts yield while a tool/Settings/Downloader overlay owns the
   // keyboard. Only the full modal grabs it — the side panel leaves the app fully interactive.
+  // The arcade is absent on purpose: it is non-modal, so the transport keys stay live behind it and
+  // the cabinet's own focus state decides whether the game or the app hears a keypress.
   useEffect(() => {
     useUiStore.getState().setOverlayOpen(!!utilityMode || settingsOpen || downloaderView === 'modal')
   }, [utilityMode, settingsOpen, downloaderView])
@@ -72,6 +81,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = window.hub.onMainFullscreenChange((fullscreen) => {
+      if (!fullscreen) setArcadeFullscreen(false)
       if (!fullscreen) setUtilityFullscreen(false)
     })
     return unsub
@@ -142,6 +152,33 @@ export default function App() {
     setUtilityFullscreen(fullscreen)
   }
 
+  // Stable identities: App re-renders ~4x/sec while a track plays (the currentTime tick), and a
+  // fresh callback each time would re-reconcile the whole mounted game for as long as the
+  // cabinet is parked open.
+  const handleOpenArcade = useCallback(() => {
+    if (usePlayerStore.getState().vizFullscreen) {
+      setVizFullscreen(false)
+      window.hub.setMainFullscreen(false).catch(() => {})
+    }
+    // Already open: bring it back to the front of the keyboard rather than doing nothing.
+    setArcadeOpen(true)
+    setArcadeNonce((n) => n + 1)
+  }, [setVizFullscreen])
+
+  const handleArcadeFullscreen = useCallback(async (fullscreen: boolean) => {
+    await window.hub.setMainFullscreen(fullscreen)
+    setArcadeFullscreen(fullscreen)
+  }, [])
+
+  const handleCloseArcade = useCallback(async () => {
+    if (useUiStore.getState().arcadeFocus) useUiStore.getState().setArcadeFocus(false)
+    setArcadeFullscreen((fs) => {
+      if (fs) window.hub.setMainFullscreen(false).catch(() => {})
+      return false
+    })
+    setArcadeOpen(false)
+  }, [])
+
   async function handleCloseUtility() {
     if (utilityFullscreen) {
       await window.hub.setMainFullscreen(false)
@@ -177,7 +214,7 @@ export default function App() {
       )}
 
       <div className="relative z-[1] flex flex-1 overflow-hidden">
-        <Sidebar onOpenUtility={handleOpenUtility} />
+        <Sidebar onOpenUtility={handleOpenUtility} onOpenArcade={handleOpenArcade} />
 
         <main className="flex-1 flex flex-col overflow-hidden" style={{ background: '#000' }}>
           <TrackList />
@@ -226,6 +263,15 @@ export default function App() {
 
       {vizFullscreen && (
         <FullscreenVisualizer source="analyser" onClose={handleCloseFullscreen} />
+      )}
+
+      {arcadeOpen && (
+        <Arcade
+          focusNonce={arcadeNonce}
+          fullscreen={arcadeFullscreen}
+          onClose={handleCloseArcade}
+          onFullscreenChange={handleArcadeFullscreen}
+        />
       )}
 
       {utilityMode && (

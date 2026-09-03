@@ -255,7 +255,8 @@ export default function PlayerBar() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       // Yield while a tool/Settings/Downloader overlay owns the keyboard (e.g. Snake/2048 use Space + arrows).
-      if (useUiStore.getState().overlayOpen) return
+      const ui = useUiStore.getState()
+      if (ui.overlayOpen || ui.arcadeFocus) return // a modal, or a focused arcade cabinet, owns the keys
       const el = document.activeElement as HTMLElement | null
       const tag = el?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
