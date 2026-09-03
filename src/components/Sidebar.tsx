@@ -34,7 +34,10 @@ function UptimeClock() {
   )
 }
 
-export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: UtilityMode) => void }) {
+export default function Sidebar({ onOpenUtility, onOpenArcade }: {
+  onOpenUtility: (mode: UtilityMode) => void
+  onOpenArcade: () => void
+}) {
   const { playlists, tags, sidebarView, setSidebarView, load, loadTags, loadPlaylists, renamePlaylist, renameTag, loading, tracks, driveBytes } =
     useLibraryStore()
   const { playTrack } = usePlayerStore()
@@ -354,7 +357,7 @@ export default function Sidebar({ onOpenUtility }: { onOpenUtility: (mode: Utili
       {/* Fixed bottom — tools, MEDIA.DRIVE, reindex */}
       <div className="flex-shrink-0">
       {/* Utility dock */}
-      <UtilityDock onOpen={onOpenUtility} />
+      <UtilityDock onOpen={onOpenUtility} onOpenArcade={onOpenArcade} />
 
       {/* Status footer */}
       <div

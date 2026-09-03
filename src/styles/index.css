@@ -63,6 +63,24 @@ body {
 
 @layer components {
 
+  /* The arcade cabinet's screen: its own finer scanline grain, so a game reads as something
+     playing on a CRT inside the cabinet rather than a panel pasted onto the app. The cabinet
+     itself sits at z-40, UNDER the app-wide .crt-scanlines layer, so the two stack rather than
+     compete — and crt-off drops this one alongside the others. */
+  .arcade-screen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      180deg,
+      transparent 0 3px,
+      rgb(var(--accent-rgb) / 0.020) 3px 4px
+    );
+    mix-blend-mode: screen;
+  }
+
   /* CRT scanlines — apply to whole shell */
   .crt-scanlines {
     position: relative;
@@ -178,6 +196,7 @@ body {
    readability surface. reduce-motion: kill blink/pulse/transition flourishes. */
 html.crt-off .crt-scanlines::after,
 html.crt-off .crt-vignette::before,
+html.crt-off .arcade-screen::after,
 html.crt-off .pb-scanline { display: none; }
 
 html.reduce-motion *,

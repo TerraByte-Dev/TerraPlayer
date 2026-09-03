@@ -42,7 +42,7 @@ const KEY_TO_DIR: Record<string, Dir> = {
   D: 'right',
 }
 
-export default function Snake({ fullscreen }: ToolProps) {
+export default function Snake({ fullscreen, active = true }: ToolProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -242,6 +242,16 @@ export default function Snake({ fullscreen }: ToolProps) {
     }
   }, [started, beginIfNeeded, stopLoop, startLoop])
 
+  // The cabinet floats over an app you can still use, so clicking away must not cost a run.
+  // Pause through the same path Space takes: `runningRef` is read during render, so stopping the
+  // loop without setting `paused` would leave the button reading PAUSE while nothing ticks.
+  // Resuming is deliberate — never restart a real-time game under the user's hands.
+  useEffect(() => {
+    if (active || !runningRef.current) return
+    stopLoop()
+    setPaused(true)
+  }, [active, stopLoop])
+
   // Resize observer + initial draw.
   useEffect(() => {
     resize()
@@ -255,10 +265,15 @@ export default function Snake({ fullscreen }: ToolProps) {
   // Keyboard: turning (arrows + WASD), Space to pause/resume, R to restart. Guarded against firing while
   // typing in an input/textarea. CRITICAL: listener is removed on unmount.
   useEffect(() => {
+    if (!active) return // the arcade cabinet is unfocused — don't bind at all
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null
       const tag = t?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || t?.isContentEditable) return
+      // A focused button owns Space and Enter. Swallowing them here means the arcade's own
+      // transport and cartridge buttons stop responding once you've clicked one.
+      if (tag === 'BUTTON' && (e.key === ' ' || e.code === 'Space' || e.key === 'Enter')) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return // Ctrl+R is reload, not restart
 
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault()
@@ -283,7 +298,7 @@ export default function Snake({ fullscreen }: ToolProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePause, restart, beginIfNeeded])
+  }, [togglePause, restart, beginIfNeeded, active])
 
   // Final safety net: tear the loop down on unmount no matter what (memory discipline).
   useEffect(() => {

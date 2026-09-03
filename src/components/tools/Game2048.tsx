@@ -53,7 +53,7 @@ function loadBest(): number {
   }
 }
 
-export default function Game2048({ fullscreen }: ToolProps) {
+export default function Game2048({ fullscreen, active = true }: ToolProps) {
   const [board, setBoard] = useState<Board>(() => newGame())
   const [score, setScore] = useState(0)
   const [best, setBest] = useState<number>(loadBest)
@@ -105,10 +105,12 @@ export default function Game2048({ fullscreen }: ToolProps) {
 
   // Keyboard: arrows + WASD. Installed once; reads live state through refs. Ignored while typing in inputs.
   useEffect(() => {
+    if (!active) return // the arcade cabinet is unfocused — don't bind at all
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null
       const tag = target?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return // Ctrl+W is close-window, not "up"
       const dir = KEY_TO_DIR[e.key.length === 1 ? e.key.toLowerCase() : e.key]
       if (!dir) return
       e.preventDefault()
@@ -116,12 +118,13 @@ export default function Game2048({ fullscreen }: ToolProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [applyMove])
+  }, [applyMove, active])
 
   const highest = useMemo(() => maxTile(board), [board])
 
   // Sizing: the board is a square that scales with the available space. Fullscreen gets a bigger cap.
-  const boardMax = fullscreen ? 560 : 420
+  // Fullscreen means the whole display now, not a 920px Shell — scale to the viewport.
+  const boardMax = fullscreen ? Math.min(880, Math.round(window.innerHeight * 0.72)) : 420
   const gapPx = fullscreen ? 12 : 10
 
   return (

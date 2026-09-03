@@ -59,7 +59,7 @@ function formatTime(secs: number): string {
   return s.toString().padStart(3, '0')
 }
 
-export default function Minesweeper({ fullscreen }: ToolProps) {
+export default function Minesweeper({ fullscreen, active = true }: ToolProps) {
   const [difficulty, setDifficulty] = useState<Difficulty>('beginner')
   const preset = PRESETS[difficulty]
 
@@ -167,6 +167,7 @@ export default function Minesweeper({ fullscreen }: ToolProps) {
 
   // Keyboard: R resets, 1/2 switch difficulty. Guard against firing while typing.
   useEffect(() => {
+    if (!active) return // the arcade cabinet is unfocused — don't bind at all
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
@@ -178,7 +179,7 @@ export default function Minesweeper({ fullscreen }: ToolProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [difficulty, resetGame])
+  }, [difficulty, resetGame, active])
 
   // Cell sizing: scale up in fullscreen, and shrink for the larger Intermediate grid so it fits.
   const cellSize = fullscreen
