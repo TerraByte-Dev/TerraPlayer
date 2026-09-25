@@ -103,32 +103,36 @@ need no IPC.
 
 ## Contributor workflow
 
-1. **Work from a fork.** Contributors don't have write access and don't need it.
-   ```bash
-   # Fork on GitHub, then clone it (gh repo fork TerraByte-Dev/TerraPlayer --clone does the fork, clone and upstream remote in one step):
-   git clone https://github.com/<you>/TerraPlayer.git && cd TerraPlayer
-   git remote add upstream https://github.com/TerraByte-Dev/TerraPlayer.git
-   git fetch upstream
-   git switch -c feat/<N>-<slug> upstream/main   # N = issue number; fix/<N>-<slug> for bugs
-   npm ci
-   # ...work and commit...
-   git push -u origin feat/<N>-<slug>            # push to YOUR fork, never upstream
-   ```
-2. **Use one branch and one PR per issue.** Cut each branch from a freshly fetched `upstream/main`. Keep the diff to
+1. **Get the code.**
+   - **Invited collaborators** push branches straight to this repo. `main` is protected: every change lands through a PR
+     that @TerraByte-Dev approves (CODEOWNERS + ruleset), so nothing you push can reach `main` on its own.
+     ```bash
+     gh repo clone TerraByte-Dev/TerraPlayer && cd TerraPlayer
+     git switch -c feat/<N>-<slug> origin/main   # N = issue number; fix/<N>-<slug> for bugs
+     npm ci
+     # ...work and commit...
+     git push -u origin feat/<N>-<slug>
+     ```
+   - **Everyone else** works from a fork: `gh repo fork TerraByte-Dev/TerraPlayer --clone` makes your fork `origin` and
+     this repo `upstream`. Branch from `upstream/main` and push to your fork.
+2. **Use one branch and one PR per issue.** Cut each branch from a freshly fetched `main`. Keep the diff to
    what the issue asks for, with no drive-by refactors or reformatting. If you notice unrelated problems, list them in the PR body instead.
 3. **Use Conventional Commits**, scoped the way the history is: `feat(tags): …`, `fix(library): …`, `feat(settings): …`.
    The PR title uses the same format.
 4. **Open the PR early, as a draft,** against `TerraByte-Dev/TerraPlayer:main`. Fill in the PR template, include `Closes #N`,
-   and leave "Allow edits by maintainers" checked.
+   and (from a fork) leave "Allow edits by maintainers" checked.
 5. **Before you mark it Ready for review:** `npm run typecheck`, `npm test` and `npm run compile` pass locally, UI changes
    include before/after screenshots or a GIF, and the human contributor has read the whole diff. CI re-runs typecheck and
-   tests on the PR. A new contributor's first CI run may wait for maintainer approval.
+   tests on the PR. From a fork, a first-time contributor's CI run waits for maintainer approval.
 6. **Address review with new commits.** Don't force-push over commits that have already been reviewed unless you're asked to.
-   To pick up newer `main`, merge `upstream/main` into your branch instead of rebasing.
+   To pick up newer `main`, merge it into your branch instead of rebasing.
 7. **@TerraByte-Dev reviews and merges. Contributors never merge.** A PR is done only when the maintainer approves it.
 
 **Don't:**
 - bump `version` in `package.json` or write release notes. Releases are maintainer-only.
+- create, edit or delete **GitHub Releases** or tags, even though collaborator access technically allows editing
+  releases. The in-app updater installs whatever the latest Release holds, so a touched Release ships to every user.
+- push to, delete or force-push any branch you didn't create.
 - touch release, packaging or CI config: the `build` block in `package.json` (electron-builder, including
   `publish`), `scripts/stage-downloader.mjs`, or `.github/workflows/`.
 - commit build output or local state: `out/`, `dist/`, `release/`, `*.tsbuildinfo`, `downloader.local.json`,
