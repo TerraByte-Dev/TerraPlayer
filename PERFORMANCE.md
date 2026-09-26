@@ -30,7 +30,7 @@ on every tick.
   re-rendered the entire virtualized list (and reconciled every visible row +
   cover SVG). Now uses narrow selectors and a primitive `currentId`, so playback
   ticks no longer touch the list. (`src/components/TrackList.tsx`)
-- **`VectorGridCover`** (one cover SVG per row/queue item) and the spectrum
+- **`VectorGridCover`** (one cover per row/queue item; the placeholder SVG only when there's no art) and the spectrum
   **`Visualizer`** are now wrapped in `React.memo` — all-primitive props, so they
   skip reconciliation when a parent re-renders without changing their inputs.
   (`src/components/VectorGridCover.tsx`, `src/components/Visualizer.tsx`)
