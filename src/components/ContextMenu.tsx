@@ -97,6 +97,14 @@ export default function ContextMenu() {
               </span>
             )}
             {item.label}
+            {item.badge && (
+              <span
+                className="ml-auto px-1 font-mono text-[9px] tracking-[1px] leading-[14px] flex-shrink-0"
+                style={{ color: 'var(--bg-0)', background: 'var(--accent)' }}
+              >
+                {item.badge}
+              </span>
+            )}
           </button>
         )
       })}

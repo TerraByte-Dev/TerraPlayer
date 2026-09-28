@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 
 export interface MenuItem {
   label?: string
+  /** Small accent pill after the label, e.g. 'NEW'. */
+  badge?: string
   icon?: ReactNode
   onClick?: () => void
   danger?: boolean

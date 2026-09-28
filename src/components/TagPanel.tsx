@@ -5,7 +5,7 @@ import { hub } from '@/lib/ipc'
 import type { Tag, TagKind } from '@/lib/ipc'
 
 export default function TagPanel() {
-  const { selectedTrack, tags, loadTags } = useLibraryStore()
+  const { selectedTrack, tags, loadTags, tagEpoch } = useLibraryStore()
   const track = selectedTrack()
 
   const [trackTags, setTrackTags] = useState<Tag[]>([])
@@ -20,6 +20,15 @@ export default function TagPanel() {
     hub.getTrackTags(track.id).then((t) => { if (!cancelled) setTrackTags(t) })
     return () => { cancelled = true }
   }, [track?.id])
+
+  // Swipe mode adds tags one song at a time. Refetch in place (no clear, so no flicker) in case it
+  // tagged the selected song.
+  useEffect(() => {
+    if (!tagEpoch || !track) return
+    let cancelled = false
+    hub.getTrackTags(track.id).then((t) => { if (!cancelled) setTrackTags(t) })
+    return () => { cancelled = true }
+  }, [tagEpoch])
 
   if (!track) return null
 

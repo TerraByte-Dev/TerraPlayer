@@ -8,10 +8,12 @@ import {
   Trash2,
   Plus,
   Pencil,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
 import { usePlayerStore } from '@/store/player'
 import { useContextMenuStore } from '@/store/contextMenu'
+import { useSwipeStore } from '@/store/swipe'
 import { hub } from '@/lib/ipc'
 import type { TagKind } from '@/lib/ipc'
 import { validateRename } from '@/lib/library-core'
@@ -173,6 +175,12 @@ export default function Sidebar({ onOpenUtility, onOpenArcade }: {
           const tagTracks = await hub.getTracksForTag(tagId)
           if (tagTracks.length > 0) playTrack(tagTracks[0], tagTracks)
         },
+      },
+      {
+        label: 'Swipe',
+        badge: 'NEW',
+        icon: <ArrowLeftRight size={12} />,
+        onClick: () => useSwipeStore.getState().open(tagId),
       },
       { separator: true },
       {

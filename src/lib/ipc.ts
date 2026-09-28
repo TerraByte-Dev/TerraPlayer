@@ -211,6 +211,11 @@ declare global {
       getTrackTags(trackId: number): Promise<Tag[]>
       setTrackTags(trackId: number, tagIds: number[]): Promise<void>
       getTracksForTag(tagId: number): Promise<Track[]>
+      /** Swipe mode: ids of the songs that have this tag, and of the ones passed on for it. */
+      getSwipeState(tagId: number): Promise<{ taggedIds: number[]; skippedIds: number[] }>
+      addTrackToTag(tagId: number, trackId: number): Promise<void>
+      skipTrackForTag(tagId: number, trackId: number): Promise<void>
+      clearTagSkips(tagId: number): Promise<void>
       listPlaylists(): Promise<PlaylistSummary[]>
       createPlaylist(name: string): Promise<PlaylistSummary>
       deletePlaylist(playlistId: number): Promise<void>
@@ -299,6 +304,10 @@ export const hub = {
   getTrackTags: (trackId: number) => window.hub.getTrackTags(trackId),
   setTrackTags: (trackId: number, tagIds: number[]) => window.hub.setTrackTags(trackId, tagIds),
   getTracksForTag: (tagId: number) => window.hub.getTracksForTag(tagId),
+  getSwipeState: (tagId: number) => window.hub.getSwipeState(tagId),
+  addTrackToTag: (tagId: number, trackId: number) => window.hub.addTrackToTag(tagId, trackId),
+  skipTrackForTag: (tagId: number, trackId: number) => window.hub.skipTrackForTag(tagId, trackId),
+  clearTagSkips: (tagId: number) => window.hub.clearTagSkips(tagId),
   listPlaylists: () => window.hub.listPlaylists(),
   createPlaylist: (name: string) => window.hub.createPlaylist(name),
   deletePlaylist: (playlistId: number) => window.hub.deletePlaylist(playlistId),
