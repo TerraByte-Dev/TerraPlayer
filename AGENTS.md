@@ -120,7 +120,8 @@ need no IPC.
 3. **Use Conventional Commits**, scoped the way the history is: `feat(tags): …`, `fix(library): …`, `feat(settings): …`.
    The PR title uses the same format.
 4. **Open the PR early, as a draft,** against `TerraByte-Dev/TerraPlayer:main`. Fill in the PR template, include `Closes #N`,
-   and (from a fork) leave "Allow edits by maintainers" checked.
+   and (from a fork) leave "Allow edits by maintainers" checked. **The work isn't handed off until this PR exists.** A local
+   commit or a pushed branch is invisible to review and CI doesn't run on it. Finish with `gh pr create --draft`, not `git push`.
 5. **Before you mark it Ready for review:** `npm run typecheck`, `npm test` and `npm run compile` pass locally, UI changes
    include before/after screenshots or a GIF, and the human contributor has read the whole diff. CI re-runs typecheck and
    tests on the PR. From a fork, a first-time contributor's CI run waits for maintainer approval.
