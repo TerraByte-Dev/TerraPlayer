@@ -20,6 +20,11 @@ const CORNER_MARKERS = [
 ] as const
 
 function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
+  // Track *which* src failed rather than a boolean, so a failure can't stick to
+  // a reused instance — the PlayerBar cover gets a new src on every track change.
+  const [failedSrc, setFailedSrc] = React.useState<string | null>(null)
+  const showArt = !!src && failedSrc !== src
+
   return (
     <div
       style={{
@@ -34,8 +39,8 @@ function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
         overflow: 'hidden',
       }}
     >
-      {/* Cover art behind SVG overlay */}
-      {src && (
+      {/* Real cover art is drawn clean — nothing on top of it */}
+      {showArt && (
         <img
           src={src}
           alt=""
@@ -44,54 +49,61 @@ function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
           loading="lazy"
           decoding="async"
           fetchPriority="low"
+          // The overlay SVG used to be the hit target; now the <img> is, and a native image drag
+          // would trip the app-wide drop overlay and hijack the queue row's drag ghost.
+          draggable={false}
+          onError={() => setFailedSrc(src)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
       )}
 
-      {/* Vector grid + decorations */}
-      <svg
-        width={size}
-        height={size}
-        style={{ position: 'absolute', inset: 0, color: 'var(--accent)' }}
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <pattern id={PAT_ID} width="8" height="8" patternUnits="userSpaceOnUse">
-            <path d="M 8 0 L 0 0 0 8" fill="none" stroke="currentColor" strokeWidth="0.4" opacity="0.4" />
-          </pattern>
-        </defs>
-        {!src && <rect width={size} height={size} fill={`url(#${PAT_ID})`} />}
-        <circle cx={size / 2} cy={size / 2} r={size * 0.29} fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.75" />
-        <circle cx={size / 2} cy={size / 2} r={size * 0.18} fill="none" style={{ stroke: 'var(--accent2)' }} strokeWidth="0.6" opacity="0.6" />
-        <line x1="0" y1={size / 2} x2={size} y2={size / 2} stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
-        <line x1={size / 2} y1="0" x2={size / 2} y2={size} stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
-        {!src && (
-          <text
-            x={size / 2}
-            y={size / 2 + 4}
-            textAnchor="middle"
-            fontSize={size < 32 ? 5 : 8}
-            fill="currentColor"
-            fontFamily='"VT323", monospace'
+      {/* HUD placeholder for tracks without art (or whose cover file failed to load).
+          Each placeholder keeps its own <defs> so url(#vcg-pat) always resolves. */}
+      {!showArt && (
+        <>
+          <svg
+            width={size}
+            height={size}
+            style={{ position: 'absolute', inset: 0, color: 'var(--accent)' }}
+            xmlns="http://www.w3.org/2000/svg"
           >
-            {label}
-          </text>
-        )}
-      </svg>
+            <defs>
+              <pattern id={PAT_ID} width="8" height="8" patternUnits="userSpaceOnUse">
+                <path d="M 8 0 L 0 0 0 8" fill="none" stroke="currentColor" strokeWidth="0.4" opacity="0.4" />
+              </pattern>
+            </defs>
+            <rect width={size} height={size} fill={`url(#${PAT_ID})`} />
+            <circle cx={size / 2} cy={size / 2} r={size * 0.29} fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.75" />
+            <circle cx={size / 2} cy={size / 2} r={size * 0.18} fill="none" style={{ stroke: 'var(--accent2)' }} strokeWidth="0.6" opacity="0.6" />
+            <line x1="0" y1={size / 2} x2={size} y2={size / 2} stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+            <line x1={size / 2} y1="0" x2={size / 2} y2={size} stroke="currentColor" strokeWidth="0.4" opacity="0.5" />
+            <text
+              x={size / 2}
+              y={size / 2 + 4}
+              textAnchor="middle"
+              fontSize={size < 32 ? 5 : 8}
+              fill="currentColor"
+              fontFamily='"VT323", monospace'
+            >
+              {label}
+            </text>
+          </svg>
 
-      {/* Corner markers */}
-      {CORNER_MARKERS.map((pos, i) => (
-        <span
-          key={i}
-          style={{
-            position: 'absolute',
-            width: 4,
-            height: 4,
-            border: '1px solid var(--accent)',
-            ...pos,
-          }}
-        />
-      ))}
+          {/* Corner markers */}
+          {CORNER_MARKERS.map((pos, i) => (
+            <span
+              key={i}
+              style={{
+                position: 'absolute',
+                width: 4,
+                height: 4,
+                border: '1px solid var(--accent)',
+                ...pos,
+              }}
+            />
+          ))}
+        </>
+      )}
     </div>
   )
 }
