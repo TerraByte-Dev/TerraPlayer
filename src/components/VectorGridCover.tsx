@@ -49,6 +49,9 @@ function VectorGridCover({ src, label = 'A:000', size = 68 }: Props) {
           loading="lazy"
           decoding="async"
           fetchPriority="low"
+          // The overlay SVG used to be the hit target; now the <img> is, and a native image drag
+          // would trip the app-wide drop overlay and hijack the queue row's drag ghost.
+          draggable={false}
           onError={() => setFailedSrc(src)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
