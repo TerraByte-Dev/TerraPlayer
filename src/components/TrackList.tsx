@@ -71,8 +71,13 @@ export default function TrackList() {
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(600)
 
+  // Also on window resize: a UI size (zoom) change alters the list's height in CSS px, and waiting for the
+  // next scroll would leave blank rows below the rendered window.
   useLayoutEffect(() => {
-    if (scrollRef.current) setViewportH(scrollRef.current.clientHeight)
+    const measure = () => { if (scrollRef.current) setViewportH(scrollRef.current.clientHeight) }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
   }, [])
 
   useEffect(() => {

@@ -29,14 +29,22 @@ function Visualizer({ height = 40 }: { height?: number }) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const dpr = window.devicePixelRatio || 1
-    const W_CSS = canvas.clientWidth || 240
-    const H_CSS = height
-    canvas.width = W_CSS * dpr
-    canvas.height = H_CSS * dpr
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.scale(dpr, dpr)
+    const H_CSS = height
+    let W_CSS = 240
+
+    // Re-run on window resize: a UI size (zoom) change fires one and changes devicePixelRatio, so a canvas
+    // measured once would go blurry. Resizing the backing store resets the transform, hence setTransform.
+    function measure() {
+      const dpr = window.devicePixelRatio || 1
+      W_CSS = canvas!.clientWidth || 240
+      canvas!.width = W_CSS * dpr
+      canvas!.height = H_CSS * dpr
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+    measure()
+    window.addEventListener('resize', measure)
 
     const analyser = getAnalyser()
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -93,7 +101,10 @@ function Visualizer({ height = 40 }: { height?: number }) {
     const start = () => { if (!rafRef.current) rafRef.current = requestAnimationFrame(draw) }
     startRef.current = start
     start()
-    return () => { cancelAnimationFrame(rafRef.current); rafRef.current = 0; startRef.current = null }
+    return () => {
+      window.removeEventListener('resize', measure)
+      cancelAnimationFrame(rafRef.current); rafRef.current = 0; startRef.current = null
+    }
   }, [height])
 
   // Theme palette: resolve on mount + on theme change (mutate the ref; the draw loop reads it next frame).

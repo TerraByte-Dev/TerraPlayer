@@ -2,7 +2,7 @@
 // is unit-testable under node and so a hand-edited or corrupt file can never push malformed data into the
 // app: every imported value is clamped/validated and merged over a complete set of defaults.
 
-import { isKnownThemeId, DEFAULT_THEME_ID } from './theme.ts'
+import { isKnownThemeId, DEFAULT_THEME_ID, isKnownUiScaleId, DEFAULT_UI_SCALE_ID } from './theme.ts'
 import { coerceEqSettings, eqPresetGains, clampPreamp, clampSpeed, clampFadeSec, clamp, type EqSettings } from './audio-math.ts'
 
 export const EXPORT_KIND = 'terraplayer-settings'
@@ -14,7 +14,7 @@ export type RepeatMode = 'off' | 'all' | 'one'
 
 export interface SettingsPayload {
   theme: string
-  display: { scanlines: boolean; reduceMotion: boolean }
+  display: { scanlines: boolean; reduceMotion: boolean; uiScale: string }
   audio: { volume: number; preampDb: number; mono: boolean; eq: EqSettings }
   playback: { shuffle: boolean; repeat: RepeatMode; fadeSec: number; speed: number }
 }
@@ -27,7 +27,7 @@ export interface SettingsExport extends SettingsPayload {
 
 export const DEFAULT_SETTINGS: SettingsPayload = {
   theme: DEFAULT_THEME_ID,
-  display: { scanlines: true, reduceMotion: false },
+  display: { scanlines: true, reduceMotion: false, uiScale: DEFAULT_UI_SCALE_ID },
   audio: { volume: 0.8, preampDb: 0, mono: false, eq: eqPresetGains('off') },
   playback: { shuffle: false, repeat: 'off', fadeSec: 0, speed: 1 },
 }
@@ -58,6 +58,7 @@ export function normalizeSettings(raw: unknown): SettingsPayload {
     display: {
       scanlines: bool(display.scanlines, DEFAULT_SETTINGS.display.scanlines),
       reduceMotion: bool(display.reduceMotion, DEFAULT_SETTINGS.display.reduceMotion),
+      uiScale: isKnownUiScaleId(display.uiScale) ? display.uiScale : DEFAULT_SETTINGS.display.uiScale,
     },
     audio: {
       volume: Number.isFinite(Number(audio.volume)) ? clamp(Number(audio.volume), 0, 1) : DEFAULT_SETTINGS.audio.volume,

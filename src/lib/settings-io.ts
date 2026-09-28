@@ -8,7 +8,7 @@ import {
   type SettingsExport,
 } from './settings-schema'
 import {
-  getThemeId, getCrtOff, getReduceMotion, applyTheme, setCrtOff, setReduceMotion,
+  getThemeId, getCrtOff, getReduceMotion, getUiScaleId, applyTheme, setCrtOff, setReduceMotion, setUiScale,
 } from './theme'
 import { usePlayerStore } from '@/store/player'
 import { useSettingsStore } from '@/store/settings'
@@ -25,7 +25,7 @@ export function gatherSettings(): SettingsExport {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     theme: getThemeId(),
-    display: { scanlines: !getCrtOff(), reduceMotion: getReduceMotion() },
+    display: { scanlines: !getCrtOff(), reduceMotion: getReduceMotion(), uiScale: getUiScaleId() },
     audio: { volume: p.volume, preampDb: s.preampDb, mono: s.mono, eq: p.eq },
     playback: { shuffle: p.shuffle, repeat: p.repeat, fadeSec: s.fadeSec, speed: s.speed },
   }
@@ -61,6 +61,7 @@ export function applyImportedSettings(raw: unknown): SettingsExport {
   applyTheme(n.theme)
   setCrtOff(!n.display.scanlines)
   setReduceMotion(n.display.reduceMotion)
+  setUiScale(n.display.uiScale)
 
   // Audio graph + playback prefs.
   useSettingsStore.getState().setPreampDb(n.audio.preampDb)

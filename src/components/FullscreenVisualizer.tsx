@@ -212,9 +212,11 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const dpr = window.devicePixelRatio || 1
+    let dpr = window.devicePixelRatio || 1
 
+    // A UI size (zoom) change fires resize and changes devicePixelRatio, so re-read it here.
     function resize() {
+      dpr = window.devicePixelRatio || 1
       canvas!.width = window.innerWidth * dpr
       canvas!.height = window.innerHeight * dpr
       canvas!.style.width = window.innerWidth + 'px'

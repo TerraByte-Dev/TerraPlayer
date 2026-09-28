@@ -7,10 +7,12 @@
 // Two orthogonal, app-wide display toggles ride alongside the palette:
 //   • scanlines   — the CRT scanline + vignette overlay (class `crt-off` on <html> hides it).
 //   • reduceMotion — disables blink/pulse/transition flourishes (class `reduce-motion` on <html>).
+// Plus the UI size preset, which zooms the main window (see UI_SCALES).
 //
-// All three (theme + the two toggles) persist to localStorage so they can be applied before first paint
-// (no flash). This module is DOM-free at import time (the DOM is only touched inside the apply/set
-// functions) so the pure helpers — getTheme, isKnownThemeId, resolveCrtOff — are unit-testable under node.
+// All of them persist to localStorage so they can be applied before first paint (no flash). This module
+// is DOM-free at import time (the DOM is only touched inside the apply/set functions) so the pure
+// helpers — getTheme, isKnownThemeId, resolveCrtOff, getUiScale, isKnownUiScaleId — are unit-testable
+// under node.
 
 export interface ThemeSwatch {
   /** Deepest background (the void behind panels). */
@@ -48,9 +50,30 @@ export const THEMES: Theme[] = [
 
 export const DEFAULT_THEME_ID = 'mainframe'
 
+export interface UiScale {
+  id: string
+  /** Shown on the Appearance button. */
+  label: string
+  factor: number
+}
+
+// UI size = Chromium page zoom on the main window, not a root font-size: text is sized in px and boxes in
+// rem, so only zoom scales both evenly, and JS layout math (row height, menu clamps) keeps seeing
+// consistent CSS px. Nothing below 100% — the title bar's 140px gutter would slide under the native
+// caption buttons. Factors must stay within 1–2; main rejects anything else.
+export const UI_SCALES: UiScale[] = [
+  { id: 'default', label: '100%', factor: 1 },
+  { id: 'large',   label: '115%', factor: 1.15 },
+  { id: 'larger',  label: '130%', factor: 1.3 },
+  { id: 'largest', label: '150%', factor: 1.5 },
+]
+
+export const DEFAULT_UI_SCALE_ID = 'default'
+
 const THEME_KEY = 'tplay-theme'
 const CRT_OFF_KEY = 'tplay-crt-off'
 const REDUCE_MOTION_KEY = 'tplay-reduce-motion'
+const UI_SCALE_KEY = 'tplay-ui-scale'
 
 export const THEME_EVENT = 'tplay-theme-change'
 export const DISPLAY_EVENT = 'tplay-display-change'
@@ -74,6 +97,16 @@ export function resolveCrtOff(_theme: Theme, manualCrtOff: boolean): boolean {
   return manualCrtOff
 }
 
+/** Resolve an id to a UI size preset, falling back to the default for unknown/missing ids. Pure. */
+export function getUiScale(id: unknown): UiScale {
+  return UI_SCALES.find((s) => s.id === id) ?? UI_SCALES[0]
+}
+
+/** True when `id` names a real UI size preset — used to validate imported/persisted values. Pure. */
+export function isKnownUiScaleId(id: unknown): id is string {
+  return typeof id === 'string' && UI_SCALES.some((s) => s.id === id)
+}
+
 // ── localStorage reads (safe in node/SSR: swallow and return defaults) ───────────────────────────────────
 
 export function getThemeId(): string {
@@ -91,6 +124,15 @@ export function getCrtOff(): boolean {
 
 export function getReduceMotion(): boolean {
   try { return localStorage.getItem(REDUCE_MOTION_KEY) === '1' } catch { return false }
+}
+
+export function getUiScaleId(): string {
+  try {
+    const v = localStorage.getItem(UI_SCALE_KEY)
+    return isKnownUiScaleId(v) ? v : DEFAULT_UI_SCALE_ID
+  } catch {
+    return DEFAULT_UI_SCALE_ID
+  }
 }
 
 // ── DOM appliers (broadcast a CustomEvent so any open surface stays in sync) ─────────────────────────────
@@ -118,6 +160,23 @@ export function setReduceMotion(on: boolean): void {
   try { localStorage.setItem(REDUCE_MOTION_KEY, on ? '1' : '0') } catch { /* ignore */ }
   document.documentElement.classList.toggle('reduce-motion', on)
   try { window.dispatchEvent(new CustomEvent(DISPLAY_EVENT, { detail: { reduceMotion: on } })) } catch { /* ignore */ }
+}
+
+/** Persist + apply a UI size preset: zoom the main window (and resize its native chrome), broadcast. */
+export function setUiScale(id: string): void {
+  const scale = getUiScale(id)
+  try { localStorage.setItem(UI_SCALE_KEY, scale.id) } catch { /* ignore */ }
+  window.hub.setUiScale(scale.factor)
+  try { window.dispatchEvent(new CustomEvent(DISPLAY_EVENT, { detail: { uiScale: scale.id } })) } catch { /* ignore */ }
+}
+
+/**
+ * Apply the persisted UI size. Main window only (main.tsx), before React mounts — the zoom is set
+ * synchronously in this renderer, so the first paint is already at the saved size. Deliberately not part
+ * of bootDisplayPreferences(), which the popout visualizer also runs.
+ */
+export function bootUiScale(): void {
+  window.hub.setUiScale(getUiScale(getUiScaleId()).factor)
 }
 
 /**
