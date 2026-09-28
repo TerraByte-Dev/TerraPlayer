@@ -704,10 +704,10 @@ export default function FullscreenVisualizer({ source = 'analyser', onClose }: P
           <div className="flex items-center gap-3 min-w-0 flex-shrink-0" style={{ width: 180 }}>
             <VectorGridCover src={playback.coverUrl} size={40} label="A:VIZ" />
             <div className="min-w-0">
-              <p className="font-lcd text-[13px] truncate phosphor-glow" style={{ color: 'var(--accent)' }}>
+              <p className="font-lcd text-[13px] truncate phosphor-glow" style={{ color: 'var(--accent)' }} title={playback.title || undefined}>
                 {playback.title || '—'}
               </p>
-              <p className="font-term text-[12px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
+              <p className="font-term text-[12px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }} title={playback.artist || undefined}>
                 {playback.artist || '—'}
               </p>
             </div>
@@ -881,10 +881,11 @@ function FullscreenQueueRow({
           <p
             className={`font-term text-[12px] truncate leading-tight ${current ? 'phosphor-glow' : ''}`}
             style={{ color: current ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.75)' }}
+            title={track.title || undefined}
           >
             {current ? '▶ ' : ''}{track.title || '—'}
           </p>
-          <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}>
+          <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }} title={track.artist || undefined}>
             {track.artist || '—'}
           </p>
         </div>

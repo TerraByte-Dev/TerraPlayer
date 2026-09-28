@@ -96,7 +96,7 @@ export default function ContextMenu() {
                 {item.icon}
               </span>
             )}
-            {item.label}
+            <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
           </button>
         )
       })}

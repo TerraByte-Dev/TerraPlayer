@@ -432,7 +432,7 @@ export function SwapMenu({ row, indent = true }: { row: PreviewRow; indent?: boo
             onMouseLeave={(e) => (e.currentTarget.style.background = selected ? 'rgb(var(--accent-rgb) / 0.08)' : 'transparent')}
           >
             <ConfidenceBadge c={c.confidence} explicit={c.explicit} />
-            <span className="flex-1 font-term text-[13px] truncate" style={{ color: '#cfeede' }}>
+            <span className="flex-1 font-term text-[13px] truncate" style={{ color: '#cfeede' }} title={`${c.artist} · ${c.title}`}>
               {c.artist} · {c.title}
             </span>
             <span className="font-term text-[11px]" style={{ color: c.source === 'ytmusic' ? GREEN : INK_DIM }}>
