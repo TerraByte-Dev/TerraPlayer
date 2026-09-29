@@ -418,7 +418,7 @@ export default function TrackList() {
           <div className="font-term text-[11px]" style={{ color: 'var(--accent2)' }}>
             library /
           </div>
-          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none truncate" style={{ color: 'var(--accent)' }} title={viewTitle}>
+          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none overflow-clip [overflow-clip-margin:12px] text-ellipsis whitespace-nowrap" style={{ color: 'var(--accent)' }} title={viewTitle}>
             {viewTitle}
           </div>
           <div className="font-term text-[11px] mt-1" style={{ color: 'var(--accent-deep)' }}>

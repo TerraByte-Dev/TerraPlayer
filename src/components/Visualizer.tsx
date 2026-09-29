@@ -44,7 +44,10 @@ function Visualizer({ height = 40 }: { height?: number }) {
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
     measure()
-    window.addEventListener('resize', measure)
+    // Resizing the backing store clears the bitmap, so repaint once: a paused loop has stopped
+    // itself and would otherwise leave the spectrum blank. start() is a no-op while it's running.
+    const onResize = () => { measure(); startRef.current?.() }
+    window.addEventListener('resize', onResize)
 
     const analyser = getAnalyser()
     const dataArray = new Uint8Array(analyser.frequencyBinCount)
@@ -102,7 +105,7 @@ function Visualizer({ height = 40 }: { height?: number }) {
     startRef.current = start
     start()
     return () => {
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', onResize)
       cancelAnimationFrame(rafRef.current); rafRef.current = 0; startRef.current = null
     }
   }, [height])

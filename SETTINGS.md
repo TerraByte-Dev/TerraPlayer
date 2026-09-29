@@ -66,8 +66,9 @@ Two app-wide toggles ride alongside the palette, both classes on `<html>`:
 zoom on the main window, not a root font-size: text is sized in px and boxes in rem, so only zoom
 scales both evenly, and JS layout math keeps seeing consistent CSS px. Main also scales the native
 caption-button height and the minimum window size to match. Nothing goes below 100%, because the title
-bar's 140px gutter would slide under the native buttons. Zoom is per-origin, so the popout visualizer
-follows the same size.
+bar's 140px gutter would slide under the native buttons. The preload sets it with
+`webFrame.setZoomFactor`, which Chromium keeps per window (not per origin), so the popout visualizer
+stays at 100%.
 
 ## Persistence
 

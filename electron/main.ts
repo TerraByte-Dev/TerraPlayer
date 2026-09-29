@@ -445,8 +445,19 @@ app.whenReady().then(() => {
     // setMinimumSize doesn't grow a window that is already smaller, which would leave the zoomed
     // layout below the 900×600 CSS px it's designed for. Maximized/fullscreen already fill the screen.
     if (!mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
-      const [w, h] = mainWindow.getSize()
-      if (w < minW || h < minH) mainWindow.setSize(Math.max(w, minW), Math.max(h, minH))
+      // Grow and keep it on-screen: growing in place from a centred window can push the bottom
+      // (the player bar) under the taskbar. minW/minH are already capped to the work area.
+      const b = mainWindow.getBounds()
+      if (b.width < minW || b.height < minH) {
+        const width = Math.max(b.width, minW)
+        const height = Math.max(b.height, minH)
+        mainWindow.setBounds({
+          width,
+          height,
+          x: Math.max(workArea.x, Math.min(b.x, workArea.x + workArea.width - width)),
+          y: Math.max(workArea.y, Math.min(b.y, workArea.y + workArea.height - height)),
+        })
+      }
     }
   })
 
