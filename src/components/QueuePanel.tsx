@@ -233,10 +233,11 @@ const QueueRow = React.memo(function QueueRow({
         <p
           className={`font-term text-[12px] truncate leading-tight ${isCurrent ? 'phosphor-glow' : ''}`}
           style={{ color: isCurrent ? 'var(--accent)' : 'rgb(var(--ink-rgb) / 0.75)' }}
+          title={track.title || undefined}
         >
           {isCurrent ? '▶ ' : ''}{track.title || '—'}
         </p>
-        <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }}>
+        <p className="font-term text-[11px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.40)' }} title={track.artist || undefined}>
           {track.artist || '—'}
         </p>
       </div>

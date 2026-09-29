@@ -440,7 +440,7 @@ function RowCard({ row }: { row: PreviewRow }) {
             ) : (
               <ConfidenceBadge c={row.confidence} explicit={row.explicit} />
             )}
-            <span className="font-term text-[12px] truncate" style={{ color: resolved ? '#cfeede' : failed ? RED : INK_FAINT }}>
+            <span className="font-term text-[12px] truncate" style={{ color: resolved ? '#cfeede' : failed ? RED : INK_FAINT }} title={resolved ? `${row.channel ?? ''} · ${row.title ?? ''}` : undefined}>
               {resolved ? `${row.channel ?? ''} · ${row.title ?? ''}` : failed ? `✗ ${row.reason ?? 'no match'}` : '…'}
             </span>
           </div>

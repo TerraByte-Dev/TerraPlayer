@@ -29,13 +29,14 @@ test('normalizeSettings: clamps out-of-range audio + playback values', () => {
 test('normalizeSettings: preserves valid values incl. volume 0', () => {
   const n = normalizeSettings({
     theme: 'synthwave',
-    display: { scanlines: false, reduceMotion: true },
+    display: { scanlines: false, reduceMotion: true, uiScale: 'larger' },
     audio: { volume: 0, preampDb: -3, mono: true, eq: { preset: 'rock', bands: EQ_PRESETS.rock.bands } },
     playback: { shuffle: true, repeat: 'one', fadeSec: 3, speed: 1.5 },
   })
   assert.equal(n.theme, 'synthwave')
   assert.equal(n.display.scanlines, false)
   assert.equal(n.display.reduceMotion, true)
+  assert.equal(n.display.uiScale, 'larger')
   assert.equal(n.audio.volume, 0)
   assert.equal(n.audio.preampDb, -3)
   assert.equal(n.audio.mono, true)
@@ -75,4 +76,18 @@ test('parseSettingsExport: accepts a valid file and normalizes its body', () => 
   assert.equal(out.kind, EXPORT_KIND)
   assert.equal(out.theme, 'amber')
   assert.equal(out.audio.volume, 1) // clamped during normalization
+})
+
+test('normalizeSettings: an unknown or missing uiScale becomes default', () => {
+  assert.equal(normalizeSettings({ display: { uiScale: 'huge' } }).display.uiScale, 'default')
+  assert.equal(normalizeSettings({ display: { uiScale: 1.5 } }).display.uiScale, 'default')
+  assert.equal(normalizeSettings({ display: { scanlines: false } }).display.uiScale, 'default')
+})
+
+test('parseSettingsExport: a v2 file without uiScale imports as default', () => {
+  const out = parseSettingsExport(JSON.stringify({
+    kind: EXPORT_KIND, version: 2, exportedAt: '2026-06-03',
+    display: { scanlines: true, reduceMotion: false },
+  }))
+  assert.equal(out.display.uiScale, 'default')
 })

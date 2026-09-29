@@ -440,7 +440,7 @@ export default function PlayerBar() {
           <p
             className="font-lcd text-[14px] truncate leading-tight phosphor-glow"
             style={{ color: 'var(--accent)', letterSpacing: '0.5px', cursor: track ? 'pointer' : 'default' }}
-            title={track ? 'Open track properties' : undefined}
+            title={track ? `${track.title || '—'} — click for properties` : undefined}
             onClick={() => {
               if (!track) return
               selectTrack(track.id)
@@ -449,10 +449,10 @@ export default function PlayerBar() {
           >
             {track?.title || 'nothing playing'}
           </p>
-          <p className="font-term text-[11px] truncate mt-0.5" style={{ color: 'rgb(var(--ink-rgb) / 0.55)', letterSpacing: '0.5px' }}>
+          <p className="font-term text-[11px] truncate mt-0.5" style={{ color: 'rgb(var(--ink-rgb) / 0.55)', letterSpacing: '0.5px' }} title={track?.artist || undefined}>
             {track?.artist || ''}
           </p>
-          <p className="font-term text-[11px] truncate mt-0.5 uppercase" style={{ color: 'rgb(var(--ink-rgb) / 0.30)', letterSpacing: '1px' }}>
+          <p className="font-term text-[11px] truncate mt-0.5 uppercase" style={{ color: 'rgb(var(--ink-rgb) / 0.30)', letterSpacing: '1px' }} title={track?.album || undefined}>
             {track?.album ? `[${track.album}]` : ''}
           </p>
         </div>

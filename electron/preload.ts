@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils, IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webFrame, webUtils, IpcRendererEvent } from 'electron'
 
 contextBridge.exposeInMainWorld('hub', {
   // Library
@@ -106,6 +106,12 @@ contextBridge.exposeInMainWorld('hub', {
   maximizeWindow: () => ipcRenderer.invoke('win:maximize'),
   closeWindow: () => ipcRenderer.invoke('win:close'),
   setTitleBarOverlay: (symbolColor: string) => ipcRenderer.send('win:set-overlay', symbolColor),
+  // Zoom here, synchronously, so a boot-time call lands before first paint; main then sizes the native
+  // caption buttons + minimum window size to match (and ignores the call from any other window).
+  setUiScale: (factor: number) => {
+    webFrame.setZoomFactor(factor)
+    ipcRenderer.send('win:set-ui-scale', factor)
+  },
   isWindows: process.platform === 'win32',
 
   // Audio frame publishing (main renderer → main process → viz window)

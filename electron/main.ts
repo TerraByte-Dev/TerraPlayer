@@ -43,6 +43,10 @@ registerHubProtocol()
 let mainWindow: BrowserWindow | null = null
 let vizWindow: BrowserWindow | null = null
 
+// Last theme glyph color + UI size factor, so every titlebar-overlay update sends the full options.
+let overlaySymbolColor = '#00FF88'
+let uiScale = 1
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -409,12 +413,51 @@ app.whenReady().then(() => {
   // Recolor the native Windows titlebar overlay (the min/max/close glyphs) to
   // match the app theme. CSS can't reach the OS-drawn buttons, but this can.
   // No-op off-Windows or if the overlay isn't active in this configuration.
-  ipcMain.on('win:set-overlay', (_, symbolColor: string) => {
+  // Its height follows the UI size, so the buttons line up with the zoomed
+  // 30px title bar.
+  function applyTitleBarOverlay(): void {
     if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return
     try {
-      mainWindow.setTitleBarOverlay({ color: '#000000', symbolColor, height: 30 })
+      mainWindow.setTitleBarOverlay({ color: '#000000', symbolColor: overlaySymbolColor, height: Math.round(30 * uiScale) })
     } catch {
       /* overlay not available — ignore */
+    }
+  }
+  ipcMain.on('win:set-overlay', (_, symbolColor: string) => {
+    overlaySymbolColor = symbolColor
+    applyTitleBarOverlay()
+  })
+
+  // UI size. The renderer has already zoomed itself (preload, before first
+  // paint); main sizes what CSS can't reach: the caption buttons and the
+  // minimum window size, capped to the display. The renderer is untrusted, so
+  // only the main window may ask, and only with a factor between 1 and 2.
+  ipcMain.on('win:set-ui-scale', (e, factor: unknown) => {
+    if (!mainWindow || mainWindow.isDestroyed() || e.sender !== mainWindow.webContents) return
+    if (typeof factor !== 'number' || !Number.isFinite(factor) || factor < 1 || factor > 2) return
+    uiScale = factor
+    mainWindow.webContents.setZoomFactor(factor)
+    applyTitleBarOverlay()
+    const { workArea } = screen.getDisplayMatching(mainWindow.getBounds())
+    const minW = Math.min(Math.round(900 * factor), workArea.width)
+    const minH = Math.min(Math.round(600 * factor), workArea.height)
+    mainWindow.setMinimumSize(minW, minH)
+    // setMinimumSize doesn't grow a window that is already smaller, which would leave the zoomed
+    // layout below the 900×600 CSS px it's designed for. Maximized/fullscreen already fill the screen.
+    if (!mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
+      // Grow and keep it on-screen: growing in place from a centred window can push the bottom
+      // (the player bar) under the taskbar. minW/minH are already capped to the work area.
+      const b = mainWindow.getBounds()
+      if (b.width < minW || b.height < minH) {
+        const width = Math.max(b.width, minW)
+        const height = Math.max(b.height, minH)
+        mainWindow.setBounds({
+          width,
+          height,
+          x: Math.max(workArea.x, Math.min(b.x, workArea.x + workArea.width - width)),
+          y: Math.max(workArea.y, Math.min(b.y, workArea.y + workArea.height - height)),
+        })
+      }
     }
   })
 

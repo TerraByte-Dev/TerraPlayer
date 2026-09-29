@@ -230,6 +230,8 @@ declare global {
       closeWindow(): Promise<void>
       /** Recolor the native Windows titlebar overlay glyphs to the theme accent. */
       setTitleBarOverlay(symbolColor: string): void
+      /** Zoom the main window to a UI size factor (1–2) and resize its native caption + minimum size. */
+      setUiScale(factor: number): void
       isWindows: boolean
       // Music downloader
       downloaderPreflight(opts?: CookieOpts & { noAuthProbe?: boolean }): Promise<DownloaderPreflight>

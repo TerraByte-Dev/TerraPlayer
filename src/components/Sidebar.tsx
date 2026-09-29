@@ -543,7 +543,7 @@ function NavItem({
         {active ? '>' : ' '}
       </span>
       <span className="flex-shrink-0" style={{ opacity: active ? 1 : 0.4 }}>{icon}</span>
-      <span className="flex-1 font-term text-[14px] truncate">{label}</span>
+      <span className="flex-1 font-term text-[14px] truncate" title={label}>{label}</span>
       {count !== undefined && (
         <span className="font-term text-[12px]" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
           {String(count).padStart(4, '0')}

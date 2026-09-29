@@ -98,7 +98,7 @@ export default function AddToPlaylist() {
                     key={p.id}
                     onClick={() => addToExisting(p.id, p.name)}
                     disabled={member || busy}
-                    title={member ? 'Already in this playlist' : `Add to ${p.name}`}
+                    title={member ? `${p.name} (already in this playlist)` : `Add to ${p.name}`}
                     className="flex items-center gap-2 px-2 py-1 font-term text-[12px] text-left transition-colors disabled:cursor-default"
                     style={{
                       border: '1px solid rgb(var(--accent-rgb) / 0.20)',

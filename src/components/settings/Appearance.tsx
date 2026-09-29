@@ -1,9 +1,9 @@
-import { THEMES, applyTheme, setCrtOff, setReduceMotion } from '@/lib/theme'
+import { THEMES, UI_SCALES, applyTheme, setCrtOff, setReduceMotion, setUiScale } from '@/lib/theme'
 import { useDisplayState } from '@/lib/useDisplay'
 import { Section, SettingRow, Toggle } from './primitives'
 
 export default function Appearance() {
-  const { themeId, crtOff, reduceMotion } = useDisplayState()
+  const { themeId, crtOff, reduceMotion, uiScaleId } = useDisplayState()
 
   return (
     <>
@@ -55,6 +55,28 @@ export default function Appearance() {
         </SettingRow>
         <SettingRow label="Reduce motion" help={reduceMotion ? 'Animations & transitions disabled' : 'Blinks, pulses & transitions on'}>
           <Toggle checked={reduceMotion} onChange={setReduceMotion} />
+        </SettingRow>
+        <SettingRow label="UI size" help="Scales text, icons & spacing together">
+          <div className="flex gap-1.5">
+            {UI_SCALES.map((s) => {
+              const active = uiScaleId === s.id
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setUiScale(s.id)}
+                  aria-pressed={active}
+                  className="px-2 h-7 font-term text-[12px] tabular-nums transition-colors"
+                  style={{
+                    color: active ? 'var(--accent)' : 'var(--ink)',
+                    border: active ? '1px solid var(--accent)' : '1px solid rgb(var(--ink-rgb) / 0.2)',
+                    background: active ? 'rgb(var(--accent-rgb) / 0.06)' : 'transparent',
+                  }}
+                >
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
         </SettingRow>
       </Section>
     </>
