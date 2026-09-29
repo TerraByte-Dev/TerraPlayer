@@ -42,7 +42,7 @@ export default function TrackList() {
     sidebarView, visibleTracks, selectTrack, selectedTrackId,
     loading, folders, addFolder, addFolderByPath, error, lastSummary, clearError,
     openPanel, playlists, loadPlaylists, revealTrackId, clearReveal,
-    tracks: storeTracks,
+    tracks: storeTracks, tagEpoch,
   } = useLibraryStore()
   // Narrow selectors instead of a selector-less usePlayerStore() — the latter
   // subscribes to EVERY store change, so the audio element's ~4×/sec currentTime
@@ -105,6 +105,15 @@ export default function TrackList() {
   // Re-fetch tag/playlist views when the library is rescanned (storeTracks changes)
   // so they never display stale tracks after a scan re-links or removes songs.
   useEffect(() => { loadAsyncTracks() }, [loadAsyncTracks, storeTracks])
+
+  // Swipe mode adds songs to a tag one at a time. Refetch an open view of a tag quietly: no
+  // tagViewLoading, so the list doesn't flash "scanning..." or lose its scroll position.
+  useEffect(() => {
+    if (!tagEpoch || sidebarView.kind !== 'tag') return
+    let cancelled = false
+    hub.getTracksForTag(sidebarView.tagId).then((t) => { if (!cancelled) setAsyncTracks(t) })
+    return () => { cancelled = true }
+  }, [tagEpoch])
 
   // Sorted + filtered — memoized to avoid recomputing on every player tick
   const filtered = useMemo(() => {

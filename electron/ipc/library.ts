@@ -841,6 +841,38 @@ export function setTrackTags(trackId: number, tagIds: number[]): void {
   })()
 }
 
+/**
+ * Everything swipe mode needs to know about a tag, as ids only: which songs already have it
+ * and which were passed on. Read once when the card opens.
+ */
+export function getSwipeState(tagId: number): { taggedIds: number[]; skippedIds: number[] } {
+  const db = getDb()
+  const ids = (sql: string) => dbAll<{ track_id: number }>(db, sql, [tagId]).map((r) => r.track_id)
+  return {
+    taggedIds: ids('SELECT track_id FROM track_tags WHERE tag_id = ?'),
+    skippedIds: ids('SELECT track_id FROM tag_skips WHERE tag_id = ?'),
+  }
+}
+
+/** Add one tag to one song (swipe "yes"). A yes overrides an earlier "no" for the same tag. */
+export function addTrackToTag(tagId: number, trackId: number): void {
+  const db = getDb()
+  db.transaction(() => {
+    dbRun(db, 'INSERT OR IGNORE INTO track_tags (track_id, tag_id) VALUES (?, ?)', [trackId, tagId])
+    dbRun(db, 'DELETE FROM tag_skips WHERE tag_id = ? AND track_id = ?', [tagId, trackId])
+  })()
+}
+
+export function skipTrackForTag(tagId: number, trackId: number): void {
+  const db = getDb()
+  dbRun(db, 'INSERT OR IGNORE INTO tag_skips (tag_id, track_id) VALUES (?, ?)', [tagId, trackId])
+}
+
+export function clearTagSkips(tagId: number): void {
+  const db = getDb()
+  dbRun(db, 'DELETE FROM tag_skips WHERE tag_id = ?', [tagId])
+}
+
 export function getTracksForTag(tagId: number): TrackRow[] {
   const db = getDb()
   const rows = dbAll(

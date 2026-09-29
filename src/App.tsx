@@ -12,6 +12,7 @@ import ContextMenu from './components/ContextMenu'
 import QueuePanel from './components/QueuePanel'
 import UtilityOverlay from './components/utilities/UtilityOverlay'
 import Arcade from './components/arcade/Arcade'
+import SwipeCard from './components/SwipeCard'
 import UtilityTimerHost from './components/utilities/UtilityTimerHost'
 import Settings from './components/Settings'
 import Downloader from './components/Downloader'
@@ -21,12 +22,14 @@ import { useLibraryStore } from './store/library'
 import { usePlayerStore } from './store/player'
 import { useDownloaderStore } from './store/downloader'
 import { useUiStore } from './store/ui'
+import { useSwipeStore } from './store/swipe'
 import { THEME_EVENT, getThemeId, getTheme } from './lib/theme'
 import { hub } from './lib/ipc'
 
 export default function App() {
   const { load, rightPanelOpen, panelMode, toggleRightPanel, selectedTrackId, addPaths } = useLibraryStore()
   const { vizFullscreen, setVizFullscreen } = usePlayerStore()
+  const swipeOpen = useSwipeStore((s) => s.tagId !== null)
   const [dragActive, setDragActive] = useState(false)
   const [utilityMode, setUtilityMode] = useState<UtilityMode | null>(null)
   const [utilityFullscreen, setUtilityFullscreen] = useState(false)
@@ -273,6 +276,8 @@ export default function App() {
           onFullscreenChange={handleArcadeFullscreen}
         />
       )}
+
+      {swipeOpen && <SwipeCard />}
 
       {utilityMode && (
         <UtilityOverlay

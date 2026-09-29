@@ -24,6 +24,8 @@ interface LibraryState {
   rightPanelOpen: boolean
   panelMode: 'metadata' | 'queue' | 'downloader'
   driveBytes: number
+  /** Bumped when a single tag membership changes outside TagPanel (swipe mode), so tag views refetch. */
+  tagEpoch: number
 
   load: () => Promise<void>
   refreshTrack: (path: string) => Promise<void>
@@ -35,6 +37,7 @@ interface LibraryState {
   addFolderByPath: (path: string) => Promise<void>
   addPaths: (paths: string[]) => Promise<void>
   clearReveal: () => void
+  bumpTagEpoch: () => void
   removeFolder: (path: string, keepTracks: boolean) => Promise<void>
   removeTrackFromLibrary: (id: number) => Promise<void>
   deleteTrack: (id: number) => Promise<void>
@@ -62,6 +65,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   rightPanelOpen: false,
   panelMode: 'metadata' as 'metadata' | 'queue' | 'downloader',
   driveBytes: 0,
+  tagEpoch: 0,
 
   load: async () => {
     set({ loading: true, error: null })
@@ -178,6 +182,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   clearReveal: () => set({ revealTrackId: null }),
+  bumpTagEpoch: () => set((s) => ({ tagEpoch: s.tagEpoch + 1 })),
 
   removeFolder: async (path: string, keepTracks: boolean) => {
     try {

@@ -13,6 +13,10 @@ import {
   getTrackTags,
   setTrackTags,
   getTracksForTag,
+  getSwipeState,
+  addTrackToTag,
+  skipTrackForTag,
+  clearTagSkips,
   listPlaylists,
   createPlaylist,
   deletePlaylist,
@@ -276,6 +280,10 @@ app.whenReady().then(() => {
     setTrackTags(trackId, tagIds)
   )
   ipcMain.handle('tag:getTracksForTag', (_, tagId: number) => getTracksForTag(tagId))
+  ipcMain.handle('tag:getSwipeState', (_, tagId: number) => getSwipeState(tagId))
+  ipcMain.handle('tag:addTrack', (_, tagId: number, trackId: number) => addTrackToTag(tagId, trackId))
+  ipcMain.handle('tag:skipTrack', (_, tagId: number, trackId: number) => skipTrackForTag(tagId, trackId))
+  ipcMain.handle('tag:clearSkips', (_, tagId: number) => clearTagSkips(tagId))
 
   // Playlists
   ipcMain.handle('playlist:list', () => listPlaylists())

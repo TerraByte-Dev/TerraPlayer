@@ -25,6 +25,10 @@ contextBridge.exposeInMainWorld('hub', {
   setTrackTags: (trackId: number, tagIds: number[]) =>
     ipcRenderer.invoke('tag:setForTrack', trackId, tagIds),
   getTracksForTag: (tagId: number) => ipcRenderer.invoke('tag:getTracksForTag', tagId),
+  getSwipeState: (tagId: number) => ipcRenderer.invoke('tag:getSwipeState', tagId),
+  addTrackToTag: (tagId: number, trackId: number) => ipcRenderer.invoke('tag:addTrack', tagId, trackId),
+  skipTrackForTag: (tagId: number, trackId: number) => ipcRenderer.invoke('tag:skipTrack', tagId, trackId),
+  clearTagSkips: (tagId: number) => ipcRenderer.invoke('tag:clearSkips', tagId),
   listPlaylists: () => ipcRenderer.invoke('playlist:list'),
   createPlaylist: (name: string) => ipcRenderer.invoke('playlist:create', name),
   deletePlaylist: (playlistId: number) => ipcRenderer.invoke('playlist:delete', playlistId),

@@ -103,6 +103,15 @@ function migrate(db: Database.Database): void {
       path     TEXT    NOT NULL UNIQUE,
       added_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
     );
+
+    -- Swipe mode's remembered "no" for a tag. "Yes" needs no table: it is a track_tags row.
+    CREATE TABLE IF NOT EXISTS tag_skips (
+      tag_id   INTEGER NOT NULL REFERENCES tags(id)   ON DELETE CASCADE,
+      track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+      PRIMARY KEY (tag_id, track_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tag_skips_track ON tag_skips(track_id);
   `)
 
   try {
