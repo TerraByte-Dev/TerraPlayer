@@ -15,6 +15,7 @@ function SwipeCard() {
   const skipped = useSwipeStore((s) => s.skipped)
   const nothingLeftFor = useSwipeStore((s) => s.nothingLeftFor)
   const error = useSwipeStore((s) => s.error)
+  const openNonce = useSwipeStore((s) => s.openNonce)
   const { decide, close, resetSkips } = useSwipeStore.getState()
   // currentTrack() returns the Track object held in the queue, so this only changes with the song.
   const track = usePlayerStore((s) => s.currentTrack())
@@ -23,7 +24,8 @@ function SwipeCard() {
   const cardRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ pointerId: number; x0: number; trackId: number } | null>(null)
 
-  useEffect(() => { cardRef.current?.focus() }, [tagId])
+  // Every open, including a re-open of the tag already showing, takes the keys back.
+  useEffect(() => { cardRef.current?.focus() }, [openNonce])
 
   // The tag was deleted (from the sidebar or anywhere else): nothing left to fill.
   useEffect(() => { if (!tag) close() }, [tag, close])
@@ -43,6 +45,8 @@ function SwipeCard() {
     // Keep ←/→/Esc from reaching PlayerBar's window listener (seek) while the card holds the keys.
     e.preventDefault()
     e.stopPropagation()
+    // Holding ← would otherwise pass on a run of songs nobody heard, each remembered until Reset.
+    if (e.repeat) return
     if (verdict) judge(verdict)
     else close()
   }
@@ -177,7 +181,8 @@ function SwipeCard() {
       <footer className="flex items-center gap-2 px-2.5 pb-2.5">
         <button
           onMouseDown={keepFocus}
-          onClick={() => judge('no')}
+          // The 2nd click of a double-click would land on the song X just advanced to.
+          onClick={(e) => { if (e.detail <= 1) judge('no') }}
           disabled={disabled}
           title="Pass (←) — jump to the next song you haven't judged"
           className="metal-key h-8 w-10 flex-shrink-0 justify-center"

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useLibraryStore } from '@/store/library'
+import { useSwipeStore } from '@/store/swipe'
 import { hub } from '@/lib/ipc'
 import type { Tag, TagKind } from '@/lib/ipc'
 
@@ -44,6 +45,7 @@ export default function TagPanel() {
     }
     setSaving(true)
     await hub.setTrackTags(track.id, next)
+    useSwipeStore.getState().syncTrack(track.id, next)
     const updated = await hub.getTrackTags(track.id)
     setTrackTags(updated)
     setSaving(false)

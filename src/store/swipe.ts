@@ -14,19 +14,24 @@ interface SwipeState {
   /** The song a "no" was said to when nothing undecided was left ahead of it. */
   nothingLeftFor: number | null
   error: string | null
+  /** Bumped on every open (close() leaves it), so re-opening an already-open card takes the keys back. */
+  openNonce: number
   open: (tagId: number) => Promise<void>
   close: () => void
   decide: (verdict: SwipeVerdict, trackId: number) => Promise<void>
   resetSkips: () => Promise<void>
+  /** Keep `tagged` in step when a song's tags change outside the card (TagPanel). In-memory only. */
+  syncTrack: (trackId: number, tagIds: number[]) => void
 }
 
 const EMPTY = { tagId: null, tagged: new Set<number>(), skipped: new Set<number>(), nothingLeftFor: null, error: null }
 
 export const useSwipeStore = create<SwipeState>((set, get) => ({
   ...EMPTY,
+  openNonce: 0,
 
   open: async (tagId) => {
-    set({ ...EMPTY, tagId })
+    set((s) => ({ ...EMPTY, tagId, openNonce: s.openNonce + 1 }))
     try {
       const { taggedIds, skippedIds } = await hub.getSwipeState(tagId)
       // Switched to another tag (or closed) while this was loading.
@@ -68,7 +73,8 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
       return
     }
 
-    // Advance only if that song is still the one playing — this also makes a double-click harmless.
+    // Advance only if that song is still the one playing. This only covers a repeat that lands before
+    // the advance renders; double-clicks and key auto-repeat are dropped at the input layer (SwipeCard).
     const player = usePlayerStore.getState()
     if (player.currentTrack()?.id !== trackId) return
     const { tagged, skipped } = get()
@@ -96,5 +102,16 @@ export const useSwipeStore = create<SwipeState>((set, get) => ({
     } catch (e) {
       set({ error: e instanceof Error ? e.message : String(e) })
     }
+  },
+
+  syncTrack: (trackId, tagIds) => {
+    const { tagId, tagged } = get()
+    if (tagId === null) return
+    const has = tagIds.includes(tagId)
+    if (has === tagged.has(trackId)) return
+    const next = new Set(tagged)
+    if (has) next.add(trackId)
+    else next.delete(trackId)
+    set({ tagged: next })
   },
 }))
