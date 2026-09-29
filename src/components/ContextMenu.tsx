@@ -96,7 +96,7 @@ export default function ContextMenu() {
                 {item.icon}
               </span>
             )}
-            {item.label}
+            <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
             {item.badge && (
               <span
                 className="ml-auto px-1 font-mono text-[9px] tracking-[1px] leading-[14px] flex-shrink-0"

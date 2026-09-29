@@ -70,7 +70,8 @@ export default function TagPanel() {
               key={tag.id}
               onClick={() => toggleTag(tag)}
               disabled={saving}
-              className={`px-2.5 py-1 font-term text-[12px] transition-colors ${active ? 'phosphor-glow' : ''}`}
+              title={`#${tag.name}`}
+              className={`px-2.5 py-1 font-term text-[12px] transition-colors max-w-full overflow-clip [overflow-clip-margin:12px] text-ellipsis whitespace-nowrap ${active ? 'phosphor-glow' : ''}`}
               style={{
                 background: active ? 'rgb(var(--accent-rgb) / 0.15)' : 'transparent',
                 border: active ? '1px solid rgb(var(--accent-rgb) / 0.55)' : '1px solid rgb(var(--accent-rgb) / 0.20)',

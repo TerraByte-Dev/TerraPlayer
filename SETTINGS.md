@@ -6,7 +6,7 @@ preference applies live and is remembered across restarts.
 
 ```
 ┌──────────────── Settings ────────────────────────────────┐
-│ APPEARANCE │  theme picker · scanlines · reduce motion    │
+│ APPEARANCE │  theme · scanlines · reduce motion · UI size │
 │ AUDIO      │  10-band EQ + presets · pre-amp · mono       │
 │ PLAYBACK   │  volume · shuffle · repeat (all remembered)  │
 │ LIBRARY    │  stats · add / remove / rescan folders       │
@@ -62,13 +62,23 @@ Two app-wide toggles ride alongside the palette, both classes on `<html>`:
 - **Scanlines & glow** (`crt-off`) — the CRT scanline + vignette + PlayerBar overlay.
 - **Reduce motion** (`reduce-motion`) — disables blinks, pulses, and transitions.
 
+**UI size** is a preset (100 / 115 / 130 / 150%, `UI_SCALES` in `theme.ts`) applied as Chromium page
+zoom on the main window, not a root font-size: text is sized in px and boxes in rem, so only zoom
+scales both evenly, and JS layout math keeps seeing consistent CSS px. Main also scales the native
+caption-button height and the minimum window size to match. Nothing goes below 100%, because the title
+bar's 140px gutter would slide under the native buttons. The preload sets it with
+`webFrame.setZoomFactor`, which Chromium keeps per window (not per origin), so the popout visualizer
+stays at 100%.
+
 ## Persistence
 
-Everything is renderer-side and instant — no IPC round-trip.
+Everything is renderer-side and instant. The one IPC call is UI size, which also tells main to resize
+the native caption buttons and the minimum window size.
 
 | What | Where | Applied |
 |---|---|---|
 | theme, scanlines, reduce-motion | `localStorage` (`tplay-theme`, `tplay-crt-off`, `tplay-reduce-motion`) | `bootDisplayPreferences()` in `main.tsx`, **before first paint** (no flash) |
+| UI size | `localStorage` `tplay-ui-scale` (the preset id) | `bootUiScale()` in `main.tsx` (main window only), **before first paint**: the preload sets the zoom synchronously, then tells main |
 | volume, EQ, shuffle, repeat | `localStorage` `tplay-player` (zustand `persist`, partialized — transient queue/playback state is **not** saved) | player store |
 | pre-amp, mono | `localStorage` `tplay-settings` (zustand `persist`) | a PlayerBar effect feeds the audio graph |
 

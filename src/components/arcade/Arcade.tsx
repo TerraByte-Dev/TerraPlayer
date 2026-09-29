@@ -369,10 +369,10 @@ function Deck({ settingsOpen, onToggleSettings }: { settingsOpen: boolean; onTog
       <button onClick={next} title="Next" className="metal-key h-7 w-7 flex-shrink-0 justify-center"><SkipForward size={12} /></button>
 
       <div className="min-w-0 flex-1 px-1">
-        <p className="font-term truncate text-[11px] leading-tight" style={{ color: 'rgb(var(--ink-rgb) / 0.70)' }}>
+        <p className="font-term truncate text-[11px] leading-tight" style={{ color: 'rgb(var(--ink-rgb) / 0.70)' }} title={track?.title || undefined}>
           {track?.title || 'nothing playing'}
         </p>
-        <p className="font-term truncate text-[10px] leading-tight" style={{ color: 'rgb(var(--ink-rgb) / 0.32)' }}>
+        <p className="font-term truncate text-[10px] leading-tight" style={{ color: 'rgb(var(--ink-rgb) / 0.32)' }} title={track?.artist || undefined}>
           {track ? `${track.artist || '—'} · ${fmtDuration(currentTime)} / ${fmtDuration(duration)}` : '—'}
         </p>
       </div>

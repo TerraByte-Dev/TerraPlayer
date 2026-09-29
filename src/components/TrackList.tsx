@@ -71,8 +71,13 @@ export default function TrackList() {
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportH, setViewportH] = useState(600)
 
+  // Also on window resize: a UI size (zoom) change alters the list's height in CSS px, and waiting for the
+  // next scroll would leave blank rows below the rendered window.
   useLayoutEffect(() => {
-    if (scrollRef.current) setViewportH(scrollRef.current.clientHeight)
+    const measure = () => { if (scrollRef.current) setViewportH(scrollRef.current.clientHeight) }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
   }, [])
 
   useEffect(() => {
@@ -422,7 +427,7 @@ export default function TrackList() {
           <div className="font-term text-[11px]" style={{ color: 'var(--accent2)' }}>
             library /
           </div>
-          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none" style={{ color: 'var(--accent)' }}>
+          <div className="font-lcd text-[20px] tracking-[2px] phosphor-glow leading-none overflow-clip [overflow-clip-margin:12px] text-ellipsis whitespace-nowrap" style={{ color: 'var(--accent)' }} title={viewTitle}>
             {viewTitle}
           </div>
           <div className="font-term text-[11px] mt-1" style={{ color: 'var(--accent-deep)' }}>
@@ -560,22 +565,23 @@ export default function TrackList() {
               <span
                 className={`font-term text-[14px] truncate px-2 ${isCurrentTrack ? 'phosphor-glow' : ''}`}
                 style={{ color: isCurrentTrack ? 'var(--accent)' : 'var(--ink)' }}
+                title={track.title || undefined}
               >
                 {isCurrentTrack ? `▶ ${track.title || '—'}` : (track.title || '—')}
               </span>
 
               {/* Artist */}
-              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }} title={track.artist || undefined}>
                 {track.artist || '—'}
               </span>
 
               {/* Album */}
-              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }}>
+              <span className="font-term text-[14px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.55)' }} title={track.album || undefined}>
                 {track.album || '—'}
               </span>
 
               {/* Path */}
-              <span className="font-term text-[12px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }}>
+              <span className="font-term text-[12px] truncate" style={{ color: 'rgb(var(--ink-rgb) / 0.30)' }} title={`./${track.playlist || ''}`}>
                 ./{track.playlist || ''}
               </span>
 

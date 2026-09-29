@@ -422,7 +422,7 @@ function RowView({ row, downloading }: { row: PreviewRow; downloading: boolean }
                 ) : (
                   <ConfidenceBadge c={row.confidence} explicit={row.explicit} />
                 )}
-                <span className="font-term text-[14px] truncate" style={{ color: resolved ? '#cfeede' : INK_FAINT }}>
+                <span className="font-term text-[14px] truncate" style={{ color: resolved ? '#cfeede' : INK_FAINT }} title={resolved ? `${row.channel ?? ''} · ${row.title ?? ''}` : undefined}>
                   {resolved ? `${row.channel ?? ''} · ${row.title ?? ''}` : failed ? `✗ ${row.reason ?? 'no match'}` : '…'}
                 </span>
               </div>
